@@ -1917,10 +1917,16 @@ function showPpurioPopup(title, name, phone, tplCode, vars, previewMsg){
     } catch(e){
       // CORS 오류 시 Vercel API Route로 재시도
       try{
+        // 뿌리오 API: templateCode, to, variables 형식으로 변환
+        const ppBody={
+          templateCode: body.messages[0] ? tplCode : tplCode,
+          to: phone,
+          variables: vars
+        };
         const proxyRes=await fetch('/api/send',{
           method:'POST',
           headers:{'Content-Type':'application/json'},
-          body:JSON.stringify(body)
+          body:JSON.stringify(ppBody)
         });
         if(proxyRes.ok){
           msg.textContent='✓ 발송 완료!';msg.style.color='#00897B';

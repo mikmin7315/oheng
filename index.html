@@ -516,6 +516,7 @@ const PPURIO_SENDER='01090080851';
 const PPURIO_TPL_ACCOUNT='ppur_2026040721152725806270747';
 const PPURIO_TPL_SCORE='ppur_2026040721212325806773440';
 const PPURIO_CHANNEL='@오은실영어랩';
+const APP_URL='https://oheng.vercel.app';
 let DB={schools:INIT_SCHOOLS.map(s=>({...s,students:[...s.students],records:[...s.records],notices:{...s.notices}}))};
 let ST={loggedIn:false,role:null,user:null,userSchool:null,school:null,
   tab:'report',atab:'records',lmode:'student',
@@ -1876,7 +1877,13 @@ function showPpurioPopup(title, name, phone, tplCode, vars, previewMsg){
         templateCode: tplCode,
         messages: [{
           to: phone,
-          variables: vars
+          variables: vars,
+          buttons: [{
+            buttonType: 'WL',
+            buttonName: '성적표 보기',
+            linkMo: APP_URL,
+            linkPc: APP_URL
+          }]
         }]
       };
 

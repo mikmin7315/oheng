@@ -1,0 +1,2332 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OHENG 성적 관리</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg1:#fff;--bg2:#f5f5f5;--tx1:#1a1a1a;--tx2:#666;--bd1:#ddd;--bd2:#eee;}
+@media(prefers-color-scheme:dark){:root{--bg1:#1e1e1e;--bg2:#2a2a2a;--tx1:#f0f0f0;--tx2:#aaa;--bd1:#444;--bd2:#333;}}
+body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg-base,#F7F8FA);color:var(--tx-primary,#0D1117);min-height:100vh}
+.app{min-height:100vh;background:var(--bg1,#ffffff);color:var(--tx1,#1a1a1a)}
+.top-nav{display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:58px;background:#1A237E;color:#fff;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(26,35,126,0.25)}
+.nav-logo{font-size:16px;font-weight:500}.nav-logo span{color:#ffb300}
+.nav-right{display:flex;align-items:center;gap:8px}
+.nbtn{padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;border:0.5px solid rgba(255,255,255,.3);background:rgba(255,255,255,.12);color:#fff}
+.nbtn:hover{background:rgba(255,255,255,.22)}
+.nbtn-red{background:rgba(198,40,40,.5)!important}
+.nbtn-school{background:rgba(255,179,0,.2)!important;border-color:rgba(255,179,0,.5)!important}
+.tabs{display:flex;overflow-x:auto;background:#1E2B8E;padding:0 20px}
+.tabs::-webkit-scrollbar{height:3px}
+.tab{padding:12px 18px;font-size:13px;font-weight:500;cursor:pointer;color:rgba(255,255,255,.55);white-space:nowrap;border-bottom:3px solid transparent;flex-shrink:0;transition:all 0.15s;letter-spacing:-0.1px}
+.tab.active{color:#fff;border-bottom-color:#FFB300;font-weight:700}
+.school-wrap{display:flex;align-items:center;justify-content:center;min-height:85vh;padding:20px}
+.school-inner{width:100%;max-width:680px}
+.school-title{font-size:22px;font-weight:800;color:#1A237E;margin-bottom:6px;text-align:center;letter-spacing:-0.5px}
+.school-sub{font-size:13px;color:var(--tx2);text-align:center;margin-bottom:28px}
+.school-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:20px}
+.school-card{background:#fff;border:none;border-radius:16px;padding:22px 16px;cursor:pointer;text-align:center;box-shadow:0 2px 12px rgba(0,0,0,0.06);transition:all 0.18s}
+.school-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(26,35,126,0.15)}
+.school-card-name{font-size:15px;font-weight:700;color:#1A237E;margin-bottom:4px}
+.school-card-count{font-size:11px;color:#9BA3AF;font-weight:500}
+.school-add-btn{width:100%;padding:12px;border:1.5px dashed var(--bd1);border-radius:10px;background:transparent;cursor:pointer;font-size:13px;color:var(--tx2)}
+.school-add-btn:hover{background:var(--bg2)}
+.add-school-form{background:var(--bg2);border-radius:10px;padding:16px;margin-top:12px}
+.add-school-form input{width:100%;padding:9px 12px;border:0.5px solid var(--bd1);border-radius:7px;font-size:13px;background:var(--bg1);color:var(--tx1);margin-bottom:8px}
+.add-school-form input:focus{outline:none;border-color:#1a237e}
+.login-wrap{display:flex;align-items:center;justify-content:center;min-height:85vh;padding:20px}
+.login-card{background:var(--bg1);border:0.5px solid var(--bd2);border-radius:12px;padding:28px;width:100%;max-width:360px}
+.login-logo{font-size:28px;font-weight:500;color:#1a237e;text-align:center;margin-bottom:4px}.login-logo span{color:#e65100}
+.login-sub{font-size:13px;color:var(--tx2);text-align:center;margin-bottom:18px}
+.login-segs{display:flex;background:var(--bg2);border-radius:8px;padding:3px;margin-bottom:16px}
+.login-seg{flex:1;text-align:center;padding:7px;font-size:13px;border-radius:6px;cursor:pointer;color:var(--tx2)}
+.login-seg.active{background:var(--bg1);color:#1a237e;font-weight:500}
+.inp{width:100%;padding:10px 12px;border:0.5px solid var(--bd1);border-radius:8px;font-size:14px;background:var(--bg1);color:var(--tx1);margin-bottom:10px}
+.inp:focus{outline:none;border-color:#1a237e}
+.lbl{font-size:12px;color:var(--tx2);margin-bottom:4px;display:block}
+.err{font-size:12px;color:#c62828;text-align:center;margin-bottom:8px}
+.btn-login{width:100%;padding:11px;background:#1a237e;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer}
+.btn-login:hover{background:#283593}
+.s-content{padding:14px 16px;background:#F7F8FA;min-height:calc(100vh - 108px)}
+.rpt-hdr{background:#1a237e;border-radius:10px;padding:14px 16px;margin-bottom:12px;color:#fff}
+.rpt-top{display:flex;justify-content:space-between;align-items:flex-start}
+.rpt-title{font-size:15px;font-weight:500}.rpt-sub{font-size:11px;opacity:.8;margin-top:2px}
+.rpt-name{font-size:15px;font-weight:500;text-align:right}.rpt-namelbl{font-size:11px;opacity:.7}
+.wk-row{display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.wk-sel{padding:5px 8px;border:0.5px solid var(--bd1);border-radius:6px;font-size:12px;background:var(--bg1);color:var(--tx1)}
+.sg{background:#fff;border-radius:14px;padding:14px;margin-bottom:10px;box-shadow:0 2px 8px rgba(0,0,0,0.05)}
+.sg-title{font-size:10px;font-weight:500;color:var(--tx2);margin-bottom:8px;letter-spacing:.5px}
+.sg3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.sg4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.sc{background:#F7F8FA;border:none;border-radius:10px;padding:12px 8px;text-align:center}
+.sc-lbl{font-size:10px;font-weight:600;color:#9BA3AF;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.3px}
+.sc-val{font-size:20px;font-weight:800;color:#1A237E}
+.sc-unit{font-size:10px;color:var(--tx2)}.sc-sub{font-size:10px;color:var(--tx2);margin-top:2px}
+.bp{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px}
+.bp-y{background:#E0F2F1;color:#00695C;font-weight:700}.bp-n{background:#FFEBEE;color:#C62828;font-weight:700}.bp-s{background:#F1F3F5;color:#9BA3AF}
+.skip-box{background:#fff8e1;border:0.5px solid #ffe082;border-radius:8px;padding:8px;font-size:12px;color:#5d4037;text-align:center}
+.notice-box{background:#FFF8E1;border-left:4px solid #FFB300;border-radius:0 12px 12px 0;padding:14px 16px;margin-bottom:12px;font-size:13px;color:#5C6470;line-height:1.7}
+.notice-box strong{color:#e65100;display:block;margin-bottom:4px}
+.card{background:#fff;border:none;border-radius:16px;padding:16px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06)}
+.score-note{font-size:10px;color:var(--tx2);background:var(--bg2);border-radius:4px;padding:2px 6px;margin-top:3px;display:inline-block}
+.hist-card{background:#fff;border:none;border-radius:14px;padding:14px;margin-bottom:10px;box-shadow:0 2px 8px rgba(0,0,0,0.06)}
+.hist-card-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.hist-week{font-size:13px;font-weight:500}
+.hist-hw{font-size:11px;padding:2px 8px;border-radius:20px;background:#e8f5e9;color:#1b5e20}
+.hist-hw-n{background:#ffebee;color:#b71c1c}
+.leg-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--tx2)}
+.leg-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.leg-dash{width:18px;height:0;border-top:2px dashed currentColor;flex-shrink:0}
+.pw-box{background:#fff;border-radius:14px;padding:20px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06)}
+.a-wrap{display:flex;height:calc(100vh - 58px)}
+.a-sidebar{width:220px;flex-shrink:0;background:#fff;border-right:1px solid #F0F2F5;padding:20px 14px;overflow-y:auto;box-shadow:2px 0 8px rgba(0,0,0,0.04)}
+.a-sidebar-school{font-size:12px;font-weight:700;color:#1A237E;padding:10px 12px;background:#EEF0FB;border-radius:10px;margin-bottom:16px;line-height:1.5}
+.a-sidebar-title{font-size:10px;font-weight:700;color:#9BA3AF;margin-bottom:8px;letter-spacing:1px;text-transform:uppercase;padding:0 4px}
+.a-menu{display:flex;flex-direction:column;gap:2px;margin-bottom:16px}
+.a-menu-item{padding:10px 12px;border-radius:10px;font-size:13px;font-weight:500;cursor:pointer;color:#5C6470;transition:all 0.15s;display:flex;align-items:center;gap:8px}
+.a-menu-item:hover{background:#F7F8FA;color:#1A237E}
+.a-menu-item.active{background:#EEF0FB;color:#1A237E;font-weight:700}
+.a-main{flex:1;overflow-y:auto;padding:24px 28px;background:#F7F8FA}
+.a-main-title{font-size:20px;font-weight:800;color:#0D1117;margin-bottom:4px;letter-spacing:-0.5px}
+.a-main-sub{font-size:12px;color:#9BA3AF;margin-bottom:20px;font-weight:500}
+.thr-box{background:#FFF8E1;border:1.5px solid #FFE082;border-radius:14px;padding:16px 18px;margin-bottom:16px;box-shadow:0 2px 8px rgba(255,179,0,0.1)}
+.thr-box-title{font-size:13px;font-weight:700;color:#E65100;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.thr-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.thr-item label{font-size:11px;color:#BF360C;display:block;margin-bottom:5px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px}
+.thr-item input{width:100%;padding:9px 12px;border:1.5px solid #FFB74D;border-radius:8px;font-size:14px;background:#fff;color:#BF360C;font-weight:700;font-family:inherit;outline:none;transition:border-color 0.15s}
+.thr-item input:focus{outline:none;border-color:#e65100}
+.avg-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;padding:12px 16px;background:#F0FDF9;border:1.5px solid #A7F3D0;border-radius:12px}
+.avg-row .s-item label{font-size:10px;color:#047857;display:block;margin-bottom:5px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px}
+.avg-row input{width:100%;padding:7px 10px;border:1.5px solid #6EE7B7;border-radius:8px;font-size:13px;background:#fff;color:#047857;font-weight:700;font-family:inherit;outline:none}
+.bulk-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.bulk-toolbar select{padding:7px 10px;border:0.5px solid var(--bd1);border-radius:7px;font-size:13px;background:var(--bg1);color:var(--tx1)}
+.bulk-toolbar label{font-size:13px;color:var(--tx2)}
+.abtn{padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid #E8ECF0;background:#fff;color:#5C6470;transition:all 0.15s;font-family:inherit}
+.abtn:hover{background:#F7F8FA;border-color:#C4C9D4}
+.abtn-blue{background:#1A237E;color:#fff;border-color:#1A237E;box-shadow:0 2px 8px rgba(26,35,126,0.2)}.abtn-blue:hover{background:#121858;box-shadow:0 4px 12px rgba(26,35,126,0.3)}
+.abtn-green{background:#00897B;color:#fff;border-color:#00897B;box-shadow:0 2px 8px rgba(0,137,123,0.2)}.abtn-green:hover{background:#00695C;box-shadow:0 4px 12px rgba(0,137,123,0.3)}
+.abtn-gray{background:#F7F8FA;color:#9BA3AF;border-color:#E8ECF0}.abtn-gray:hover{background:#F0F2F5}
+.abtn-red{background:#fff;color:#E53935;border-color:#FFCDD2;font-size:11px;padding:5px 10px;font-weight:700}.abtn-red:hover{background:#FFEBEE;border-color:#E53935}
+.skip-group{display:flex;align-items:center;gap:8px;padding:10px 14px;background:#F7F8FA;border-radius:10px;flex-wrap:wrap;margin-bottom:14px;border:1px solid #F0F2F5}
+.skip-lbl{font-size:12px;font-weight:700;color:#5C6470;margin-right:2px}
+/* ★ 핵심 수정: td에 position:relative, input에 z-index:1 */
+.btbl-wrap{overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 460px);border:0.5px solid var(--bd2);border-radius:8px}
+.btbl{border-collapse:collapse;font-size:12px;width:100%;min-width:960px}
+.btbl th{background:#1a237e;color:#fff;padding:8px 5px;text-align:center;font-size:11px;white-space:nowrap;position:sticky;top:0;z-index:2;font-weight:500}
+.btbl th.sn{position:sticky;left:0;z-index:3;background:#283593;min-width:78px}
+.btbl td{padding:8px 4px;border-bottom:1px solid #F7F8FA;text-align:center;vertical-align:middle;position:relative}
+.btbl tr:nth-child(even) td{background:#FAFBFF}
+.btbl tr:hover td{background:#EEF0FB!important}
+.btbl td.sn{font-size:12px;font-weight:700;text-align:left;padding-left:12px;background:#F7F8FA!important;position:sticky;left:0;z-index:1;white-space:nowrap;color:#1A237E}
+/* 직접 입력칸 — z-index:1 (hover 레이어 위로) */
+.ci{position:relative;z-index:1;width:100%;padding:7px 4px;border:1.5px solid #C7D2FE;border-radius:7px;font-size:12px;background:#fff;color:#1A237E;text-align:center;min-width:46px;cursor:text;pointer-events:auto;transition:all 0.15s;font-family:inherit;font-weight:500}
+.ci:focus{outline:none;border-color:#1a237e;box-shadow:0 0 0 2px #1a237e33;background:#e3f2fd}
+.ci:disabled{background:#F7F8FA!important;color:#C4C9D4!important;pointer-events:none!important;cursor:default;z-index:0;border-color:#F0F2F5!important}
+/* 자동계산칸 — 초록 배경 */
+.ci-auto{position:relative;z-index:1;width:100%;padding:7px 4px;border:1.5px solid #A7F3D0;border-radius:7px;font-size:11px;background:#F0FDF9;color:#047857;text-align:center;min-width:38px;cursor:default;font-weight:700;pointer-events:none}
+.cs{position:relative;z-index:1;width:100%;padding:6px 4px;border:1.5px solid #C7D2FE;border-radius:7px;font-size:11px;background:#fff;color:#1A237E;min-width:58px;font-family:inherit;font-weight:500}
+.cp{font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;white-space:nowrap}
+.cp-y{background:#E0F7F4;color:#00695C}.cp-n{background:#FFEBEE;color:#C62828}.cp-s{background:#F1F3F5;color:#9BA3AF}
+.th-input{background:#1A237E!important}.th-input2{background:#283593!important}
+.th-auto{background:#047857!important}.th-auto2{background:#065F46!important}
+.th-hw2{background:#78350F!important}
+.rec-tbl{width:100%;border-collapse:collapse;font-size:12px;font-family:inherit}
+.rec-tbl th{background:#F7F8FA;padding:10px 12px;text-align:left;font-weight:700;font-size:11px;color:#9BA3AF;border-bottom:1px solid #F0F2F5;white-space:nowrap;letter-spacing:0.3px;text-transform:uppercase}
+.rec-tbl td{padding:10px 12px;border-bottom:1px solid #F7F8FA;white-space:nowrap;color:#0D1117}
+.rec-tbl tr:hover td{background:#F7F8FA}
+.tag{padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600}
+.tg-y{background:#E0F7F4;color:#00695C}.tg-n{background:#FFEBEE;color:#C62828}.tg-s{background:#F1F3F5;color:#9BA3AF}
+.form2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.finp{width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:13px;background:#fff;color:#0D1117;font-family:inherit;outline:none;transition:all 0.15s}
+.finp:focus{border-color:#1A237E;box-shadow:0 0 0 3px rgba(26,35,126,0.08)}
+.flbl{font-size:11px;color:#9BA3AF;margin-bottom:6px;display:block;font-weight:700;text-transform:uppercase;letter-spacing:0.4px}
+.fgrp{margin-bottom:12px}
+.section-card{background:#fff;border:none;border-radius:16px;padding:22px;margin-bottom:16px;box-shadow:0 2px 10px rgba(0,0,0,0.06)}
+.section-ttl{font-size:14px;font-weight:700;color:#0D1117;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #F0F2F5;letter-spacing:-0.2px}
+@media print{.top-nav,.tabs,.no-print{display:none!important}.s-content{padding:0}.rpt-hdr{background:#1a237e!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+@media(max-width:500px){.sg4{grid-template-columns:repeat(2,1fr)}.s-content{padding:8px}}
+
+/* ── 로그인 화면 ── */
+.login-page {
+  display: flex;
+  min-height: 100vh;
+  background: #0D1117;
+}
+.login-left {
+  flex: 1;
+  position: relative;
+  background: linear-gradient(150deg, #EEF2FF 0%, #E8F0FE 40%, #FFF8E1 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+  min-height: 100vh;
+}
+.login-left-bg {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 20% 10%, rgba(26,35,126,0.07) 0%, transparent 55%),
+              radial-gradient(ellipse at 80% 90%, rgba(255,179,0,0.10) 0%, transparent 50%);
+}
+.login-left-dots {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(26,35,126,0.06) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+.login-teacher-img {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 85%;
+  max-width: 420px;
+  object-fit: contain;
+  object-position: bottom;
+  mix-blend-mode: multiply;
+  filter: drop-shadow(0 8px 24px rgba(26,35,126,0.12));
+}
+.login-left-text {
+  position: relative;
+  z-index: 2;
+  padding: 40px 44px;
+  background: linear-gradient(to top, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0) 100%);
+}
+.login-left-text h2 {
+  font-size: 26px;
+  font-weight: 700;
+  color: #1A237E;
+  line-height: 1.35;
+  margin-bottom: 10px;
+  letter-spacing: -0.5px;
+}
+.login-left-text h2 em {
+  color: #E65100;
+  font-style: normal;
+}
+.login-left-text p {
+  font-size: 14px;
+  color: #5C6470;
+  font-weight: 400;
+  line-height: 1.7;
+}
+.login-left-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(26,35,126,0.07);
+  border: 1px solid rgba(26,35,126,0.15);
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-size: 12px;
+  color: #1A237E;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+/* 오른쪽 로그인 폼 */
+.login-right {
+  width: 460px;
+  flex-shrink: 0;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 48px 44px;
+  position: relative;
+}
+@media (prefers-color-scheme: dark) {
+  .login-right { background: #161B22; }
+}
+.login-right-logo {
+  margin-bottom: 36px;
+}
+.login-right-logo img {
+  height: 36px;
+  object-fit: contain;
+}
+.login-right h3 {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--tx-primary);
+  margin-bottom: 6px;
+  letter-spacing: -0.4px;
+}
+.login-right-sub {
+  font-size: 13px;
+  color: var(--tx-secondary);
+  margin-bottom: 28px;
+}
+.login-tabs {
+  display: flex;
+  background: var(--bg-base);
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 24px;
+  gap: 4px;
+}
+.login-tab {
+  flex: 1;
+  text-align: center;
+  padding: 9px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--tx-secondary);
+  transition: all 0.18s;
+  font-family: var(--font);
+}
+.login-tab.active {
+  background: #fff;
+  color: var(--c-primary);
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+@media (prefers-color-scheme: dark) {
+  .login-tab.active { background: #1F2937; }
+}
+.login-field { margin-bottom: 14px; }
+.login-field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tx-secondary);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.login-field input {
+  width: 100%;
+  padding: 13px 16px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  font-size: 14px;
+  font-family: var(--font);
+  background: var(--bg-card);
+  color: var(--tx-primary);
+  transition: all 0.15s;
+  outline: none;
+}
+.login-field input:focus {
+  border-color: var(--c-primary);
+  box-shadow: 0 0 0 3px rgba(26,35,126,0.1);
+}
+.login-remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.login-remember input[type=checkbox] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--c-primary);
+  cursor: pointer;
+}
+.login-remember label {
+  font-size: 13px;
+  color: var(--tx-secondary);
+  cursor: pointer;
+}
+.login-err {
+  font-size: 12px;
+  color: var(--c-danger);
+  margin-bottom: 10px;
+  min-height: 18px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.login-btn {
+  width: 100%;
+  padding: 14px;
+  background: var(--c-primary);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: var(--font);
+  letter-spacing: -0.2px;
+  transition: all 0.18s;
+  position: relative;
+  overflow: hidden;
+}
+.login-btn:hover {
+  background: var(--c-primary-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(26,35,126,0.3);
+}
+.login-btn:active { transform: translateY(0); }
+.login-footer {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.login-footer-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--c-accent);
+}
+.login-footer-text {
+  font-size: 12px;
+  color: var(--tx-muted);
+  line-height: 1.5;
+}
+.login-footer-text strong {
+  color: var(--tx-secondary);
+  font-weight: 600;
+}
+@media (max-width: 768px) {
+  .login-page { flex-direction: column; }
+  .login-left { min-height: 240px; flex: none; }
+  .login-teacher-img { width: 55%; max-width: 220px; }
+  .login-left-text h2 { font-size: 20px; }
+  .login-right { width: 100%; padding: 32px 24px; }
+}
+
+/* ── 인쇄 최적화 ── */
+@media print {
+  .no-print, .top-nav, .tabs, .a-sidebar, .nav-right,
+  #btn-li, #btn-alo, #btn-alo-main, #btn-back-school,
+  select#wk-pick, .login-page { display:none !important; }
+  body { background:#fff !important; font-size:11pt; }
+  .s-content { padding:0 !important; }
+  .print-header { display:block !important; }
+  .card, .sg, .sc, .hist-card {
+    box-shadow:none !important;
+    border:0.5px solid #ddd !important;
+    break-inside:avoid;
+  }
+  canvas { max-width:100% !important; }
+  @page { margin:15mm 12mm; size:A4 portrait; }
+}
+.print-header { display:none; }
+
+.bulk-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.bulk-toolbar label{font-size:12px;font-weight:600;color:var(--tx2)}
+.bulk-toolbar select{padding:6px 10px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px;color:#1A237E;background:#fff;font-family:inherit;outline:none}
+.thr-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.thr-item label{font-size:11px;color:#BF360C;display:block;margin-bottom:5px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px}
+.thr-item input{width:100%;padding:9px 12px;border:1.5px solid #FFB74D;border-radius:8px;font-size:14px;background:#fff;color:#BF360C;font-weight:700;font-family:inherit;outline:none}
+.s-item{display:flex;flex-direction:column}
+.s-item label{font-size:11px;color:#047857;display:block;margin-bottom:5px;font-weight:700}
+.btbl-wrap{overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 220px);border-radius:10px;border:1px solid #F0F2F5;position:relative}
+.btbl{width:100%;border-collapse:collapse;font-size:12px}
+.btbl th{padding:9px 6px;text-align:center;font-weight:700;font-size:11px;white-space:nowrap;position:sticky;top:0;z-index:3;box-shadow:0 2px 4px rgba(0,0,0,0.2)}
+.th-input{background:#1A237E!important;color:#fff!important}
+.th-input2{background:#1565C0!important;color:#fff!important}
+.th-auto{background:#047857!important;color:#fff!important}
+.th-auto2{background:#047857!important;color:#fff!important}
+.th-hw2{background:#78350F!important;color:#fff!important}
+.btbl td.sn{font-size:12px;font-weight:700;text-align:left;padding-left:12px;background:#F7F8FA!important;position:sticky;left:0;z-index:1;white-space:nowrap;color:#1A237E}
+.form2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.form3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.fgrp{display:flex;flex-direction:column}
+
+.btbl thead{position:sticky;top:0;z-index:10}
+.btbl thead tr:first-child th{top:0}
+.btbl thead tr:nth-child(2) th{top:33px}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<script>
+const INIT_SCHOOLS=[
+  {id:'sch1',name:'고양국제고',grade:'1학년',
+   students:[
+    {id:'s001',name:'김가원',pwd:'1234',phone:'010-5717-4609',parentPhone:'010-9178-4609'},
+    {id:'s002',name:'김다온',pwd:'1234',phone:'010-9232-8239',parentPhone:'010-2670-8239'},
+    {id:'s003',name:'김담희',pwd:'1234',phone:'010-5347-0372',parentPhone:'010-9304-8174'},
+    {id:'s004',name:'김보윤',pwd:'1234',phone:'010-3396-7710',parentPhone:'010-7307-1077'},
+    {id:'s005',name:'김소윤',pwd:'1234',phone:'010-5497-0206',parentPhone:'010-8524-1109'},
+    {id:'s006',name:'김솔',pwd:'1234',phone:'010-8109-7528',parentPhone:'010-9511-7578'},
+    {id:'s007',name:'김주영',pwd:'1234',phone:'010-2545-7904',parentPhone:'010-5259-7904'},
+    {id:'s008',name:'김채은',pwd:'1234',phone:'010-2854-6311',parentPhone:'010-7499-6311'},
+    {id:'s009',name:'김현빈',pwd:'1234',phone:'010-7361-1123',parentPhone:'010-4064-5290'},
+    {id:'s010',name:'류지나',pwd:'1234',phone:'010-7739-0487',parentPhone:'010-9152-5955'},
+    {id:'s011',name:'문유빈',pwd:'1234',phone:'010-7332-6180',parentPhone:'010-5026-6180'},
+    {id:'s012',name:'박소이',pwd:'1234',phone:'010-2976-3956',parentPhone:'010-5418-5565'},
+    {id:'s013',name:'박예봄',pwd:'1234',phone:'010-5863-0220',parentPhone:'010-7683-0220'},
+    {id:'s014',name:'박준수',pwd:'1234',phone:'010-7774-7476',parentPhone:'010-5486-4888'},
+    {id:'s015',name:'배윤서',pwd:'1234',phone:'010-5801-6614',parentPhone:'010-9086-6614'},
+    {id:'s016',name:'배제일',pwd:'1234',phone:'010-5391-2837',parentPhone:'010-5322-2837'},
+    {id:'s017',name:'손예찬',pwd:'1234',phone:'010-5382-8575',parentPhone:'010-3011-8336'},
+    {id:'s018',name:'쯔카구치_린',pwd:'1234',phone:'010-9948-9616',parentPhone:'010-4233-9616'},
+    {id:'s019',name:'양서은',pwd:'1234',phone:'010-2431-4093',parentPhone:'010-3454-5639'},
+    {id:'s020',name:'오시은',pwd:'1234',phone:'010-3882-0196',parentPhone:'010-3704-0196'},
+    {id:'s021',name:'유서영',pwd:'1234',phone:'010-5226-5521',parentPhone:'010-9974-0306'},
+    {id:'s022',name:'이윤현',pwd:'1234',phone:'010-6302-3023',parentPhone:'010-7709-3023'},
+    {id:'s023',name:'이정민',pwd:'1234',phone:'010-8921-6205',parentPhone:'010-3227-0120'},
+    {id:'s024',name:'이준희',pwd:'1234',phone:'010-4171-4582',parentPhone:'010-2581-4582'},
+    {id:'s025',name:'이채형',pwd:'1234',phone:'010-2697-4491',parentPhone:'010-3219-4491'},
+    {id:'s026',name:'이하린',pwd:'1234',phone:'010-9814-1682',parentPhone:'010-8640-1682'},
+    {id:'s027',name:'임지유',pwd:'1234',phone:'010-9256-2405',parentPhone:'010-9656-2405'},
+    {id:'s028',name:'전예승',pwd:'1234',phone:'010-2567-5256',parentPhone:'010-4008-5256'},
+    {id:'s029',name:'정가은',pwd:'1234',phone:'010-5897-8017',parentPhone:'010-9071-0829'},
+    {id:'s030',name:'정승희',pwd:'1234',phone:'010-3424-7412',parentPhone:'010-9349-3755'},
+    {id:'s031',name:'정은호',pwd:'1234',phone:'010-5308-2132',parentPhone:'010-5375-1218'},
+    {id:'s032',name:'정재희',pwd:'1234',phone:'010-7377-3242',parentPhone:'010-4705-3242'},
+    {id:'s033',name:'최주원',pwd:'1234',phone:'010-2478-5808',parentPhone:'010-8539-3455'},
+    {id:'s034',name:'한다은',pwd:'1234',phone:'010-3101-7285',parentPhone:'010-3110-7895'},
+    {id:'s035',name:'함다희',pwd:'1234',phone:'010-4317-2166',parentPhone:'010-9160-0126'},
+    {id:'s036',name:'홍성빈',pwd:'1234',phone:'010-9621-8829',parentPhone:'010-9177-8829'},
+    {id:'s037',name:'박지인',pwd:'1234',phone:'010-4699-3236',parentPhone:'010-4041-3226'},
+    {id:'s038',name:'이태경',pwd:'1234',phone:'010-9466-5874',parentPhone:'010-2581-5874'},
+    {id:'s039',name:'우윤서',pwd:'1234',phone:'010-2920-9352',parentPhone:'010-8545-9352'},
+    {id:'s040',name:'최지후',pwd:'1234',phone:'010-4461-8025',parentPhone:'010-7621-7832'},
+    {id:'s041',name:'김하영',pwd:'1234',phone:'010-4994-6172',parentPhone:'010-6230-6172'},
+    {id:'s042',name:'이서영',pwd:'1234',phone:'010-4010-5485',parentPhone:'010-4173-5495'},
+    {id:'s043',name:'하가현',pwd:'1234',phone:'010-4730-4494',parentPhone:'010-3335-0642'},
+    {id:'s044',name:'박태환',pwd:'1234',phone:'010-7329-1275',parentPhone:'010-3234-9965'},
+    {id:'s045',name:'하정후',pwd:'1234',phone:'010-4887-0426',parentPhone:'010-8631-0426'},
+    {id:'s046',name:'박하진',pwd:'1234',phone:'010-9982-4626',parentPhone:'010-4943-4626'},
+    {id:'s047',name:'강시현',pwd:'1234',phone:'010-4008-4820',parentPhone:'010-3137-2658'},
+    {id:'s048',name:'석수하',pwd:'1234',phone:'010-5926-9509',parentPhone:'010-7129-9509'},
+    {id:'s049',name:'이서정',pwd:'1234',phone:'010-4686-5585',parentPhone:'010-2931-5585'},
+    {id:'s050',name:'조예은',pwd:'1234',phone:'',parentPhone:''},
+    {id:'s051',name:'최승우',pwd:'1234',phone:'010-4830-8791',parentPhone:'010-3160-6570'},
+    {id:'s052',name:'정선우',pwd:'1234',phone:'010-4361-0682',parentPhone:'010-4779-0682'},
+    {id:'s053',name:'안시우',pwd:'1234',phone:'010-2970-3981',parentPhone:'010-9880-3981'},
+    {id:'s054',name:'조석영',pwd:'1234',phone:'',parentPhone:'010-4149-6993'},
+    {id:'s055',name:'이민서',pwd:'1234',phone:'010-7127-6763',parentPhone:'010-2009-6763'},
+   ],records:[],notices:{}}
+];
+
+const SKEY='oheng_v1';
+const MONTHS=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+const WEEKS=['1주','2주','3주','4주','5주','6주'];
+const HW=['완료','미완료','동영상','미제출','미제출(동영상)','신규'];
+let ADMIN_PWD='oheng2024';
+
+/* ── 뿌리오 API 설정 ── */
+const PPURIO_KEY='158351788fe73fbc1af3e42465165e3fc3bf9179753af092a41fe82a523a4cbc';
+const PPURIO_SENDER='01090080851';
+const PPURIO_TPL_ACCOUNT='ppur_2026040721152725806270747';
+const PPURIO_TPL_SCORE='ppur_2026040721212325806773440';
+const PPURIO_CHANNEL='@오은실영어랩';
+const APP_URL='https://oheng.vercel.app';
+let DB={schools:INIT_SCHOOLS.map(s=>({...s,students:[...s.students],records:[...s.records],notices:{...s.notices}}))};
+let ST={loggedIn:false,role:null,user:null,userSchool:null,school:null,
+  tab:'report',atab:'records',lmode:'student',
+  bMon:'2월',bWk:'1주',vMon:null,vWk:null,histTab:'wt',showAddSchool:false};
+
+function loadDB(){
+  try{
+    const d=localStorage.getItem(SKEY);
+    if(d){const p=JSON.parse(d);if(p&&p.schools&&p.schools.length){DB=p;if(p.adminPwd)ADMIN_PWD=p.adminPwd;}}
+  }catch(e){console.warn('loadDB 오류(무시):', e);}
+}
+function saveDB(){
+  try{localStorage.setItem(SKEY,JSON.stringify({...DB,adminPwd:ADMIN_PWD}));}
+  catch(e){console.warn('saveDB 오류(무시):', e);}
+}
+function resetDB(){localStorage.removeItem(SKEY);DB={schools:INIT_SCHOOLS.map(s=>({...s,students:[...s.students],records:[...s.records],notices:{...s.notices}}))};ADMIN_PWD='oheng2024';}
+
+function moI(m){return MONTHS.indexOf(m)}
+function wkI(w){return WEEKS.indexOf(w)}
+function curSch(){return DB.schools.find(s=>s.id===ST.school)||DB.schools[0]}
+function sRecs(sid,sc){const s=sc||(ST.role==='admin'?curSch():ST.userSchool);if(!s)return[];return s.records.filter(r=>r.sid===sid).sort((a,b)=>moI(a.month)-moI(b.month)||wkI(a.week)-wkI(b.week));}
+function lastThr(sc,mon,wk){
+  const prev=sc.records.filter(r=>moI(r.month)<moI(mon)||(moI(r.month)===moI(mon)&&wkI(r.week)<wkI(wk)));
+  if(!prev.length)return{rt:'',wt:''};
+  prev.sort((a,b)=>moI(a.month)-moI(b.month)||wkI(a.week)-wkI(b.week));
+  const last=prev[prev.length-1];return{rt:last.thrRt??'',wt:last.thrWt??''};
+}
+function bpH(v){if(v===null||v===undefined)return'<span class="bp bp-s">-</span>';return v?'<span class="bp bp-y">합격</span>':'<span class="bp bp-n">불합격</span>';}
+function tgH(v,sk){if(sk)return'<span class="tag tg-s">생략</span>';return v?'<span class="tag tg-y">합격</span>':'<span class="tag tg-n">불합격</span>';}
+function cpH(v,sk){if(sk)return'<span class="cp cp-s">생략</span>';if(v===null||v===undefined)return'<span class="cp cp-s">-</span>';return v?'<span class="cp cp-y">합격</span>':'<span class="cp cp-n">불합격</span>';}
+
+function smartY(vals,hMin=50,hMax=100){const v=vals.filter(x=>x!=null&&!isNaN(x));if(!v.length)return{min:hMin,max:hMax};return{min:Math.max(hMin,Math.floor((Math.min(...v)-10)/5)*5),max:Math.min(hMax,Math.ceil((Math.max(...v)+5)/5)*5)};}
+function mkLine(id,labels,sD,aD,col,hMin=50,hMax=100){
+  const c=document.getElementById(id);if(!c||typeof Chart==='undefined')return;
+  const {min,max}=smartY([...sD,...aD],hMin,hMax);
+  new Chart(c,{type:'line',data:{labels,datasets:[
+    {label:'내 점수',data:sD,borderColor:col,backgroundColor:col+'18',borderWidth:3,tension:.35,pointRadius:5,pointBackgroundColor:'#fff',pointBorderColor:col,pointBorderWidth:2.5,fill:true,spanGaps:true},
+    {label:'반평균',data:aD,borderColor:col,backgroundColor:'transparent',borderWidth:1.8,borderDash:[7,4],tension:.35,pointRadius:3,pointBackgroundColor:col,fill:false,spanGaps:true},
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.parsed.y}점`}}},
+    scales:{y:{min,max,grid:{color:'rgba(128,128,128,.1)'},ticks:{font:{size:10},callback:v=>`${v}점`}},x:{grid:{display:false},ticks:{font:{size:10},maxRotation:0}}}}});}
+
+function init(){
+  try{loadDB();}catch(e){console.warn('init loadDB 오류:',e);}
+  // 학교 hw1/hw2 마이그레이션
+  DB.schools.forEach(sc=>{
+    if(!sc.hw1)sc.hw1='숙제1';
+    if(!sc.hw2)sc.hw2='숙제2';
+    if(sc.hw2Skip===undefined)sc.hw2Skip=false;
+    if(!sc.hwNames)sc.hwNames={};
+    if(!sc.notices)sc.notices={};
+  });
+  try{render();}catch(e){
+    console.error('render 오류:',e);
+    const errDiv=document.createElement('div');
+    errDiv.style.cssText='display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:12px;font-family:sans-serif';
+    errDiv.innerHTML='<div style="font-size:24px">⚠️</div><div style="font-size:15px;font-weight:500">오류가 발생했습니다</div><div style="font-size:12px;color:#888">'+e.message+'</div>';
+    const btn=document.createElement('button');
+    btn.textContent='데이터 초기화 후 재시작';
+    btn.style.cssText='padding:8px 16px;background:#1a237e;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px';
+    btn.onclick=function(){localStorage.removeItem(SKEY);location.reload();};
+    errDiv.appendChild(btn);
+    document.getElementById('app').appendChild(errDiv);
+  }
+}
+function render(){
+  const app=document.getElementById('app');
+  if(!ST.loggedIn){app.innerHTML=rLogin();bLogin();return;}
+  if(ST.role==='admin'){if(!ST.school){app.innerHTML=rSchoolSelect();bSchoolSelect();return;}app.innerHTML=rAdmin();bAdmin();return;}
+  app.innerHTML=rStudent();bStudent();
+}
+
+function rLogin(){return`
+<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#F7F8FA;padding:20px">
+  <div style="background:#fff;border-radius:20px;padding:44px 40px 36px;width:100%;max-width:400px;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+
+    <!-- 로고 -->
+    <div style="text-align:center;margin-bottom:8px">
+      <div style="font-size:32px;font-weight:800;color:#1A237E;letter-spacing:-1px">
+        <span style="color:#E65100">OH</span>ENG
+      </div>
+      <div style="font-size:11px;font-weight:600;letter-spacing:2px;color:#9BA3AF;margin-top:2px">BREAKTHROUGH</div>
+    </div>
+    <p style="text-align:center;font-size:13px;color:#9BA3AF;margin-bottom:32px">오은실 영어 · 학습 관리 시스템</p>
+
+    <!-- 탭 -->
+    <div style="display:flex;background:#F7F8FA;border-radius:10px;padding:4px;margin-bottom:24px;gap:4px">
+      <div id="ls-s" style="flex:1;text-align:center;padding:9px;font-size:13px;font-weight:${ST.lmode==='student'?'600':'500'};border-radius:8px;cursor:pointer;background:${ST.lmode==='student'?'#fff':'transparent'};color:${ST.lmode==='student'?'#1A237E':'#9BA3AF'};box-shadow:${ST.lmode==='student'?'0 1px 4px rgba(0,0,0,0.08)':'none'};transition:all 0.15s">🎓 학생 / 학부모</div>
+      <div id="ls-a" style="flex:1;text-align:center;padding:9px;font-size:13px;font-weight:${ST.lmode==='admin'?'600':'500'};border-radius:8px;cursor:pointer;background:${ST.lmode==='admin'?'#fff':'transparent'};color:${ST.lmode==='admin'?'#1A237E':'#9BA3AF'};box-shadow:${ST.lmode==='admin'?'0 1px 4px rgba(0,0,0,0.08)':'none'};transition:all 0.15s">👩‍🏫 선생님</div>
+    </div>
+
+    <!-- ID -->
+    <div style="margin-bottom:12px">
+      <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">${ST.lmode==='admin'?'관리자':'학생'} ID</label>
+      <input id="li-id" placeholder="${ST.lmode==='admin'?'admin':'학생 ID 입력'}"
+        style="width:100%;padding:12px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;color:#0D1117;font-family:inherit;transition:border-color 0.15s"
+        onfocus="this.style.borderColor='#1A237E';this.style.boxShadow='0 0 0 3px rgba(26,35,126,0.08)'"
+        onblur="this.style.borderColor='#E8ECF0';this.style.boxShadow='none'">
+    </div>
+
+    <!-- 비밀번호 -->
+    <div style="margin-bottom:14px">
+      <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">비밀번호</label>
+      <input id="li-pw" type="password" placeholder="비밀번호 입력"
+        style="width:100%;padding:12px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;color:#0D1117;font-family:inherit;transition:border-color 0.15s"
+        onfocus="this.style.borderColor='#1A237E';this.style.boxShadow='0 0 0 3px rgba(26,35,126,0.08)'"
+        onblur="this.style.borderColor='#E8ECF0';this.style.boxShadow='none'">
+    </div>
+
+    <!-- 기억하기 -->
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <input type="checkbox" id="remember-me" style="width:15px;height:15px;accent-color:#1A237E;cursor:pointer">
+      <label for="remember-me" style="font-size:13px;color:#5C6470;cursor:pointer">로그인 정보 기억하기</label>
+    </div>
+
+    <!-- 오류 -->
+    <div id="li-err" style="font-size:12px;color:#E53935;min-height:20px;margin-bottom:8px"></div>
+
+    <!-- 버튼 -->
+    <button id="btn-li"
+      style="width:100%;padding:14px;background:#1A237E;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.15s;box-shadow:0 4px 12px rgba(26,35,126,0.25)"
+      onmouseover="this.style.background='#121858';this.style.boxShadow='0 6px 18px rgba(26,35,126,0.35)'"
+      onmouseout="this.style.background='#1A237E';this.style.boxShadow='0 4px 12px rgba(26,35,126,0.25)'">
+      로그인
+    </button>
+
+    <p style="text-align:center;font-size:12px;color:#C4C9D4;margin-top:20px">
+      ID · 비밀번호 문의는 담당 선생님께
+    </p>
+  </div>
+</div>
+`;}
+function bLogin(){
+  // 기억된 로그인 정보 복원
+  try{
+    const saved=JSON.parse(localStorage.getItem('oheng_remember')||'null');
+    if(saved){
+      const idEl=document.getElementById('li-id');
+      const pwEl=document.getElementById('li-pw');
+      const remEl=document.getElementById('remember-me');
+      if(idEl)idEl.value=saved.id||'';
+      if(pwEl)pwEl.value=saved.pw||'';
+      if(remEl)remEl.checked=true;
+    }
+  }catch(e){}
+  document.getElementById('ls-s').onclick=()=>{ST.lmode='student';render()};
+  document.getElementById('ls-a').onclick=()=>{ST.lmode='admin';render()};
+  document.getElementById('btn-li').onclick=()=>{
+    const id=document.getElementById('li-id').value.trim().toLowerCase();
+    const pw=document.getElementById('li-pw').value.trim();
+    if(ST.lmode==='admin'){
+      if(id==='admin'&&pw===ADMIN_PWD){
+          const rem=document.getElementById('remember-me');
+          if(rem?.checked)localStorage.setItem('oheng_remember',JSON.stringify({id,pw}));
+          else localStorage.removeItem('oheng_remember');
+          ST.loggedIn=true;ST.role='admin';ST.school=null;render();}
+      else document.getElementById('li-err').textContent='ID 또는 비밀번호 오류';
+    } else {
+      let found=null,foundSch=null;
+      for(const sc of DB.schools){const st=sc.students.find(s=>s.id===id&&s.pwd===pw);if(st){found=st;foundSch=sc;break;}}
+      if(found){
+          const rem=document.getElementById('remember-me');
+          if(rem?.checked)localStorage.setItem('oheng_remember',JSON.stringify({id,pw}));
+          else localStorage.removeItem('oheng_remember');
+          ST.loggedIn=true;ST.role='student';ST.user=found;ST.userSchool=foundSch;
+        const recs=sRecs(found.id,foundSch);if(recs.length){const l=recs[recs.length-1];ST.vMon=l.month;ST.vWk=l.week;}render();}
+      else document.getElementById('li-err').textContent='ID 또는 비밀번호를 확인해주세요';
+    }
+  };
+}
+
+function rSchoolSelect(){
+  const cards=DB.schools.map(sc=>`
+    <div class="school-card" data-sch="${sc.id}" style="transition:all 0.18s">
+      <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#1A237E,#3949AB);display:flex;align-items:center;justify-content:center;font-size:22px;margin:0 auto 12px">🏫</div>
+      <div class="school-card-name">${sc.name}</div>
+      <div class="school-card-count">${sc.grade} · 학생 ${sc.students.length}명 · 성적 ${sc.records.length}건</div>
+    </div>`).join('');
+  return`
+  <div class="top-nav">
+    <div class="nav-logo"><span style="font-size:18px;font-weight:800;color:#fff;letter-spacing:-0.5px"><span style="color:#FFB300">OH</span>ENG</span></div>
+    <div class="nav-right"><button class="nbtn" id="btn-alo-main">로그아웃</button></div>
+  </div>
+  <div class="school-wrap">
+    <div class="school-inner">
+      <div style="text-align:center;margin-bottom:32px">
+        <div style="width:60px;height:60px;border-radius:18px;background:linear-gradient(135deg,#1A237E,#3949AB);display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 14px;box-shadow:0 8px 24px rgba(26,35,126,0.25)">🏫</div>
+        <div class="school-title">관리 학교 선택</div>
+        <div class="school-sub">수업할 학교를 선택하면 해당 학교 전용 관리 화면으로 이동합니다</div>
+      </div>
+      <div class="school-grid">${cards}</div>
+      <button class="school-add-btn" id="btn-add-toggle">+ 새 학교 추가</button>
+      ${ST.showAddSchool?`<div class="add-school-form" style="margin-top:12px">
+        <input id="ns-sname" placeholder="학교 이름">
+        <input id="ns-sgrade" placeholder="학년 (예: 2학년)">
+        <div style="display:flex;gap:8px"><button class="abtn abtn-blue" id="btn-do-add">추가</button><button class="abtn abtn-gray" id="btn-cancel-add">취소</button></div>
+        <div id="add-msg" style="font-size:12px;margin-top:6px"></div>
+      </div>`:''}
+    </div>
+  </div>`;}
+
+function bSchoolSelect(){
+  document.getElementById('btn-alo-main').onclick=()=>{ST.loggedIn=false;render()};
+  document.querySelectorAll('[data-sch]').forEach(card=>{card.onclick=()=>{ST.school=card.dataset.sch;ST.atab='records';ST.bMon='2월';ST.bWk='1주';render();};});
+  document.getElementById('btn-add-toggle').onclick=()=>{ST.showAddSchool=!ST.showAddSchool;render();};
+  if(ST.showAddSchool){
+    document.getElementById('btn-cancel-add').onclick=()=>{ST.showAddSchool=false;render();};
+    document.getElementById('btn-do-add').onclick=()=>{
+      const name=document.getElementById('ns-sname').value.trim();const grade=document.getElementById('ns-sgrade').value.trim()||'1학년';
+      const msg=document.getElementById('add-msg');
+      if(!name){msg.textContent='학교 이름을 입력하세요.';msg.style.color='#c62828';return;}
+      if(DB.schools.find(s=>s.name===name)){msg.textContent='이미 존재하는 학교입니다.';msg.style.color='#c62828';return;}
+      DB.schools.push({id:'sch'+Date.now(),name,grade,students:[],records:[],notices:{}});
+      saveDB();ST.showAddSchool=false;render();
+    };
+  }
+}
+
+function rStudent(){
+  const tabs=[{id:'report',l:'성적표'},{id:'settings',l:'설정'}];
+  const recs=sRecs(ST.user.id,ST.userSchool);
+  let inner='';
+  if(ST.tab==='report') inner=rReport(recs);
+  else inner=rStudentSettings();
+  return`<div class="top-nav"><div class="nav-logo"><span style="font-size:18px;font-weight:800;color:#fff;letter-spacing:-0.5px"><span style="color:#FFB300">OH</span>ENG</span></div>
+    <div class="nav-right"><span style="font-size:13px;opacity:.85;white-space:nowrap">${ST.user.name} · ${ST.userSchool?.name}</span>
+      <button class="nbtn no-print" onclick="window.print()">인쇄</button>
+      <button class="nbtn no-print" id="btn-lo">로그아웃</button></div></div>
+  <div class="tabs no-print">${tabs.map(t=>`<div class="tab ${ST.tab===t.id?'active':''}" data-tab="${t.id}">${t.l}</div>`).join('')}</div>
+  <div class="s-content">${inner}</div>`;}
+
+function rReport(recs){
+  const opts=recs.map(r=>`${r.month} ${r.week}`);
+  if(!opts.length)return`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;color:#9BA3AF;text-align:center"><div style="font-size:36px;margin-bottom:12px">📋</div><div style="font-size:15px;font-weight:600;color:#5C6470;margin-bottom:6px">아직 등록된 성적이 없습니다</div><div style="font-size:13px">선생님이 성적을 입력하면 여기에 표시됩니다</div></div>`;
+  const cur=ST.vWk?`${ST.vMon} ${ST.vWk}`:opts[opts.length-1];
+  const rec=recs.find(r=>`${r.month} ${r.week}`===cur)||recs[recs.length-1];
+  const sc=ST.userSchool;
+  const notice=sc?.notices[`${rec.month}_${rec.week}`]||rec.notice||'';
+
+  // 합격 인디케이터
+  function passTag(v,sk){
+    if(sk||v===null||v===undefined) return '';
+    return v
+      ? '<span style="display:inline-flex;align-items:center;gap:3px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;background:#E0F7F4;color:#00897B;margin-top:6px">✓ 합격</span>'
+      : '<span style="display:inline-flex;align-items:center;gap:3px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;background:#FFEBEE;color:#E53935;margin-top:6px">✗ 불합격</span>';
+  }
+
+  // RT 생략 여부
+  const rtSkip = rec.rtSkip;
+  const wtSkip = rec.wtSkip;
+
+  return`
+  <!-- 공지사항 - 최상단 -->
+  <div style="border-radius:14px;padding:14px 16px;margin-bottom:14px;background:${notice?'#FFF8E1':'#F7F8FA'};border-left:4px solid ${notice?'#FFB300':'#E8ECF0'}">
+    <div style="font-size:11px;font-weight:700;letter-spacing:0.5px;color:${notice?'#E65100':'#9BA3AF'};margin-bottom:${notice?'8px':'0'}">📢 공지사항</div>
+    ${notice?`<div style="font-size:13px;color:#5C6470;line-height:1.7;font-weight:700">${notice}</div>`:`<div style="font-size:12px;color:#C4C9D4">이번 주 공지사항이 없습니다</div>`}
+  </div>
+
+  <!-- 헤더 -->
+  <div style="background:linear-gradient(135deg,#1A237E,#3949AB);border-radius:18px;padding:22px 20px;margin-bottom:16px;color:#fff;box-shadow:0 6px 20px rgba(26,35,126,0.2)">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
+      <div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.55);font-weight:600;letter-spacing:1px;margin-bottom:4px">WEEKLY REPORT CARD</div>
+        <div style="font-size:13px;color:rgba(255,255,255,0.7)">${rec.month} ${rec.week} · ${sc?.name}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-bottom:2px">수강생</div>
+        <div style="font-size:18px;font-weight:800;letter-spacing:-0.5px">${ST.user.name}</div>
+      </div>
+    </div>
+    <!-- KPI 3개 -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+      <div style="background:rgba(255,255,255,0.12);border-radius:12px;padding:12px;text-align:center">
+        <div style="font-size:10px;color:rgba(255,255,255,0.5);font-weight:600;letter-spacing:0.5px;margin-bottom:4px">총점</div>
+        <div style="font-size:24px;font-weight:900;color:#FFB300;line-height:1">${rec.totalScore??'-'}</div>
+        <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:2px">점</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.12);border-radius:12px;padding:12px;text-align:center">
+        <div style="font-size:10px;color:rgba(255,255,255,0.5);font-weight:600;letter-spacing:0.5px;margin-bottom:4px">전체등수</div>
+        <div style="font-size:24px;font-weight:900;color:#fff;line-height:1">${rec.totalRank??'-'}</div>
+        <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:2px">등</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.12);border-radius:12px;padding:12px;text-align:center">
+        <div style="font-size:10px;color:rgba(255,255,255,0.5);font-weight:600;letter-spacing:0.5px;margin-bottom:4px">합격현황</div>
+        <div style="font-size:16px;font-weight:800;color:#fff;line-height:1.2;margin-top:2px">
+          ${!rtSkip&&rec.rtPass?'RT ✓':!rtSkip&&rec.rtPass===false?'RT ✗':''} ${!wtSkip&&rec.wtPass?'WT ✓':!wtSkip&&rec.wtPass===false?'WT ✗':''}
+          ${rtSkip&&wtSkip?'-':''}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 주차 선택 -->
+  <div class="no-print" style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+    <span style="font-size:12px;color:#9BA3AF;font-weight:600">주차 선택</span>
+    <button id="wk-prev" ${opts.indexOf(cur)<=0?'disabled':''} style="width:32px;height:32px;border-radius:8px;border:1.5px solid #E8ECF0;background:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:${opts.indexOf(cur)<=0?'#C4C9D4':'#1A237E'};transition:all 0.15s">‹</button>
+    <select id="wk-pick" style="padding:7px 14px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px;font-weight:600;color:#1A237E;background:#fff;cursor:pointer;outline:none;box-shadow:0 1px 4px rgba(0,0,0,0.06)">
+      ${opts.map(w=>`<option ${w===cur?'selected':''}>${w}</option>`).join('')}
+    </select>
+    <button id="wk-next" ${opts.indexOf(cur)>=opts.length-1?'disabled':''} style="width:32px;height:32px;border-radius:8px;border:1.5px solid #E8ECF0;background:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:${opts.indexOf(cur)>=opts.length-1?'#C4C9D4':'#1A237E'};transition:all 0.15s">›</button>
+    <span style="font-size:12px;color:#C4C9D4">${opts.indexOf(cur)+1} / ${opts.length}주차</span>
+  </div>
+
+  <!-- RT + WT 나란히 -->
+  <div style="background:#fff;border-radius:18px;padding:18px;margin-bottom:12px;box-shadow:0 2px 12px rgba(0,0,0,0.06)">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+
+      <!-- RT -->
+      <div>
+        <div style="font-size:10px;font-weight:700;color:#9BA3AF;letter-spacing:1px;margin-bottom:10px">REVIEW TEST</div>
+        ${rtSkip
+          ? `<div style="background:#F7F8FA;border-radius:12px;padding:20px;text-align:center;color:#C4C9D4;font-size:12px">생략</div>`
+          : `<div style="background:#F7F8FA;border-radius:12px;padding:16px">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px">
+                <span style="font-size:11px;color:#9BA3AF;font-weight:500">점수</span>
+                <span style="font-size:26px;font-weight:900;color:#1A237E">${rec.rtScore??'-'}<span style="font-size:13px;color:#9BA3AF;font-weight:400">점</span></span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+                <span style="font-size:11px;color:#9BA3AF">등수</span>
+                <span style="font-size:16px;font-weight:700;color:#3949AB">${rec.rvRank??'-'}등</span>
+              </div>
+              <div style="margin-top:8px;text-align:right">${passTag(rec.rtPass,false)}</div>
+            </div>`
+        }
+      </div>
+
+      <!-- WT -->
+      <div>
+        <div style="font-size:10px;font-weight:700;color:#9BA3AF;letter-spacing:1px;margin-bottom:10px">WORD TEST</div>
+        ${wtSkip
+          ? `<div style="background:#F7F8FA;border-radius:12px;padding:20px;text-align:center;color:#C4C9D4;font-size:12px">생략</div>`
+          : `<div style="background:#F7F8FA;border-radius:12px;padding:16px">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px">
+                <span style="font-size:11px;color:#9BA3AF;font-weight:500">점수</span>
+                <span style="font-size:26px;font-weight:900;color:#1A237E">${rec.wtScore??'-'}<span style="font-size:13px;color:#9BA3AF;font-weight:400">점</span></span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+                <span style="font-size:11px;color:#9BA3AF">등수</span>
+                <span style="font-size:16px;font-weight:700;color:#3949AB">${rec.wtRank??'-'}등</span>
+              </div>
+              <div style="margin-top:8px;text-align:right">${passTag(rec.wtPass,false)}</div>
+            </div>`
+        }
+      </div>
+    </div>
+
+    <!-- RT + WT 반평균 대비 바 -->
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid #F1F3F5;display:flex;flex-direction:column;gap:10px">
+      ${!rtSkip&&rec.rtScore!=null&&rec.rvAvg!=null?`
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px">
+          <span style="font-weight:700;color:#7B1FA2">RT 반평균 대비</span>
+          <span style="color:#9BA3AF">내 점수 <strong style="color:#7B1FA2">${rec.rtScore}점</strong> · 반평균 ${rec.rvAvg}점 (${Math.round(rec.rtScore/rec.rvAvg*100)}%)</span>
+        </div>
+        <div style="background:#F3E5F5;border-radius:20px;height:8px;overflow:hidden">
+          <div style="height:100%;background:linear-gradient(90deg,#7B1FA2,#AB47BC);border-radius:20px;width:${Math.min(100,Math.round(rec.rtScore/rec.rvAvg*100))}%"></div>
+        </div>
+      </div>`:''}
+      ${!wtSkip&&rec.wtScore!=null&&rec.wtAvg!=null?`
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px">
+          <span style="font-weight:700;color:#1A237E">WT 반평균 대비</span>
+          <span style="color:#9BA3AF">내 점수 <strong style="color:#1A237E">${rec.wtScore}점</strong> · 반평균 ${rec.wtAvg}점 (${Math.round(rec.wtScore/rec.wtAvg*100)}%)</span>
+        </div>
+        <div style="background:#E8EAF6;border-radius:20px;height:8px;overflow:hidden">
+          <div style="height:100%;background:linear-gradient(90deg,#1A237E,#3949AB);border-radius:20px;width:${Math.min(100,Math.round(rec.wtScore/rec.wtAvg*100))}%"></div>
+        </div>
+      </div>`:''}
+    </div>
+  </div>
+
+  <!-- 전체 성적 -->
+  <div style="background:linear-gradient(135deg,#1A237E,#283593);border-radius:18px;padding:18px;margin-bottom:12px;box-shadow:0 4px 16px rgba(26,35,126,0.2)">
+    <div style="font-size:10px;font-weight:700;color:rgba(255,255,255,0.5);letter-spacing:1px;margin-bottom:12px">전체 성적</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:${rec.totalScore!=null&&rec.totalAvg!=null?'14px':'0'}">
+      <div style="text-align:center">
+        <div style="font-size:10px;color:rgba(255,255,255,0.45);margin-bottom:4px">총점</div>
+        <div style="font-size:26px;font-weight:900;color:#FFB300">${rec.totalScore??'-'}<span style="font-size:12px;color:rgba(255,255,255,0.4)">점</span></div>
+        <div style="font-size:10px;color:rgba(255,255,255,0.35);margin-top:2px">${!rec.rtSkip?'RT+WT':'WT'}</div>
+      </div>
+      <div style="text-align:center;border-left:1px solid rgba(255,255,255,0.1);border-right:1px solid rgba(255,255,255,0.1)">
+        <div style="font-size:10px;color:rgba(255,255,255,0.45);margin-bottom:4px">등수</div>
+        <div style="font-size:26px;font-weight:900;color:#fff">${rec.totalRank??'-'}<span style="font-size:12px;color:rgba(255,255,255,0.4)">등</span></div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:10px;color:rgba(255,255,255,0.45);margin-bottom:4px">반평균</div>
+        <div style="font-size:26px;font-weight:900;color:#fff">${rec.totalAvg??'-'}<span style="font-size:12px;color:rgba(255,255,255,0.4)">점</span></div>
+      </div>
+    </div>
+    <!-- 전체 반평균 대비 바 -->
+    ${rec.totalScore!=null&&rec.totalAvg!=null?`
+    <div style="padding-top:14px;border-top:1px solid rgba(255,255,255,0.1)">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,0.5);margin-bottom:6px">
+        <span style="font-weight:600;color:rgba(255,255,255,0.7)">전체 반평균 대비</span>
+        <span>내 점수 <strong style="color:#FFB300">${rec.totalScore}점</strong> · 반평균 ${rec.totalAvg}점</span>
+      </div>
+      <div style="background:rgba(255,255,255,0.1);border-radius:6px;height:8px;overflow:hidden">
+        <div style="height:100%;background:linear-gradient(90deg,#FFB300,#FFD54F);border-radius:6px;width:${Math.min(100,Math.round(rec.totalScore/rec.totalAvg*100))}%"></div>
+      </div>
+      <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:5px;text-align:right">
+        반평균의 ${Math.round(rec.totalScore/rec.totalAvg*100)}%
+      </div>
+    </div>`:''}
+  </div>
+
+  <!-- 과제 현황 -->
+  <div style="background:#fff;border-radius:18px;padding:18px;margin-bottom:12px;box-shadow:0 2px 12px rgba(0,0,0,0.06)">
+    <div style="font-size:10px;font-weight:700;color:#9BA3AF;letter-spacing:1px;margin-bottom:12px">과제 현황</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #F7F8FA">
+      <span style="font-size:13px;color:#5C6470;font-weight:500">📚 ${rec.hwName1||sc?.hw1||'숙제1'}</span>
+      <span style="font-size:14px;font-weight:700;color:${(rec.hw1||rec.homework)==='완료'?'#00897B':(rec.hw1||rec.homework)?'#E53935':'#9BA3AF'}">${rec.hw1||rec.homework||'-'}</span>
+    </div>
+    ${!(sc?.hwNames&&sc.hwNames[rec.month+'_'+rec.week]?sc.hwNames[rec.month+'_'+rec.week].hw2Skip:sc?.hw2Skip)?`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #F7F8FA">
+      <span style="font-size:13px;color:#5C6470;font-weight:500">📚 ${rec.hwName2||sc?.hw2||'숙제2'}</span>
+      <span style="font-size:14px;font-weight:700;color:${rec.hw2==='완료'?'#00897B':rec.hw2?'#E53935':'#9BA3AF'}">${rec.hw2||'-'}</span>
+    </div>`:''}
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0">
+      <span style="font-size:13px;color:#5C6470;font-weight:500">⏰ 재시험</span>
+      <span style="font-size:14px;font-weight:600;color:${rec.retestTime?'#E53935':'#9BA3AF'}">${rec.retestTime||'없음'}</span>
+    </div>
+  </div>
+
+    <!-- 성적 추이 차트 3종 (전체 주차 반영) -->
+  <div class="no-print" style="margin-bottom:4px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-size:10px;font-weight:700;color:#9BA3AF;letter-spacing:1px">📈 성적 추이</div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <span style="display:flex;align-items:center;gap:4px;font-size:11px;color:#9BA3AF"><span style="width:8px;height:8px;border-radius:50%;background:#1A237E;display:inline-block"></span>내 점수</span>
+        <span style="display:flex;align-items:center;gap:4px;font-size:11px;color:#9BA3AF"><span style="width:14px;height:0;border-top:2px dashed #9BA3AF;display:inline-block"></span>반평균</span>
+      </div>
+    </div>
+
+    <div style="background:#fff;border-radius:16px;padding:16px;margin-bottom:10px;box-shadow:0 2px 10px rgba(0,0,0,0.06)">
+      <div style="font-size:11px;font-weight:700;color:#1A237E;margin-bottom:10px">Word Test</div>
+      <div style="position:relative;height:150px"><canvas id="mini-wt"></canvas></div>
+    </div>
+
+    <div style="background:#fff;border-radius:16px;padding:16px;margin-bottom:10px;box-shadow:0 2px 10px rgba(0,0,0,0.06)">
+      <div style="font-size:11px;font-weight:700;color:#6A1B9A;margin-bottom:10px">Review Test</div>
+      <div style="position:relative;height:150px"><canvas id="mini-rt"></canvas></div>
+    </div>
+
+    <div style="background:#fff;border-radius:16px;padding:16px;margin-bottom:12px;box-shadow:0 2px 10px rgba(0,0,0,0.06)">
+      <div style="font-size:11px;font-weight:700;color:#283593;margin-bottom:10px">전체 점수</div>
+      <div style="position:relative;height:150px"><canvas id="mini-tot"></canvas></div>
+    </div>
+  </div>`;}
+
+function rGraph(recs){
+  if(!recs.length)return`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;color:#9BA3AF;text-align:center"><div style="font-size:36px;margin-bottom:12px">📊</div><div style="font-size:14px;font-weight:600;color:#5C6470">기록이 없습니다</div></div>`;
+  // 전체 주차 데이터 모두 표시됨 (recs는 이미 정렬된 전체 기록)
+  const totalWeeks = recs.length;
+  return`
+  <div style="background:#1A237E;border-radius:18px;padding:16px 20px;margin-bottom:12px;color:#fff">
+    <div style="font-size:11px;color:rgba(255,255,255,0.5);font-weight:600;letter-spacing:0.5px">총 ${totalWeeks}주차 기록 반영</div>
+    <div style="font-size:13px;color:rgba(255,255,255,0.8);margin-top:2px">${recs[0].month} ${recs[0].week} ~ ${recs[totalWeeks-1].month} ${recs[totalWeeks-1].week}</div>
+  </div>
+
+  <div style="background:#fff;border-radius:18px;padding:18px;margin-bottom:12px;box-shadow:0 2px 12px rgba(0,0,0,0.06)">
+    <div style="font-size:10px;font-weight:700;color:#9BA3AF;letter-spacing:1px;margin-bottom:14px">📈 WORD TEST 추이</div>
+    <div style="position:relative;height:200px"><canvas id="g-wt"></canvas></div>
+  </div>
+
+  <div style="background:#fff;border-radius:18px;padding:18px;margin-bottom:12px;box-shadow:0 2px 12px rgba(0,0,0,0.06)">
+    <div style="font-size:10px;font-weight:700;color:#9BA3AF;letter-spacing:1px;margin-bottom:14px">📈 RT 점수 추이</div>
+    <div style="position:relative;height:180px"><canvas id="g-rt"></canvas></div>
+  </div>
+
+  <div style="background:#fff;border-radius:18px;padding:18px;margin-bottom:12px;box-shadow:0 2px 12px rgba(0,0,0,0.06)">
+    <div style="font-size:10px;font-weight:700;color:#9BA3AF;letter-spacing:1px;margin-bottom:14px">📈 전체 점수 추이</div>
+    <div style="position:relative;height:180px"><canvas id="g-tot"></canvas></div>
+  </div>`;}
+
+function rHistory(recs){
+  if(!recs.length)return`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;color:#9BA3AF;text-align:center"><div style="font-size:36px;margin-bottom:12px">📅</div><div style="font-size:14px;font-weight:600;color:#5C6470">기록이 없습니다</div></div>`;
+  const ht=ST.histTab||'wt';
+  const tabs=[{id:'wt',l:'WT',c:'#1A237E'},{id:'rt',l:'RT',c:'#3949AB'},{id:'tot',l:'전체',c:'#283593'}];
+  const col=tabs.find(t=>t.id===ht)?.c||'#1A237E';
+  const cards=[...recs].reverse().map(r=>{
+    const hw0=r.homework==='완료';
+    const hasRT=!r.rtSkip&&r.rtScore!=null;
+    const hasWT=!r.wtSkip&&r.wtScore!=null;
+    return`<div style="background:#fff;border-radius:16px;padding:16px;margin-bottom:10px;box-shadow:0 2px 10px rgba(0,0,0,0.06)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-size:15px;font-weight:700;color:#1A237E">${r.month} ${r.week}</div>
+        <span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:${hw0?'#E0F7F4':'#FFEBEE'};color:${hw0?'#00897B':'#E53935'}">${r.homework}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        ${hasWT?`<div style="background:#F7F8FA;border-radius:10px;padding:12px">
+          <div style="font-size:10px;color:#9BA3AF;font-weight:600;margin-bottom:4px">WORD TEST</div>
+          <div style="font-size:20px;font-weight:900;color:#1A237E">${r.wtScore}<span style="font-size:11px;color:#9BA3AF">점</span></div>
+          <div style="font-size:11px;color:#9BA3AF;margin-top:2px">${r.wtRank??'-'}등 · 반평균 ${r.wtAvg??'-'}점</div>
+          ${r.wtPass?'<span style="display:inline-block;font-size:10px;font-weight:700;color:#00897B;margin-top:4px">✓ 합격</span>':'<span style="display:inline-block;font-size:10px;font-weight:700;color:#E53935;margin-top:4px">✗ 불합격</span>'}
+        </div>`:`<div style="background:#F7F8FA;border-radius:10px;padding:12px;display:flex;align-items:center;justify-content:center;color:#C4C9D4;font-size:12px">WT 생략</div>`}
+        ${hasRT?`<div style="background:#F7F8FA;border-radius:10px;padding:12px">
+          <div style="font-size:10px;color:#9BA3AF;font-weight:600;margin-bottom:4px">REVIEW TEST</div>
+          <div style="font-size:20px;font-weight:900;color:#1A237E">${r.rtScore}<span style="font-size:11px;color:#9BA3AF">점</span></div>
+          <div style="font-size:11px;color:#9BA3AF;margin-top:2px">${r.rvRank??'-'}등</div>
+          ${r.rtPass?'<span style="display:inline-block;font-size:10px;font-weight:700;color:#00897B;margin-top:4px">✓ 합격</span>':'<span style="display:inline-block;font-size:10px;font-weight:700;color:#E53935;margin-top:4px">✗ 불합격</span>'}
+        </div>`:`<div style="background:#F7F8FA;border-radius:10px;padding:12px;display:flex;align-items:center;justify-content:center;color:#C4C9D4;font-size:12px">RT 생략</div>`}
+      </div>
+      <div style="background:linear-gradient(135deg,#1A237E,#283593);border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
+        <div><div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:2px">전체</div><div style="font-size:18px;font-weight:900;color:#FFB300">${r.totalScore??'-'}<span style="font-size:11px;color:rgba(255,255,255,0.4)">점</span></div></div>
+        <div style="text-align:right"><div style="font-size:14px;font-weight:700;color:#fff">${r.totalRank??'-'}등</div><div style="font-size:11px;color:rgba(255,255,255,0.4)">반평균 ${r.totalAvg??'-'}점</div></div>
+      </div>
+    </div>`;}).join('');
+
+  return`
+  <div style="background:#fff;border-radius:16px;padding:16px;margin-bottom:12px;box-shadow:0 2px 10px rgba(0,0,0,0.06)">
+    <div style="font-size:10px;font-weight:700;color:#9BA3AF;letter-spacing:1px;margin-bottom:12px">성적 추이 그래프</div>
+    <div style="display:flex;gap:6px;margin-bottom:12px">${tabs.map(t=>`<div style="padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;background:${ht===t.id?t.c:'#F7F8FA'};color:${ht===t.id?'#fff':'#9BA3AF'};transition:all 0.15s" data-hist="${t.id}">${t.l}</div>`).join('')}</div>
+    <div style="position:relative;height:180px"><canvas id="h-main"></canvas></div>
+  </div>
+  ${cards}`;}
+
+function rStudentSettings(){return`
+  <div style="background:#fff;border-radius:18px;padding:20px;margin-bottom:12px;box-shadow:0 2px 12px rgba(0,0,0,0.06)">
+    <div style="font-size:10px;font-weight:700;color:#9BA3AF;letter-spacing:1px;margin-bottom:16px">내 계정 정보</div>
+    <div style="display:flex;align-items:center;gap:14px;padding:14px;background:#F7F8FA;border-radius:12px;margin-bottom:16px">
+      <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#1A237E,#3949AB);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#FFB300;flex-shrink:0">${ST.user.name[0]}</div>
+      <div>
+        <div style="font-size:15px;font-weight:700;color:#1A237E">${ST.user.name}</div>
+        <div style="font-size:12px;color:#9BA3AF;margin-top:1px">${ST.userSchool?.name} · ${ST.userSchool?.grade}</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div style="background:#F7F8FA;border-radius:10px;padding:12px">
+        <div style="font-size:10px;color:#9BA3AF;font-weight:600;margin-bottom:4px">학생 ID</div>
+        <div style="font-size:13px;font-weight:700;color:#1A237E;font-family:monospace">${ST.user.id}</div>
+      </div>
+      <div style="background:#F7F8FA;border-radius:10px;padding:12px">
+        <div style="font-size:10px;color:#9BA3AF;font-weight:600;margin-bottom:4px">학교</div>
+        <div style="font-size:13px;font-weight:600;color:#1A237E">${ST.userSchool?.name}</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="background:#fff;border-radius:18px;padding:20px;margin-bottom:12px;box-shadow:0 2px 12px rgba(0,0,0,0.06)">
+    <div style="font-size:10px;font-weight:700;color:#9BA3AF;letter-spacing:1px;margin-bottom:16px">비밀번호 변경</div>
+    <div style="margin-bottom:12px">
+      <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">현재 비밀번호</label>
+      <input class="finp" type="password" id="pw-cur" style="width:100%;padding:12px 14px;border:1.5px solid #E8ECF0;border-radius:10px;font-size:14px;outline:none;font-family:inherit" onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">새 비밀번호</label>
+      <input class="finp" type="password" id="pw-new" placeholder="4자 이상" style="width:100%;padding:12px 14px;border:1.5px solid #E8ECF0;border-radius:10px;font-size:14px;outline:none;font-family:inherit" onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">
+    </div>
+    <div style="margin-bottom:16px">
+      <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">새 비밀번호 확인</label>
+      <input class="finp" type="password" id="pw-con" style="width:100%;padding:12px 14px;border:1.5px solid #E8ECF0;border-radius:10px;font-size:14px;outline:none;font-family:inherit" onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">
+    </div>
+    <div id="pw-msg" style="font-size:12px;margin-bottom:10px;min-height:18px"></div>
+    <button id="btn-pw-save" style="width:100%;padding:13px;background:#1A237E;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.15s" onmouseover="this.style.background='#121858'" onmouseout="this.style.background='#1A237E'">비밀번호 변경</button>
+  </div>`;}
+
+function bD(recs){return{
+  labels:recs.map(r=>`${r.month} ${r.week}`),
+  wt:recs.map(r=>r.wtSkip?null:r.wtScore??null),wtAvg:recs.map(r=>r.wtAvg??null),
+  rt:recs.map(r=>r.rtSkip?null:r.rtScore),
+  tot:recs.map(r=>r.totalScore??null),totAvg:recs.map(r=>r.totalAvg??null),
+};}
+
+function bStudent(){
+  document.getElementById('btn-lo').onclick=()=>{ST.loggedIn=false;render()};
+  document.querySelectorAll('.tab[data-tab]').forEach(t=>{t.onclick=()=>{ST.tab=t.dataset.tab;render()}});
+  document.querySelectorAll('[data-hist]').forEach(t=>{t.onclick=()=>{ST.histTab=t.dataset.hist;render()}});
+  const wp=document.getElementById('wk-pick');
+  if(wp){
+    wp.onchange=()=>{const[m,w]=wp.value.split(' ');ST.vMon=m;ST.vWk=w;render();};
+  }
+  const recs0=sRecs(ST.user.id,ST.userSchool);
+  const opts0=recs0.map(r=>`${r.month} ${r.week}`);
+  const curIdx=opts0.indexOf(wp?wp.value:(ST.vMon?`${ST.vMon} ${ST.vWk}`:opts0[opts0.length-1]));
+  const prevBtn=document.getElementById('wk-prev');
+  const nextBtn=document.getElementById('wk-next');
+  if(prevBtn){prevBtn.onclick=()=>{if(curIdx>0){const[m,w]=opts0[curIdx-1].split(' ');ST.vMon=m;ST.vWk=w;render();}};}
+  if(nextBtn){nextBtn.onclick=()=>{if(curIdx<opts0.length-1){const[m,w]=opts0[curIdx+1].split(' ');ST.vMon=m;ST.vWk=w;render();};};}
+  const pwBtn=document.getElementById('btn-pw-save');
+  if(pwBtn)pwBtn.onclick=()=>{
+    const cur=document.getElementById('pw-cur').value,nw=document.getElementById('pw-new').value,con=document.getElementById('pw-con').value;
+    const msg=document.getElementById('pw-msg');
+    if(cur!==ST.user.pwd){msg.textContent='현재 비밀번호가 틀렸습니다.';msg.style.color='#c62828';return;}
+    if(!nw||nw.length<4){msg.textContent='4자 이상 입력하세요.';msg.style.color='#c62828';return;}
+    if(nw!==con){msg.textContent='새 비밀번호가 일치하지 않습니다.';msg.style.color='#c62828';return;}
+    const sc=DB.schools.find(s=>s.id===ST.userSchool.id);const idx=sc.students.findIndex(s=>s.id===ST.user.id);
+    if(idx>=0){sc.students[idx].pwd=nw;ST.user=sc.students[idx];}
+    saveDB();msg.textContent='변경 완료!';msg.style.color='#1b5e20';
+    ['pw-cur','pw-new','pw-con'].forEach(id=>document.getElementById(id).value='');
+  };
+  const recs=sRecs(ST.user.id,ST.userSchool);const d=bD(recs);
+  setTimeout(()=>{
+    if(ST.tab==='report'){
+      mkLine('mini-wt',d.labels,d.wt,d.wtAvg,'#1A237E');
+      mkLine('mini-rt',d.labels,d.rt,d.rt.map(()=>null),'#6A1B9A',0,100);
+      const tv=[...d.tot,...d.totAvg].filter(v=>v!=null);
+      mkLine('mini-tot',d.labels,d.tot,d.totAvg,'#283593',tv.length?Math.max(0,Math.floor(Math.min(...tv)/10)*10-10):0,tv.length?Math.ceil(Math.max(...tv)/10)*10+10:200);
+    }
+    if(ST.tab==='history'){
+      const ht=ST.histTab||'wt';const m={wt:[d.wt,d.wtAvg,'#1A237E'],rt:[d.rt,d.rt.map(()=>null),'#6A1B9A'],tot:[d.tot,d.totAvg,'#283593']};
+      const [s,a,c]=m[ht];const isTot=ht==='tot';const all=[...s,...a].filter(v=>v!=null);
+      mkLine('h-main',d.labels,s,a,c,isTot?(all.length?Math.max(0,Math.floor(Math.min(...all)/10)*10-10):0):50,isTot?(all.length?Math.ceil(Math.max(...all)/10)*10+10:200):100);
+    }
+  },150);
+}
+
+function rAdmin(){
+  const sc=curSch();
+  const menus=[
+    {id:'records',l:'성적 일괄 입력',icon:'📝'},
+    {id:'notices',l:'공지 입력',icon:'📢'},
+    {id:'students',l:'학생 관리',icon:'👥'},
+    {id:'school-settings',l:'학교 설정',icon:'🏫'},
+    {id:'admin-settings',l:'관리자 설정',icon:'⚙️'},
+    {id:'logs',l:'저장 로그',icon:'📋'}
+  ];
+  let inner='';
+  if(ST.atab==='records') inner=rBulk(sc);
+  else if(ST.atab==='notices') inner=rNotices(sc);
+  else if(ST.atab==='students') inner=rStudentMgmt(sc);
+  else if(ST.atab==='school-settings') inner=rSchoolSettings(sc);
+  else if(ST.atab==='logs') inner=rLogs(sc);
+  else inner=rAdminSettings(sc);
+  const curMenu=menus.find(m=>m.id===ST.atab);
+  return`
+  <div class="top-nav">
+    <div class="nav-logo"><span style="font-size:18px;font-weight:800;color:#fff;letter-spacing:-0.5px"><span style="color:#FFB300">OH</span>ENG</span></div>
+    <div class="nav-right">
+      <button class="nbtn nbtn-school" id="btn-back-school">← 학교 선택</button>
+      <button class="nbtn" id="btn-alo">로그아웃</button>
+    </div>
+  </div>
+  <div class="a-wrap">
+    <div class="a-sidebar">
+      <div class="a-sidebar-school">
+        <div style="font-size:10px;color:#6C7FD8;font-weight:600;margin-bottom:3px;text-transform:uppercase;letter-spacing:0.5px">현재 학교</div>
+        <div style="font-size:14px;font-weight:800;color:#1A237E">${sc.name}</div>
+        <div style="font-size:11px;color:#9BA3AF;margin-top:1px">${sc.grade} · 학생 ${sc.students.length}명</div>
+      </div>
+      <div class="a-sidebar-title">메뉴</div>
+      <div class="a-menu">
+        ${menus.map(m=>`
+        <div class="a-menu-item ${ST.atab===m.id?'active':''}" data-atab="${m.id}">
+          <span style="font-size:15px">${m.icon}</span>
+          <span>${m.l}</span>
+        </div>`).join('')}
+      </div>
+    </div>
+    <div class="a-main">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <span style="font-size:20px">${curMenu?.icon||''}</span>
+        <div class="a-main-title">${curMenu?.l||''}</div>
+      </div>
+      <div class="a-main-sub">${sc.name} · ${sc.grade}</div>
+      ${inner}
+    </div>
+  </div>`;}
+
+function lastThr(sc,mon,wk){
+  const MONTHS=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];const WEEKS=['1주','2주','3주','4주','5주'];
+  const mi=MONTHS.indexOf(mon),wi=WEEKS.indexOf(wk);
+  let pm=mon,pw=wk;
+  if(wi>0){pw=WEEKS[wi-1];}else if(mi>0){pm=MONTHS[mi-1];pw=WEEKS[WEEKS.length-1];}
+  else return{rt:null,wt:null};
+  const prev=sc.records.find(r=>r.month===pm&&r.week===pw);
+  return{rt:prev?.thrRt??null,wt:prev?.thrWt??null};
+}
+
+function cpH(pass,skip){
+  if(skip)return'<span class="cp cp-s">생략</span>';
+  if(pass===true)return'<span class="cp cp-y">합격</span>';
+  if(pass===false)return'<span class="cp cp-n">불합격</span>';
+  return'<span class="cp cp-s">-</span>';
+}
+
+function tgH(pass,skip){return cpH(pass,skip);}
+
+function rBulk(sc){
+  const HW=['완료','미완료','동영상','미제출','미제출(동영상)','신규'];
+  const MONTHS=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+  const WEEKS=['1주','2주','3주','4주','5주'];
+  const mon=ST.bMon||'2월',wk=ST.bWk||'1주';
+  const prevThr=lastThr(sc,mon,wk);
+  const savedRec=sc.records.find(r=>r.month===mon&&r.week===wk&&r.sid===sc.students[0]?.id)||sc.records.find(r=>r.month===mon&&r.week===wk);
+  const dispRt=savedRec?.thrRt??prevThr.rt;
+  const dispWt=savedRec?.thrWt??prevThr.wt;
+  const dispRvAvg=sc.records.find(r=>r.month===mon&&r.week===wk)?.rvAvg??'';
+  const dispWtAvg=sc.records.find(r=>r.month===mon&&r.week===wk)?.wtAvg??'';
+  const dispTotAvg=sc.records.find(r=>r.month===mon&&r.week===wk)?.totalAvg??'';
+  const hwKey=mon+'_'+wk;
+  const hwEntry=sc.hwNames&&sc.hwNames[hwKey]?sc.hwNames[hwKey]:{};
+  const hw1=hwEntry.hw1||sc.hw1||'숙제1';
+  const hw2=hwEntry.hw2||sc.hw2||'숙제2';
+  const hw2Skip=hwEntry.hw2Skip!==undefined?hwEntry.hw2Skip:(sc.hw2Skip||false);
+  const rows=sc.students.map(s=>{
+    const ex=sc.records.find(r=>r.sid===s.id&&r.month===mon&&r.week===wk)||{};
+    const rtSkipped=!!ex.rtSkip;const wtSkipped=!!ex.wtSkip;
+    return`<tr data-sid="${s.id}" data-rtskip="${rtSkipped?'1':'0'}" data-wtskip="${wtSkipped?'1':'0'}">
+      <td class="sn">${s.name}</td>
+      <td><input class="ci inp-rt" type="number" min="0" max="100" value="${rtSkipped||ex.rtScore==null?'':ex.rtScore}"${rtSkipped?' disabled':''}></td>
+      <td><input class="ci-auto auto-rt-rank" readonly value="${rtSkipped?'생략':ex.rvRank??''}"></td>
+      <td class="auto-rt-pass">${cpH(ex.rtPass,rtSkipped)}</td>
+      <td><input class="ci inp-wt" type="number" min="0" max="100" value="${wtSkipped?'':ex.wtScore??''}"${wtSkipped?' disabled':''}></td>
+      <td><input class="ci-auto auto-wt-rank" readonly value="${wtSkipped?'생략':ex.wtRank??''}"></td>
+      <td class="auto-wt-pass">${cpH(ex.wtPass,wtSkipped)}</td>
+      <td><input class="ci-auto auto-tot" readonly value="${ex.totalScore!=null?ex.totalScore:''}"></td>
+      <td><input class="ci-auto auto-tot-rank" readonly value="${ex.totalRank??''}"></td>
+      <td><select class="cs inp-hw1">${HW.map(o=>`<option ${(ex.hw1||ex.homework)===o?'selected':''}>${o}</option>`).join('')}</select></td>
+      <td><select class="cs inp-hw2" ${hw2Skip?'disabled style=\"opacity:0.35\"':''}>${HW.map(o=>`<option ${ex.hw2===o?'selected':''}>${o}</option>`).join('')}</select></td>
+      <td><input class="ci inp-rt2" value="${ex.retestTime||''}" list="retest-list" style="min-width:70px" autocomplete="off"></td>
+    </tr>`;}).join('');
+  return`
+  <div class="bulk-toolbar">
+    <label>월</label><select id="bk-mon">${MONTHS.map(m=>`<option ${m===mon?'selected':''}>${m}</option>`).join('')}</select>
+    <label>주차</label><select id="bk-wk">${WEEKS.map(w=>`<option ${w===wk?'selected':''}>${w}</option>`).join('')}</select>
+    <button class="abtn abtn-blue" id="btn-load">불러오기</button>
+  </div>
+  <div class="thr-box">
+    <div class="thr-box-title"><span>⚠️</span>이번 주 합격 기준점수 <span style="font-size:11px;font-weight:400;color:#bf360c;margin-left:6px">매주 직접 입력 · 이 주차에만 적용</span></div>
+    <div class="thr-grid">
+      <div class="thr-item"><label>RT 합격 기준점수</label><input id="thr-rt" type="number" placeholder="예: 80" value="${dispRt??''}"></div>
+      <div class="thr-item"><label>WT 합격 기준점수</label><input id="thr-wt" type="number" placeholder="예: 70" value="${dispWt??''}"></div>
+    </div>
+  </div>
+  <!-- 숙제 이름 인라인 편집 -->
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;background:#FFF8E1;border:1.5px solid #FFE082;border-radius:10px;flex-wrap:wrap">
+    <span style="font-size:11px;font-weight:700;color:#92400E;white-space:nowrap">📋 숙제 이름</span>
+    <div style="display:flex;align-items:center;gap:6px">
+      <label style="font-size:11px;color:#92400E;font-weight:600;white-space:nowrap">숙제1</label>
+      <input id="hw1-name" value="${hw1}" placeholder="이번 주 숙제1 이름" style="padding:5px 10px;border:1.5px solid #FFD54F;border-radius:7px;font-size:12px;font-weight:600;color:#78350F;background:#fff;width:110px;outline:none;font-family:inherit">
+    </div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <label style="font-size:11px;color:#92400E;font-weight:600;white-space:nowrap">숙제2</label>
+      <input id="hw2-name" value="${hw2}" placeholder="이번 주 숙제2 이름" style="padding:5px 10px;border:1.5px solid #FFD54F;border-radius:7px;font-size:12px;font-weight:600;color:#78350F;background:#fff;width:110px;outline:none;font-family:inherit">
+    </div>
+    <div style="display:flex;align-items:center;gap:5px">
+      <input type="checkbox" id="hw2-skip" ${hw2Skip?'checked':''} style="width:15px;height:15px;accent-color:#1A237E;cursor:pointer">
+      <label for="hw2-skip" style="font-size:11px;color:#92400E;font-weight:600;cursor:pointer;white-space:nowrap">숙제2 생략</label>
+    </div>
+    <button id="btn-hw-name-save" style="padding:5px 12px;background:#F59E0B;color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">저장</button>
+    <span id="hw-name-msg" style="font-size:11px;color:#00897B;font-weight:600"></span>
+  </div>
+  <div class="avg-row">
+    <div class="s-item"><label>REVIEW 반평균 <span style="font-size:9px;color:#689f38;font-weight:400">(자동)</span></label><input id="cmn-rva" class="ci-auto" style="background:#f1f8e9;color:#33691e;width:100%;padding:5px 7px;border:0.5px solid #c8e6c9;border-radius:5px;font-size:12px" readonly value="${dispRvAvg}"></div>
+    <div class="s-item"><label>WT 반평균 <span style="font-size:9px;color:#689f38;font-weight:400">(자동)</span></label><input id="cmn-wta" class="ci-auto" style="background:#f1f8e9;color:#33691e;width:100%;padding:5px 7px;border:0.5px solid #c8e6c9;border-radius:5px;font-size:12px" readonly value="${dispWtAvg}"></div>
+    <div class="s-item"><label>전체 반평균 <span style="font-size:9px;color:#689f38;font-weight:400">(자동)</span></label><input id="cmn-tta" class="ci-auto" style="background:#f1f8e9;color:#33691e;width:100%;padding:5px 7px;border:0.5px solid #c8e6c9;border-radius:5px;font-size:12px" readonly value="${dispTotAvg}"></div>
+  </div>
+  <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;font-size:11px;align-items:center">
+    <span style="color:var(--tx2);font-weight:500">범례:</span>
+    <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#e3f2fd;border:1px solid #90caf9;display:inline-block"></span><span style="color:#1565c0;font-weight:500">파란 테두리</span>= 직접 입력</span>
+    <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#f0fdf9;border:1px solid #6ee7b7;display:inline-block"></span><span style="color:#047857;font-weight:500">초록 배경</span>= 자동계산</span>
+  </div>
+  <div class="skip-group">
+    <span class="skip-lbl">RT 생략:</span>
+    <button class="abtn" id="btn-rt-all" style="background:#6a1b9a;color:#fff;border-color:#6a1b9a;font-size:11px;padding:5px 10px">전체생략</button>
+    <button class="abtn abtn-gray" id="btn-rt-none" style="font-size:11px;padding:5px 10px">전체해제</button>
+    <span class="skip-lbl" style="margin-left:10px">WT 생략:</span>
+    <button class="abtn" id="btn-wt-all" style="background:#1565c0;color:#fff;border-color:#1565c0;font-size:11px;padding:5px 10px">전체생략</button>
+    <button class="abtn abtn-gray" id="btn-wt-none" style="font-size:11px;padding:5px 10px">전체해제</button>
+  </div>
+  <div class="btbl-wrap"><table class="btbl">
+    <thead><tr>
+      <th class="sn" style="background:#1A237E;color:#fff;min-width:70px">이름</th>
+      <th class="th-input2">RT점수</th>
+      <th class="th-auto2">RT등수</th>
+      <th class="th-auto2">RT합격</th>
+      <th class="th-input2">WT점수</th>
+      <th class="th-auto2">WT등수</th>
+      <th class="th-auto2">WT합격</th>
+      <th class="th-auto2">전체점수</th>
+      <th class="th-auto2">전체등수</th>
+      <th class="th-hw2 th-hw1-name">${hw1}</th>
+      <th class="th-hw2 th-hw2-name">${hw2}</th>
+      <th class="th-hw2">재시험</th>
+    </tr></thead>
+    <tbody id="bk-body">${rows}</tbody>
+  </table></div>
+  <datalist id="retest-list">${[...new Set(sc.records.map(r=>r.retestTime).filter(v=>v))].map(v=>`<option value="${v}">`).join('')}</datalist>
+  <div style="display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap">
+    <button class="abtn abtn-green" id="btn-save" style="padding:11px 28px;font-size:14px;font-weight:700">💾 전체 저장</button>
+    <button class="abtn abtn-gray" id="btn-export-scores" style="padding:11px 18px;font-size:13px">📊 성적 엑셀 내보내기</button>
+    <div id="save-msg" style="font-size:13px;font-weight:600"></div>
+  </div>
+  <div style="font-size:11px;color:#9BA3AF;margin-top:8px">※ 초록 배경 칸은 자동계산 · 저장 버튼으로 영구보관</div>
+  <div style="margin-top:24px" id="saved-result-section">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div>
+        <span style="font-size:14px;font-weight:500">이번 주차 저장 결과</span>
+        <span class="result-count" style="font-size:12px;color:var(--tx2);margin-left:8px">${mon} ${wk} · ${sc.records.filter(r=>r.month===mon&&r.week===wk).length}명</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="font-size:11px;color:var(--tx2)">전체 \${sc.records.length}건 저장됨</div>
+        <button id="btn-ppurio-notify" style="padding:5px 12px;background:#FEE500;color:#000;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">💬 성적 알림 발송</button>
+      </div>
+    </div>
+    <div id="saved-result-table">${renderSavedTable(sc,mon,wk)}</div>
+  </div>`;}
+
+function rNotices(sc){
+  const MONTHS=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];const WEEKS=['1주','2주','3주','4주','5주'];
+  const mon=ST.bMon||'2월',wk=ST.bWk||'1주';
+  const key=`${mon}_${wk}`;
+  const existing=sc.notices[key]||'';
+  return`<div class="section-card">
+    <div class="section-ttl">공지사항 입력</div>
+    <div class="form2" style="margin-bottom:12px">
+      <div class="fgrp"><label class="flbl">월</label><select class="finp" id="nc-mon">${MONTHS.map(m=>`<option ${m===mon?'selected':''}>${m}</option>`).join('')}</select></div>
+      <div class="fgrp"><label class="flbl">주차</label><select class="finp" id="nc-wk">${WEEKS.map(w=>`<option ${w===wk?'selected':''}>${w}</option>`).join('')}</select></div>
+    </div>
+    <div style="margin-bottom:12px"><label class="flbl">공지 내용</label>
+      <textarea class="finp" id="nc-txt" rows="4" style="width:100%;resize:vertical">${existing}</textarea>
+    </div>
+    <button class="abtn abtn-blue" id="btn-nc-save">저장</button>
+    <div id="nc-msg" style="font-size:12px;margin-top:8px"></div>
+  </div>`;}
+
+function rStudentMgmt(sc){
+  const autoId=nextStudentId(sc);
+  return`
+  <div class="section-card">
+    <div class="section-ttl">📤 엑셀/CSV 일괄 등록</div>
+    <div style="background:#F0F9FF;border:1.5px solid #BAE6FD;border-radius:12px;padding:14px 16px;margin-bottom:14px;font-size:12px;color:#0C4A6E">
+      이름,전화번호,학부모전화번호,구분<br>홍길동,010-1234-5678,010-8765-4321,재학
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <label style="display:flex;align-items:center;gap:8px;padding:10px 16px;background:#1A237E;color:#fff;border-radius:9px;cursor:pointer;font-size:13px;font-weight:600">
+        📁 CSV 파일 선택<input type="file" id="csv-upload" accept=".csv,.txt" style="display:none">
+      </label>
+      <span id="csv-filename" style="font-size:12px;color:#9BA3AF">선택된 파일 없음</span>
+    </div>
+    <button class="abtn abtn-green" id="btn-csv-import" style="margin-right:8px">일괄 등록</button>
+    <button class="abtn abtn-gray" id="btn-csv-template">템플릿 다운로드</button>
+    <div id="csv-msg" style="font-size:12px;margin-top:10px;min-height:18px"></div>
+  </div>
+  <div class="section-card">
+    <div class="section-ttl">➕ 학생 개별 등록</div>
+    <div class="form3" style="margin-bottom:14px">
+      <div class="fgrp"><label class="flbl">이름</label><input class="finp" id="ns-name"/></div>
+      <div class="fgrp"><label class="flbl">학생 ID</label><input class="finp" id="ns-id" value="${autoId}"/></div>
+      <div class="fgrp"><label class="flbl">초기 비밀번호</label><input class="finp" id="ns-pw" value="1234"/></div>
+      <div class="fgrp"><label class="flbl">학생 전화번호</label><input class="finp" id="ns-ph" placeholder="010-0000-0000"/></div>
+      <div class="fgrp"><label class="flbl">학부모 전화번호</label><input class="finp" id="ns-pph" placeholder="010-0000-0000"/></div>
+      <div class="fgrp"><label class="flbl">구분</label>
+        <select class="finp" id="ns-type"><option value="regular">재학생</option><option value="new">신규생</option><option value="transfer">전입생</option></select>
+      </div>
+    </div>
+    <button class="abtn abtn-green" id="btn-ns">학생 추가</button>
+    <div id="ns-msg" style="font-size:12px;margin-top:8px"></div>
+  </div>
+  <div class="section-card">
+    <div class="section-ttl" style="display:flex;justify-content:space-between;align-items:center">
+      <span>👥 학생 목록 (${sc.students.length}명)</span>
+      <div style="display:flex;gap:8px">
+        <button id="btn-ppurio-all-idpw" style="padding:6px 14px;background:#FEE500;color:#000;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">💬 ID/비번 일괄 발송</button>
+        <button class="abtn abtn-blue" id="btn-export-excel" style="font-size:11px;padding:6px 12px">📊 엑셀 내보내기</button>
+        <button class="abtn abtn-gray" onclick="printStudentList()" style="font-size:11px;padding:6px 12px">🖨️ 인쇄</button>
+      </div>
+    </div>
+    <div id="student-list-print" style="overflow-x:auto"><table class="rec-tbl">
+      <thead><tr><th>ID</th><th>이름</th><th>구분</th><th>전화번호</th><th>학부모</th><th>비번</th><th>등록일</th><th></th></tr></thead>
+      <tbody>${sc.students.map(s=>{
+        const typeMap={new:'🆕 신규',transfer:'🔄 전입',regular:'재학'};
+        const typeColor={new:'background:#FFF7ED;color:#C2410C',transfer:'background:#EFF6FF;color:#1D4ED8',regular:'background:#F1F3F5;color:#6B7280'};
+        return`<tr>
+          <td style="font-family:monospace;font-size:11px;color:#6B7280">${s.id}</td>
+          <td style="font-weight:700;color:#1A237E">${s.name}</td>
+          <td><span style="padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;${typeColor[s.type||'regular']||typeColor.regular}">${typeMap[s.type||'regular']}</span></td>
+          <td>${s.phone||'-'}</td><td>${s.parentPhone||'-'}</td>
+          <td style="font-family:monospace;font-size:11px">${s.pwd}</td>
+          <td style="font-size:11px;color:#9BA3AF">${s.createdAt||'-'}</td>
+          <td style="white-space:nowrap;display:flex;gap:4px">
+            <button class="abtn" data-ppurio-id="${s.id}" style="background:#FEE500;color:#000;border-color:#FEE500;font-size:11px;padding:4px 8px;font-weight:700">💬 ID/비번</button>
+            <button class="abtn abtn-blue" data-edit-id="${s.id}" style="font-size:11px;padding:4px 8px">✏️ 수정</button>
+            <button class="abtn abtn-red" data-ds="${s.id}">삭제</button>
+          </td>
+        </tr>`;}).join('')}
+      </tbody>
+    </table></div>
+  </div>`;}
+
+function rSchoolSettings(sc){return`
+  <div class="section-card">
+    <div class="section-ttl">학교 기본 정보</div>
+    <div class="form2" style="margin-bottom:14px">
+      <div class="fgrp"><label class="flbl">학교 이름</label><input class="finp" id="ss-name" value="${sc.name}"></div>
+      <div class="fgrp"><label class="flbl">학년</label><input class="finp" id="ss-grade" value="${sc.grade}"></div>
+    </div>
+    <div class="section-ttl" style="margin-top:4px">📋 숙제 기본 이름 <span style="font-size:11px;color:#9BA3AF;font-weight:400">(주차별로 성적 입력 화면에서 변경 가능)</span></div>
+    <div class="form2" style="margin-bottom:14px">
+      <div class="fgrp"><label class="flbl">숙제1 이름</label><input class="finp" id="ss-hw1" value="${sc.hw1||'숙제1'}" placeholder="예: 수능감잡기"></div>
+      <div class="fgrp"><label class="flbl">숙제2 이름</label><input class="finp" id="ss-hw2" value="${sc.hw2||'숙제2'}" placeholder="예: 단어장"></div>
+    </div>
+    <button class="abtn abtn-blue" id="btn-ss-save" style="padding:10px 24px">저장</button>
+    <div id="ss-msg" style="font-size:12px;margin-top:8px;font-weight:600"></div>
+  </div>`;}
+
+function rAdminSettings(sc){return`
+  <div class="section-card">
+    <div class="section-ttl">관리자 비밀번호 변경</div>
+    <div style="margin-bottom:12px"><label class="flbl">현재 비밀번호</label><input class="finp" type="password" id="apw-cur"></div>
+    <div style="margin-bottom:12px"><label class="flbl">새 비밀번호</label><input class="finp" type="password" id="apw-new" placeholder="4자 이상"></div>
+    <div style="margin-bottom:14px"><label class="flbl">새 비밀번호 확인</label><input class="finp" type="password" id="apw-con"></div>
+    <button class="abtn abtn-blue" id="btn-apw-save">변경</button>
+    <div id="apw-msg" style="font-size:12px;margin-top:8px"></div>
+  </div>`;}
+
+function rLogs(sc){
+  try{
+    const logs=JSON.parse(localStorage.getItem('oheng_logs_'+sc.id)||'[]');
+    if(!logs.length)return`<div class="section-card" style="text-align:center;padding:30px 0">
+      <div style="font-size:32px;margin-bottom:10px">📋</div>
+      <div style="font-size:14px;font-weight:500;margin-bottom:6px">저장 로그가 없습니다</div>
+      <div style="font-size:12px;color:var(--tx2)">성적 저장 시 자동 기록됩니다</div>
+    </div>`;
+
+    // 최신순 정렬
+    const sorted=[...logs].reverse();
+
+    return`<div style="font-size:12px;color:var(--tx2);margin-bottom:12px">
+      총 ${logs.length}회 저장 · 클릭하면 해당 주차로 이동
+    </div>`+
+    sorted.map((l,i)=>{
+      const wkRecs=sc.records.filter(r=>r.month===l.month&&r.week===l.week);
+      return`<div class="section-card" style="cursor:pointer;transition:box-shadow 0.15s"
+        onmouseover="this.style.boxShadow='0 4px 20px rgba(26,35,126,0.15)'"
+        onmouseout="this.style.boxShadow=''"
+        onclick="goToWeek('${l.month}','${l.week}')">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#1A237E,#3949AB);display:flex;align-items:center;justify-content:center;color:#FFB300;font-size:14px;font-weight:800;flex-shrink:0">${logs.length-i}</div>
+            <div>
+              <div style="font-size:15px;font-weight:700;color:#1A237E">${l.month} ${l.week}</div>
+              <div style="font-size:11px;color:#9BA3AF;margin-top:1px">${l.savedAt}</div>
+            </div>
+          </div>
+          <div style="text-align:right;display:flex;gap:12px;align-items:center">
+            <div style="text-align:center">
+              <div style="font-size:10px;color:#9BA3AF">저장인원</div>
+              <div style="font-size:16px;font-weight:700;color:#1A237E">${l.count}명</div>
+            </div>
+            <div style="text-align:center;background:#FFF8E1;border-radius:8px;padding:6px 10px">
+              <div style="font-size:10px;color:#E65100">RT/WT 기준</div>
+              <div style="font-size:13px;font-weight:700;color:#E65100">${l.thrRt??'-'}점 / ${l.thrWt??'-'}점</div>
+            </div>
+            <div style="font-size:20px;color:#C4C9D4">›</div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }catch(e){return`<div class="section-card">저장 로그를 불러올 수 없습니다.</div>`;}
+}
+
+function bAdmin(){
+  const sc=curSch();
+  document.getElementById('btn-alo').onclick=()=>{ST.loggedIn=false;render()};
+  document.getElementById('btn-back-school').onclick=()=>{ST.school=null;render()};
+  document.querySelectorAll('[data-atab]').forEach(t=>{t.onclick=()=>{ST.atab=t.dataset.atab;render()}});
+  if(ST.atab==='school-settings'){
+    document.getElementById('btn-ss-save').onclick=()=>{
+      const nm=document.getElementById('ss-name').value.trim();
+      const gr=document.getElementById('ss-grade').value.trim();
+      if(!nm){alert('학교명을 입력하세요');return;}
+      sc.name=nm;sc.grade=gr;
+      sc.hw1=document.getElementById('ss-hw1')?.value.trim()||'숙제1';
+      sc.hw2=document.getElementById('ss-hw2')?.value.trim()||'숙제2';
+      saveDB();
+      const msg=document.getElementById('ss-msg');
+      msg.textContent='✓ 저장 완료';msg.style.color='#00897B';
+      setTimeout(()=>render(),600);
+    };return;
+  }
+  if(ST.atab==='notices'){
+    document.getElementById('btn-nc-save').onclick=()=>{
+      const mon=document.getElementById('nc-mon').value;
+      const wk=document.getElementById('nc-wk').value;
+      const txt=document.getElementById('nc-txt').value.trim();
+      const key=`${mon}_${wk}`;
+      if(txt)sc.notices[key]=txt;else delete sc.notices[key];
+      saveDB();
+      const msg=document.getElementById('nc-msg');
+      msg.textContent='✓ 공지 저장 완료';msg.style.color='#00897B';
+    };return;
+  }
+  if(ST.atab==='students'){
+    document.getElementById('btn-ns').onclick=()=>{
+      const name=document.getElementById('ns-name').value.trim();
+      const id=document.getElementById('ns-id').value.trim();
+      const pw=document.getElementById('ns-pw').value.trim();
+      const msg=document.getElementById('ns-msg');
+      if(!name||!id||!pw){msg.textContent='필수 항목을 입력하세요';msg.style.color='#E53935';return;}
+      if(DB.schools.some(s=>s.students.some(st=>st.id===id))){msg.textContent='이미 사용 중인 ID입니다';msg.style.color='#E53935';return;}
+      const sType=document.getElementById('ns-type')?.value||'regular';
+      const today=new Date().toISOString().slice(0,10);
+      sc.students.push({id,name,pwd:pw,phone:document.getElementById('ns-ph').value,parentPhone:document.getElementById('ns-pph').value,type:sType,createdAt:today});
+      saveDB();msg.textContent=`✓ ${name} 추가 완료!`;msg.style.color='#00897B';render();
+    };
+    const csvInput=document.getElementById('csv-upload');
+    if(csvInput){csvInput.onchange=e=>{const f=e.target.files[0];if(f){const el=document.getElementById('csv-filename');if(el)el.textContent=f.name;}};}
+    const csvImportBtn=document.getElementById('btn-csv-import');
+    if(csvImportBtn){csvImportBtn.onclick=()=>{
+      const fi=document.getElementById('csv-upload');
+      const msg=document.getElementById('csv-msg');
+      if(!fi||!fi.files[0]){msg.textContent='CSV 파일을 먼저 선택해주세요';msg.style.color='#E53935';return;}
+      const reader=new FileReader();
+      reader.onload=e=>{
+        try{
+          const parsed=parseCSV(e.target.result);
+          if(!parsed.length){msg.textContent='등록할 데이터가 없습니다';msg.style.color='#E53935';return;}
+          const today=new Date().toISOString().slice(0,10);
+          let added=0;
+          parsed.forEach(p=>{if(!p.name)return;const newId=nextStudentId(sc);sc.students.push({id:newId,name:p.name,pwd:'1234',phone:p.phone||'',parentPhone:p.parentPhone||'',type:p.type||'regular',createdAt:today});added++;});
+          saveDB();msg.textContent=`✓ ${added}명 등록 완료`;msg.style.color='#00897B';setTimeout(()=>render(),800);
+        }catch(err){msg.textContent='오류: '+err.message;msg.style.color='#E53935';}
+      };
+      reader.readAsText(fi.files[0],'UTF-8');
+    };}
+    const tplBtn=document.getElementById('btn-csv-template');if(tplBtn)tplBtn.onclick=()=>downloadCSVTemplate();
+    const exportStudBtn=document.getElementById('btn-export-excel');if(exportStudBtn)exportStudBtn.onclick=()=>exportStudentsExcel(sc);
+    const ppurioAllBtn=document.getElementById('btn-ppurio-all-idpw');if(ppurioAllBtn)ppurioAllBtn.onclick=()=>sendPpurioAllIdPw(sc);
+    document.querySelectorAll('[data-edit-id]').forEach(b=>{
+      b.onclick=()=>openEditStudent(sc, b.dataset.editId);
+    });
+    document.querySelectorAll('[data-ppurio-id]').forEach(b=>{
+      b.onclick=()=>{const s=sc.students.find(x=>x.id===b.dataset.ppurioId);if(s)sendPpurioIdPw(sc,s);};
+    });
+    document.querySelectorAll('[data-ds]').forEach(b=>{b.onclick=()=>{const s=sc.students.find(x=>x.id===b.dataset.ds);if(!confirm(`${s?.name||'이 학생'}을 삭제할까요?`))return;sc.students=sc.students.filter(x=>x.id!==b.dataset.ds);saveDB();render();};});
+    return;
+  }
+  if(ST.atab==='admin-settings'){
+    document.getElementById('btn-apw-save')?.addEventListener('click',()=>{
+      const cur=document.getElementById('apw-cur')?.value;const nw=document.getElementById('apw-new')?.value;const con=document.getElementById('apw-con')?.value;
+      const msg=document.getElementById('apw-msg');
+      if(cur!==ADMIN_PWD){msg.textContent='현재 비밀번호가 틀렸습니다';msg.style.color='#E53935';return;}
+      if(!nw||nw.length<4){msg.textContent='4자 이상 입력하세요';msg.style.color='#E53935';return;}
+      if(nw!==con){msg.textContent='비밀번호가 일치하지 않습니다';msg.style.color='#E53935';return;}
+      ADMIN_PWD=nw;saveDB();msg.textContent='✓ 변경 완료';msg.style.color='#00897B';
+    });return;
+  }
+  if(ST.atab==='logs'){return;}
+  // records 탭
+  document.getElementById('btn-load').onclick=()=>{ST.bMon=document.getElementById('bk-mon').value;ST.bWk=document.getElementById('bk-wk').value;render();};
+  const exportScoresBtn=document.getElementById('btn-export-scores');if(exportScoresBtn)exportScoresBtn.onclick=()=>exportScoresExcel(sc);
+  const hwSaveBtn=document.getElementById('btn-hw-name-save');
+  if(hwSaveBtn){hwSaveBtn.onclick=()=>{
+    const h1=(document.getElementById('hw1-name')?.value||'').trim()||'숙제1';
+    const h2=(document.getElementById('hw2-name')?.value||'').trim()||'숙제2';
+    const skip2=document.getElementById('hw2-skip')?.checked||false;
+    // 주차별 저장
+    const hwK=ST.bMon+'_'+ST.bWk;
+    if(!sc.hwNames)sc.hwNames={};
+    sc.hwNames[hwK]={hw1:h1,hw2:h2,hw2Skip:skip2};
+    // 학교 기본값도 업데이트 (신규 주차 기본값으로 사용)
+    sc.hw1=h1;sc.hw2=h2;sc.hw2Skip=skip2;
+    saveDB();render();
+  };}
+  document.getElementById('btn-rt-all').onclick=()=>{document.querySelectorAll('#bk-body tr').forEach(r=>applyRtSkip(r,true));recalc();};
+  document.getElementById('btn-rt-none').onclick=()=>{document.querySelectorAll('#bk-body tr').forEach(r=>applyRtSkip(r,false));recalc();};
+  document.getElementById('btn-wt-all').onclick=()=>{document.querySelectorAll('#bk-body tr').forEach(r=>applyWtSkip(r,true));recalc();};
+  document.getElementById('btn-wt-none').onclick=()=>{document.querySelectorAll('#bk-body tr').forEach(r=>applyWtSkip(r,false));recalc();};
+  const tbody=document.getElementById('bk-body');
+  if(tbody){
+    function onScoreChange(e){const t=e.target;if(t.classList.contains('inp-rt')||t.classList.contains('inp-wt'))recalc();}
+    tbody.addEventListener('input',onScoreChange);tbody.addEventListener('change',onScoreChange);
+    tbody.addEventListener('keydown',e=>{
+      if(e.key!=='Enter')return;e.preventDefault();
+      const CI_SELS=['.inp-rt','.inp-wt','.inp-rt2'];
+      const allInps=[...tbody.querySelectorAll(CI_SELS.join(','))].filter(el=>!el.disabled);
+      const idx=allInps.indexOf(e.target);if(idx>=0&&idx<allInps.length-1)allInps[idx+1].focus();
+    });
+  }
+  document.getElementById('thr-rt')?.addEventListener('input',recalc);
+  document.getElementById('thr-wt')?.addEventListener('input',recalc);
+  recalc();
+  document.getElementById('btn-save').onclick=()=>{
+    const mon=document.getElementById('bk-mon').value,wk=document.getElementById('bk-wk').value;
+    ST.bMon=mon;ST.bWk=wk;
+    const thrRtV=document.getElementById('thr-rt').value.trim();const thrWtV=document.getElementById('thr-wt').value.trim();
+    const thrRt=thrRtV===''?null:parseFloat(thrRtV);const thrWt=thrWtV===''?null:parseFloat(thrWtV);
+    const rvAvg=parseFloat(document.getElementById('cmn-rva').value)||null;
+    const wtAvg=parseFloat(document.getElementById('cmn-wta').value)||null;
+    const totAvg=parseFloat(document.getElementById('cmn-tta').value)||null;
+    const rows=[...document.querySelectorAll('#bk-body tr')];
+    function rankArr(items){const valid=[...items].filter(x=>!x.skip&&!isNaN(x.v)&&x.v!==null).sort((a,b)=>b.v-a.v);let rk=1;valid.forEach((s,i)=>{if(i>0&&valid[i-1].v===s.v)s.rank=valid[i-1].rank;else{s.rank=rk;}rk++;});return Object.fromEntries(valid.map(s=>[s.sid,s.rank]));}
+    const rtRankMap=rankArr(rows.map(r=>({sid:r.dataset.sid,skip:r.dataset.rtskip==='1',v:parseFloat(r.querySelector('.inp-rt').value)})));
+    const wtRankMap=rankArr(rows.map(r=>({sid:r.dataset.sid,skip:r.dataset.wtskip==='1',v:parseFloat(r.querySelector('.inp-wt').value)})));
+    const totItems=rows.map(r=>{
+      const rsk=r.dataset.rtskip==='1';const wsk=r.dataset.wtskip==='1';
+      const rtv=rsk?0:(parseFloat(r.querySelector('.inp-rt').value)||0);
+      const wtv=wsk?0:(parseFloat(r.querySelector('.inp-wt').value)||0);
+      const hasAny=(!rsk&&r.querySelector('.inp-rt').value!=='')||(!wsk&&r.querySelector('.inp-wt').value!=='');
+      return{sid:r.dataset.sid,v:hasAny?rtv+wtv:null};
+    });
+    const totSorted=[...totItems].filter(x=>x.v!==null).sort((a,b)=>b.v-a.v);let trk=1;totSorted.forEach((s,i)=>{if(i>0&&totSorted[i-1].v===s.v)s.rank=totSorted[i-1].rank;else{s.rank=trk;}trk++;});
+    const totRankMap=Object.fromEntries(totSorted.map(s=>[s.sid,s.rank]));
+    const totValMap=Object.fromEntries(totItems.map(s=>[s.sid,s.v]));
+    let saved=0;
+    rows.forEach(r=>{
+      const sid=r.dataset.sid;if(!sid)return;
+      const rsk=r.dataset.rtskip==='1';const wsk=r.dataset.wtskip==='1';
+      const rtv=parseFloat(r.querySelector('.inp-rt').value);const wtv=parseFloat(r.querySelector('.inp-wt').value);
+      const rec={sid,month:mon,week:wk,thrRt,thrWt,
+        rtSkip:rsk,rtScore:rsk?null:(isNaN(rtv)?null:rtv),rvRank:rsk?null:rtRankMap[sid]??null,rvAvg:rsk?null:rvAvg,
+        rtPass:rsk?null:(thrRt===null||isNaN(rtv)?null:rtv>=thrRt),evalScore:null,
+        wtSkip:wsk,wtScore:wsk?null:(isNaN(wtv)?null:wtv),wtRank:wsk?null:wtRankMap[sid]??null,wtAvg:wsk?null:wtAvg,
+        wtPass:wsk?false:(thrWt===null||isNaN(wtv)?null:wtv>=thrWt),
+        totalScore:totValMap[sid]??null,totalRank:totRankMap[sid]??null,totalAvg:totAvg,
+        past6:null,past9:null,
+        hw1:r.querySelector('.inp-hw1')?.value||'',
+        hw2:r.querySelector('.inp-hw2')?.value||'',
+        homework:r.querySelector('.inp-hw1')?.value||'',
+        hwName1:(()=>{const _k=mon+'_'+wk;return sc.hwNames&&sc.hwNames[_k]?sc.hwNames[_k].hw1:sc.hw1||'숙제1';})(),
+        hwName2:(()=>{const _k=mon+'_'+wk;return sc.hwNames&&sc.hwNames[_k]?sc.hwNames[_k].hw2:sc.hw2||'숙제2';})(),
+        retestTime:r.querySelector('.inp-rt2').value,notice:''};
+      const idx=sc.records.findIndex(x=>x.sid===sid&&x.month===mon&&x.week===wk);
+      if(idx>=0)sc.records[idx]=rec;else sc.records.push(rec);saved++;
+    });
+    addLog(sc,mon,wk,saved,thrRt,thrWt);saveDB();
+    const srEl=document.getElementById('saved-result-table');
+    if(srEl){srEl.innerHTML=renderSavedTable(sc,mon,wk);srEl.querySelectorAll('[data-dr]').forEach(function(b){b.onclick=function(){sc.records.splice(parseInt(b.dataset.dr),1);saveDB();srEl.innerHTML=renderSavedTable(sc,ST.bMon,ST.bWk);};});}
+    const msg=document.getElementById('save-msg');msg.textContent='✓ '+saved+'명 저장 완료';msg.style.color='#00897B';
+    recalc();
+  };
+  document.querySelectorAll('[data-dr]').forEach(b=>{b.onclick=()=>{sc.records.splice(parseInt(b.dataset.dr),1);saveDB();const se=document.getElementById('saved-result-table');if(se)se.innerHTML=renderSavedTable(sc,ST.bMon,ST.bWk);};});
+  const ppurioNotifyBtn=document.getElementById('btn-ppurio-notify');
+  if(ppurioNotifyBtn)ppurioNotifyBtn.onclick=()=>sendPpurioScoreNotify(sc,ST.bMon,ST.bWk);
+}
+
+function applyRtSkip(row,dis){
+  row.dataset.rtskip=dis?'1':'0';
+  const rtEl=row.querySelector('.inp-rt');
+  if(rtEl){rtEl.disabled=dis;if(dis)rtEl.value='';}
+  const rvEl=row.querySelector('.auto-rt-rank');const rpEl=row.querySelector('.auto-rt-pass');
+  if(dis){
+    if(rvEl)rvEl.value='생략';
+    if(rpEl)rpEl.innerHTML='<span class="cp cp-s">생략</span>';
+  } else {
+    // 해제 시: 자동계산 칸 초기화 → recalc가 다시 채워줌
+    if(rvEl)rvEl.value='';
+    if(rpEl)rpEl.innerHTML='<span class="cp cp-s">-</span>';
+  }
+}
+function applyWtSkip(row,dis){
+  row.dataset.wtskip=dis?'1':'0';
+  const wtEl=row.querySelector('.inp-wt');
+  if(wtEl){wtEl.disabled=dis;if(dis)wtEl.value='';}
+  const wrEl=row.querySelector('.auto-wt-rank');const wpEl=row.querySelector('.auto-wt-pass');
+  if(dis){
+    if(wrEl)wrEl.value='생략';
+    if(wpEl)wpEl.innerHTML='<span class="cp cp-s">생략</span>';
+  } else {
+    if(wrEl)wrEl.value='';
+    if(wpEl)wpEl.innerHTML='<span class="cp cp-s">-</span>';
+  }
+}
+
+/* ★ 자동계산 + 반평균 자동계산 */
+function recalc(){
+  const thrRt=parseFloat(document.getElementById('thr-rt')?.value);
+  const thrWt=parseFloat(document.getElementById('thr-wt')?.value);
+  const rows=[...document.querySelectorAll('#bk-body tr')];if(!rows.length)return;
+  function rankArr(items){
+    const valid=[...items].filter(x=>!x.skip&&!isNaN(x.v)&&x.v!==null).sort((a,b)=>b.v-a.v);
+    let rk=1;valid.forEach((s,i)=>{if(i>0&&valid[i-1].v===s.v)s.rank=valid[i-1].rank;else{s.rank=rk;}rk++;});
+    return Object.fromEntries(valid.map(s=>[s.sid,s.rank]));
+  }
+  const rtItems=rows.map(r=>({sid:r.dataset.sid,skip:r.dataset.rtskip==='1',v:parseFloat(r.querySelector('.inp-rt').value)}));
+  const wtItems=rows.map(r=>({sid:r.dataset.sid,skip:r.dataset.wtskip==='1',v:parseFloat(r.querySelector('.inp-wt').value)}));
+  const rtRankMap=rankArr(rtItems);const wtRankMap=rankArr(wtItems);
+  const totItems=rows.map(r=>{
+    const rsk=r.dataset.rtskip==='1';const wsk=r.dataset.wtskip==='1';
+    const rtv=rsk?0:(parseFloat(r.querySelector('.inp-rt').value)||0);
+    const wtv=wsk?0:(parseFloat(r.querySelector('.inp-wt').value)||0);
+    // 둘 다 비어있으면 0이 아닌 null 처리
+    const hasAny=(!rsk&&r.querySelector('.inp-rt').value!=='')||(!wsk&&r.querySelector('.inp-wt').value!=='');
+    return{sid:r.dataset.sid,v:hasAny?rtv+wtv:null};
+  });
+  const totSorted=[...totItems].filter(x=>x.v!==null).sort((a,b)=>b.v-a.v);let trk=1;
+  totSorted.forEach((s,i)=>{if(i>0&&totSorted[i-1].v===s.v)s.rank=totSorted[i-1].rank;else{s.rank=trk;}trk++;});
+  const totRankMap=Object.fromEntries(totSorted.map(s=>[s.sid,s.rank]));
+  const totValMap=Object.fromEntries(totItems.map(s=>[s.sid,s.v]));
+
+  /* 반평균 자동계산 */
+  const rtVals=rtItems.filter(x=>!x.skip&&!isNaN(x.v));
+  const wtVals=wtItems.filter(x=>!x.skip&&!isNaN(x.v));
+  const totVals=totItems.filter(x=>!isNaN(x.v));
+  const avg=(arr)=>arr.length?Math.round(arr.reduce((a,b)=>a+b,0)/arr.length*10)/10:null;
+  const rvAvgCalc=avg(rtVals.map(x=>x.v));
+  const wtAvgCalc=avg(wtVals.map(x=>x.v));
+  const totAvgCalc=avg(totVals.map(x=>x.v));
+  const rvaEl=document.getElementById('cmn-rva');
+  const wtaEl=document.getElementById('cmn-wta');
+  const ttaEl=document.getElementById('cmn-tta');
+  if(rvaEl&&rvAvgCalc!==null)rvaEl.value=rvAvgCalc;
+  if(wtaEl&&wtAvgCalc!==null)wtaEl.value=wtAvgCalc;
+  if(ttaEl&&totAvgCalc!==null)ttaEl.value=totAvgCalc;
+
+  rows.forEach(r=>{
+    const sid=r.dataset.sid;const rsk=r.dataset.rtskip==='1';const wsk=r.dataset.wtskip==='1';
+    const rtv=parseFloat(r.querySelector('.inp-rt').value);const wtv=parseFloat(r.querySelector('.inp-wt').value);
+    const rtRankEl=r.querySelector('.auto-rt-rank');if(rtRankEl)rtRankEl.value=rsk?'생략':(rtRankMap[sid]??'');
+    const wtRankEl=r.querySelector('.auto-wt-rank');if(wtRankEl)wtRankEl.value=wsk?'생략':(wtRankMap[sid]??'');
+    const totEl=r.querySelector('.auto-tot');if(totEl)totEl.value=totValMap[sid]!==null&&totValMap[sid]!==undefined?totValMap[sid]:'';
+    const totRankEl=r.querySelector('.auto-tot-rank');if(totRankEl)totRankEl.value=totRankMap[sid]??'';
+    const rtPassEl=r.querySelector('.auto-rt-pass');
+    if(rtPassEl){if(rsk)rtPassEl.innerHTML='<span class="cp cp-s">생략</span>';else if(isNaN(thrRt)||isNaN(rtv))rtPassEl.innerHTML='<span class="cp cp-s">-</span>';else rtPassEl.innerHTML=rtv>=thrRt?'<span class="cp cp-y">합격</span>':'<span class="cp cp-n">불합격</span>';}
+    const wtPassEl=r.querySelector('.auto-wt-pass');
+    if(wtPassEl){if(wsk)wtPassEl.innerHTML='<span class="cp cp-s">생략</span>';else if(isNaN(thrWt)||isNaN(wtv))wtPassEl.innerHTML='<span class="cp cp-s">-</span>';else wtPassEl.innerHTML=wtv>=thrWt?'<span class="cp cp-y">합격</span>':'<span class="cp cp-n">불합격</span>';}
+  });
+}
+
+function renderSavedTable(sc,mon,wk){
+  const recs=sc.records.filter(r=>r.month===mon&&r.week===wk);
+  const hwKey2=mon+'_'+wk;
+  const hwEntry2=sc.hwNames&&sc.hwNames[hwKey2]?sc.hwNames[hwKey2]:{};
+  const hw1=hwEntry2.hw1||sc.hw1||'숙제1';
+  const hw2=hwEntry2.hw2||sc.hw2||'숙제2';
+  if(!recs.length){
+    return '<div style="font-size:12px;color:#9BA3AF;padding:16px 0;text-align:center">전체 저장 버튼을 누르면 여기에 결과가 표시됩니다.</div>';
+  }
+  let rows='';
+  recs.forEach(function(r){
+    const s=sc.students.find(function(x){return x.id===r.sid;});
+    const gi=sc.records.indexOf(r);
+    const rtCell=r.rtSkip?'<span class="tag tg-s">생략</span>':(r.rtScore!=null?r.rtScore+'점':'-');
+    const wtCell=r.wtSkip?'<span class="tag tg-s">생략</span>':(r.wtScore!=null?r.wtScore+'점':'-');
+    const totCell=r.totalScore!=null?r.totalScore+'점':'-';
+    const hw1Val=r.hw1||r.homework||'-';
+    const hw2Val=r.hw2||'-';
+    function passTag(v,sk){
+      if(sk)return'<span class="tag tg-s">생략</span>';
+      if(v===true)return'<span class="cp cp-y">합격</span>';
+      if(v===false)return'<span class="cp cp-n">불합격</span>';
+      return'-';
+    }
+    rows+='<tr>'
+      +'<td style="font-weight:700;color:#1A237E">'+(s?s.name:r.sid)+'</td>'
+      +'<td style="color:#E65100;font-weight:600">'+(r.thrRt!=null?r.thrRt+'점':'-')+'</td>'
+      +'<td style="color:#E65100;font-weight:600">'+(r.thrWt!=null?r.thrWt+'점':'-')+'</td>'
+      +'<td>'+rtCell+'</td>'
+      +'<td>'+(r.rtSkip?'-':(r.rvRank!=null?r.rvRank:'-'))+'</td>'
+      +'<td>'+passTag(r.rtPass,r.rtSkip)+'</td>'
+      +'<td>'+wtCell+'</td>'
+      +'<td>'+(r.wtSkip?'-':(r.wtRank!=null?r.wtRank:'-'))+'</td>'
+      +'<td>'+passTag(r.wtPass,r.wtSkip)+'</td>'
+      +'<td>'+totCell+'</td>'
+      +'<td>'+(r.totalRank!=null?r.totalRank+'등':'-')+'</td>'
+      +'<td style="font-size:12px">'+hw1Val+'</td>'
+      +'<td style="font-size:12px">'+hw2Val+'</td>'
+      +'<td><button class="abtn abtn-red" data-dr="'+gi+'">삭제</button></td>'
+      +'</tr>';
+  });
+  return '<div style="overflow-x:auto"><table class="rec-tbl">'
+    +'<thead><tr>'
+    +'<th>학생</th><th>RT기준</th><th>WT기준</th><th>RT점수</th><th>RT등수</th><th>RT합격</th>'
+    +'<th>WT점수</th><th>WT등수</th><th>WT합격</th><th>전체점수</th><th>전체등수</th>'
+    +'<th>'+hw1+'</th><th>'+hw2+'</th><th></th>'
+    +'</tr></thead>'
+    +'<tbody>'+rows+'</tbody>'
+    +'</table></div>';
+}
+
+function goToWeek(mon,wk){
+  ST.atab='records';
+  ST.bMon=mon;
+  ST.bWk=wk;
+  render();
+}
+function nextStudentId(sc){
+  const prefix='s';
+  // 전체 학교에서 가장 큰 ID 번호 찾기 (중복 방지)
+  let maxNum=0;
+  DB.schools.forEach(school=>{
+    school.students.forEach(s=>{
+      if(s.id&&s.id.startsWith(prefix)){
+        const n=parseInt(s.id.slice(prefix.length))||0;
+        if(n>maxNum)maxNum=n;
+      }
+    });
+  });
+  return prefix+String(maxNum+1).padStart(3,'0');
+}
+/* ── 카카오톡 발송 ── */
+/* ── 뿌리오 알림톡 발송 ── */
+async function ppurioSend(phone, templateCode, variables){
+  // 뿌리오 API는 서버사이드 전용 (CORS 문제)
+  // file:// 환경에서는 직접 호출 불가 → 프록시 없이는 브라우저에서 불가
+  // 대신 뿌리오 엑셀 업로드 방식 안내 팝업 표시
+  return {ok: false, reason: 'cors'};
+}
+
+async function sendPpurioIdPw(sc, student){
+  const phone = (student.parentPhone || student.phone || '').replace(/[^0-9]/g,'');
+  if(!phone){ alert(student.name + ' 학생의 전화번호가 없습니다.'); return; }
+
+  const variables = {
+    '학생명': student.name,
+    '학교명': sc.name,
+    '아이디': student.id,
+    '비밀번호': student.pwd
+  };
+
+  showPpurioPopup('ID/비번 발송', student.name, phone, PPURIO_TPL_ACCOUNT, variables,
+    `[오은실 영어학원]
+
+${student.name} 학생의 성적 조회 계정을 안내드립니다.
+
+■ 학교 : ${sc.name}
+■ 아이디 : ${student.id}
+■ 비밀번호 : ${student.pwd}
+
+※ 첫 로그인 후 설정 메뉴에서
+   비밀번호를 변경해 주세요.
+
+문의사항은 선생님께 연락 주세요 :)`
+  );
+}
+
+async function sendPpurioAllIdPw(sc){
+  const students = sc.students.filter(s => s.parentPhone || s.phone);
+  if(!students.length){ alert('전화번호가 등록된 학생이 없습니다.'); return; }
+  showPpurioAllPopup(sc, 'account');
+}
+
+async function sendPpurioScoreNotify(sc, mon, wk){
+  const recs = sc.records.filter(r => r.month===mon && r.week===wk);
+  if(!recs.length){ alert('저장된 성적이 없습니다.'); return; }
+  showPpurioAllPopup(sc, 'score', mon, wk);
+}
+
+function showPpurioPopup(title, name, phone, tplCode, vars, previewMsg){
+  const existing = document.querySelector('.ppurio-popup');
+  if(existing) existing.remove();
+
+  const popup = document.createElement('div');
+  popup.className = 'ppurio-popup';
+  popup.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center';
+
+  popup.innerHTML = `
+    <div style="background:#fff;border-radius:18px;padding:28px;max-width:440px;width:92%;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="font-size:16px;font-weight:800;color:#1A237E">💬 알림톡 발송 - ${title}</div>
+        <button onclick="this.closest('.ppurio-popup').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9BA3AF">✕</button>
+      </div>
+      <div style="background:#F7F8FA;border-radius:10px;padding:14px;font-size:12px;line-height:1.9;color:#5C6470;white-space:pre-wrap;margin-bottom:14px;max-height:180px;overflow-y:auto">${previewMsg}</div>
+      <div style="font-size:12px;color:#5C6470;margin-bottom:6px">📱 수신번호: <strong>${phone.replace(/(\d{3})(\d{4})(\d{4})/,'$1-$2-$3')}</strong></div>
+      <div style="font-size:12px;color:#5C6470;margin-bottom:16px">📋 템플릿: <span style="font-family:monospace;font-size:11px;color:#9BA3AF">${tplCode}</span></div>
+      <div id="ppurio-msg" style="font-size:12px;min-height:18px;margin-bottom:12px"></div>
+      <div style="display:flex;gap:8px">
+        <button id="btn-ppurio-send" style="flex:1;padding:13px;background:#FEE500;color:#000;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">💬 카카오 알림톡 발송</button>
+        <button onclick="this.closest('.ppurio-popup').remove()" style="padding:13px 18px;background:#F7F8FA;border:none;border-radius:10px;font-size:14px;cursor:pointer;font-family:inherit">취소</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(popup);
+  popup.onclick = e => { if(e.target===popup) popup.remove(); };
+
+  document.getElementById('btn-ppurio-send').onclick = async () => {
+    const btn = document.getElementById('btn-ppurio-send');
+    const msg = document.getElementById('ppurio-msg');
+    btn.disabled = true; btn.textContent = '발송 중...';
+
+    try{
+      const body = {
+        account: PPURIO_KEY,
+        messageType: 'ATA',
+        plusFriendId: PPURIO_CHANNEL,
+        templateCode: tplCode,
+        messages: [{
+          to: phone,
+          variables: vars,
+          buttons: [{
+            buttonType: 'WL',
+            buttonName: '성적표 보기',
+            linkMo: APP_URL,
+            linkPc: APP_URL
+          }]
+        }]
+      };
+
+      const res = await fetch('https://api.ppurio.com/v1/message', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + PPURIO_KEY
+        },
+        body: JSON.stringify(body)
+      });
+
+      if(res.ok){
+        msg.textContent = '✓ 발송 완료!'; msg.style.color = '#00897B';
+        btn.textContent = '✓ 완료';
+        setTimeout(()=>popup.remove(), 1500);
+      } else {
+        const err = await res.json().catch(()=>({}));
+        // CORS 오류 시 대체 안내
+        msg.innerHTML = '⚠️ 직접 발송이 어렵습니다.<br><span style="font-size:11px;color:#9BA3AF">파일을 서버에 배포하면 자동 발송이 가능합니다.<br>지금은 카카오톡으로 수동 발송해 주세요.</span>';
+        msg.style.color = '#E65100';
+        btn.disabled = false; btn.textContent = '💬 카카오 알림톡 발송';
+      }
+    } catch(e){
+      // CORS 오류 시 Vercel API Route로 재시도
+      try{
+        const proxyRes=await fetch('/api/send',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify(body)
+        });
+        if(proxyRes.ok){
+          msg.textContent='✓ 발송 완료!';msg.style.color='#00897B';
+          btn.textContent='✓ 완료';
+          setTimeout(()=>popup.remove(),1500);
+        } else {
+          const errData=await proxyRes.json().catch(()=>({}));
+          msg.innerHTML='⚠️ 발송 실패: '+(errData.message||proxyRes.status);
+          msg.style.color='#E53935';
+          btn.disabled=false;btn.textContent='💬 카카오 알림톡 발송';
+        }
+      } catch(e2){
+        msg.innerHTML='⚠️ 발송 오류. 잔액 및 설정을 확인해주세요.';
+        msg.style.color='#E53935';
+        btn.disabled=false;btn.textContent='💬 카카오 알림톡 발송';
+      }
+    }
+  };
+}
+
+function showPpurioAllPopup(sc, type, mon, wk){
+  const existing = document.querySelector('.ppurio-popup');
+  if(existing) existing.remove();
+
+  const isScore = type === 'score';
+  const recs = isScore ? sc.records.filter(r=>r.month===mon&&r.week===wk) : null;
+  const targets = isScore
+    ? sc.students.filter(s=>(s.parentPhone||s.phone) && recs.find(r=>r.sid===s.id))
+    : sc.students.filter(s=>s.parentPhone||s.phone);
+
+  const noPhone = isScore
+    ? sc.students.filter(s=>!s.parentPhone&&!s.phone && recs?.find(r=>r.sid===s.id))
+    : sc.students.filter(s=>!s.parentPhone&&!s.phone);
+
+  const popup = document.createElement('div');
+  popup.className = 'ppurio-popup';
+  popup.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center';
+
+  popup.innerHTML = `
+    <div style="background:#fff;border-radius:18px;padding:28px;max-width:500px;width:95%;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="font-size:16px;font-weight:800;color:#1A237E">💬 ${isScore?'성적 알림':'ID/비번'} 일괄 발송</div>
+        <button onclick="this.closest('.ppurio-popup').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9BA3AF">✕</button>
+      </div>
+      <div style="font-size:12px;color:#9BA3AF;margin-bottom:14px">${isScore?mon+' '+wk+' · ':''} 발송대상 ${targets.length}명 · 번호없음 ${noPhone.length}명</div>
+      <div style="background:#FFF8E1;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:#E65100;line-height:1.7">
+        ⚠️ <strong>로컬 파일 환경</strong>에서는 CORS 보안 정책으로 직접 발송이 제한됩니다.<br>
+        Vercel 배포 후 이 버튼으로 전체 자동 발송이 가능합니다.<br>
+        지금은 아래 개별 버튼으로 수동 발송해 주세요.
+      </div>
+      <div style="overflow-y:auto;flex:1">
+        ${targets.map(s=>{
+          const phone=(s.parentPhone||s.phone||'').replace(/[^0-9]/g,'');
+          const rec=isScore?recs.find(r=>r.sid===s.id):null;
+          const vars=isScore?{
+            '학생명':s.name,'월':mon,'주차':wk,
+            'RT점수':rec?.rtSkip?'생략':(rec?.rtScore??'-')+'점',
+            'RT합격여부':rec?.rtSkip?'생략':(rec?.rtPass?'합격':'불합격'),
+            'WT점수':rec?.wtSkip?'생략':(rec?.wtScore??'-')+'점',
+            'WT합격여부':rec?.wtSkip?'생략':(rec?.wtPass?'합격':'불합격'),
+            '전체점수':(rec?.totalScore??'-')+'점',
+            '전체등수':(rec?.totalRank??'-')+'등',
+            '공지사항':sc.notices?.[mon+'_'+wk]||'없음'
+          }:{
+            '학생명':s.name,'학교명':sc.name,'아이디':s.id,'비밀번호':s.pwd
+          };
+          const tpl=isScore?PPURIO_TPL_SCORE:PPURIO_TPL_ACCOUNT;
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #F7F8FA">
+            <div>
+              <span style="font-weight:700;font-size:13px;color:#1A237E">${s.name}</span>
+              <span style="font-size:11px;color:#9BA3AF;margin-left:8px">${(s.parentPhone||s.phone||'').replace(/(\d{3})(\d{4})(\d{4})/,'$1-$2-$3')}</span>
+              ${isScore&&rec?`<span style="font-size:11px;color:#5C6470;margin-left:6px">${rec.totalScore??'-'}점 ${rec.totalRank??'-'}등</span>`:''}
+            </div>
+            <button onclick="showPpurioPopup('${s.name}','${s.name}','${phone}','${tpl}',${JSON.stringify(vars).replace(/'/g,"\'")},'미리보기')"
+              style="padding:5px 12px;background:#FEE500;color:#000;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">💬 발송</button>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+
+  document.body.appendChild(popup);
+  popup.onclick = e => { if(e.target===popup) popup.remove(); };
+}
+
+function openEditStudent(sc, sid){
+  const s = sc.students.find(x=>x.id===sid);
+  if(!s) return;
+
+  const popup = document.createElement('div');
+  popup.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center';
+  popup.className = 'edit-student-popup';
+  popup.innerHTML = `
+    <div style="background:#fff;border-radius:18px;padding:28px;max-width:420px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <div style="font-size:17px;font-weight:800;color:#1A237E">✏️ 학생 정보 수정</div>
+        <button onclick="this.closest('.edit-student-popup').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9BA3AF">✕</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div>
+          <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">이름</label>
+          <input id="edit-name" value="${s.name}" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit"
+            onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">학생 ID <span style="color:#C4C9D4;font-weight:400;text-transform:none">(변경 불가)</span></label>
+          <input value="${s.id}" disabled style="width:100%;padding:10px 14px;border:1.5px solid #F0F2F5;border-radius:9px;font-size:14px;background:#F7F8FA;color:#9BA3AF;font-family:monospace">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">비밀번호</label>
+          <input id="edit-pwd" value="${s.pwd}" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit"
+            onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">학생 전화번호</label>
+          <input id="edit-phone" value="${s.phone||''}" placeholder="010-0000-0000" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit"
+            onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">학부모 전화번호</label>
+          <input id="edit-pphone" value="${s.parentPhone||''}" placeholder="010-0000-0000" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit"
+            onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">구분</label>
+          <select id="edit-type" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit;background:#fff">
+            <option value="regular" ${(s.type||'regular')==='regular'?'selected':''}>재학생</option>
+            <option value="new" ${s.type==='new'?'selected':''}>신규생</option>
+            <option value="transfer" ${s.type==='transfer'?'selected':''}>전입생</option>
+          </select>
+        </div>
+      </div>
+      <div id="edit-msg" style="font-size:12px;min-height:18px;margin-top:10px"></div>
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button id="btn-edit-save" style="flex:1;padding:13px;background:#1A237E;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit"
+          onmouseover="this.style.background='#121858'" onmouseout="this.style.background='#1A237E'">저장</button>
+        <button onclick="this.closest('.edit-student-popup').remove()" style="padding:13px 20px;background:#F7F8FA;border:none;border-radius:10px;font-size:14px;cursor:pointer;font-family:inherit">취소</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(popup);
+  popup.onclick = e => { if(e.target===popup) popup.remove(); };
+
+  document.getElementById('btn-edit-save').onclick = () => {
+    const name = document.getElementById('edit-name').value.trim();
+    const pwd  = document.getElementById('edit-pwd').value.trim();
+    const phone = document.getElementById('edit-phone').value.trim();
+    const pphone = document.getElementById('edit-pphone').value.trim();
+    const type = document.getElementById('edit-type').value;
+    const msg = document.getElementById('edit-msg');
+
+    if(!name){ msg.textContent='이름을 입력하세요'; msg.style.color='#E53935'; return; }
+    if(!pwd || pwd.length < 4){ msg.textContent='비밀번호는 4자 이상이어야 합니다'; msg.style.color='#E53935'; return; }
+
+    s.name = name;
+    s.pwd = pwd;
+    s.phone = phone;
+    s.parentPhone = pphone;
+    s.type = type;
+    saveDB();
+
+    msg.textContent = '✓ 저장 완료!'; msg.style.color = '#00897B';
+    setTimeout(()=>{ popup.remove(); render(); }, 600);
+  };
+}
+
+function sendKakaoAllIdPw(sc){
+  const students = sc.students.filter(s => s.parentPhone || s.phone);
+  const noPhone = sc.students.filter(s => !s.parentPhone && !s.phone);
+
+  const popup = document.createElement('div');
+  popup.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center';
+  popup.className = 'kakao-popup';
+
+  const rows = sc.students.map(s => {
+    const phone = (s.parentPhone || s.phone || '').replace(/[^0-9]/g,'');
+    const msg = [
+      '[오은실 영어학원]',
+      '',
+      s.name + ' 학생의 성적 조회 계정을 안내드립니다.',
+      '',
+      '■ 학교 : ' + sc.name,
+      '■ 아이디 : ' + s.id,
+      '■ 비밀번호 : ' + s.pwd,
+      '',
+      '※ 첫 로그인 후 설정 메뉴에서',
+      '   비밀번호를 변경해 주세요.',
+      '',
+      '문의사항은 선생님께 연락 주세요 :)'
+    ].join('\n');
+
+    const encoded = encodeURIComponent(msg);
+    const kakaoUrl = 'kakaotalk://msg?to=' + phone + '&text=' + encoded;
+    const hasPhone = !!(s.parentPhone || s.phone);
+
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #F7F8FA">
+      <div>
+        <span style="font-weight:700;font-size:13px;color:#1A237E">${s.name}</span>
+        <span style="font-size:11px;color:#9BA3AF;margin-left:8px">${s.parentPhone||s.phone||'번호 없음'}</span>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        ${hasPhone ? `
+        <button onclick="navigator.clipboard&&navigator.clipboard.writeText(${JSON.stringify(msg)}).then(()=>this.textContent='✓복사')" 
+          style="padding:5px 10px;background:#F7F8FA;border:1px solid #E8ECF0;border-radius:7px;font-size:11px;cursor:pointer">📋 복사</button>
+        <button onclick="window.location.href='${kakaoUrl}'"
+          style="padding:5px 10px;background:#FEE500;color:#000;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer">💬 발송</button>
+        ` : `<span style="font-size:11px;color:#E53935">번호 없음</span>`}
+      </div>
+    </div>`;
+  }).join('');
+
+  popup.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:24px;max-width:520px;width:95%;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <div style="font-size:16px;font-weight:800;color:#1A237E">💬 ID/비번 일괄 발송</div>
+        <button onclick="this.closest('.kakao-popup').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9BA3AF">✕</button>
+      </div>
+      <div style="font-size:12px;color:#9BA3AF;margin-bottom:12px">${sc.students.length}명 전체 · 번호 없음 ${noPhone.length}명</div>
+      <div style="background:#FFF8E1;border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:#E65100">
+        💡 발송 버튼 클릭 → 카카오톡 앱이 열리고 메시지 자동 입력됩니다.<br>전송 버튼을 눌러 최종 발송하세요.
+      </div>
+      <div style="overflow-y:auto;flex:1">${rows}</div>
+    </div>`;
+  popup.onclick = e => { if(e.target===popup) popup.remove(); };
+  document.body.appendChild(popup);
+}
+
+function sendKakaoIdPw(sc, student){
+  const phone = (student.parentPhone || student.phone || '').replace(/[^0-9]/g,'');
+  const msg = [
+    '[OHENG 영어학원]',
+    '',
+    '안녕하세요! 오은실 영어학원입니다.',
+    student.name + ' 학생의 성적 조회 계정 정보를 안내드립니다.',
+    '',
+    '■ 학원 : ' + sc.name,
+    '■ 학생명 : ' + student.name,
+    '■ 아이디 : ' + student.id,
+    '■ 비밀번호 : ' + student.pwd,
+    '',
+    '▶ 성적표 확인 방법',
+    '파일을 열거나 선생님께 전달받은 링크로 접속 후',
+    '학생 탭 선택 → 위 아이디/비밀번호로 로그인',
+    '',
+    '문의사항은 선생님께 연락주세요 :)'
+  ].join('\n');
+  
+  // 카카오톡 URL 스킴 - 앱이 설치되어 있으면 열림
+  const encoded = encodeURIComponent(msg);
+  const kakaoUrl = 'kakaotalk://msg?to=' + phone + '&text=' + encoded;
+  
+  // 팝업으로 안내 후 이동
+  const popup = document.createElement('div');
+  popup.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center';
+  popup.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:24px;max-width:380px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+      <div style="font-size:16px;font-weight:800;margin-bottom:4px;color:#1A237E">💬 카카오톡 발송</div>
+      <div style="font-size:12px;color:#9BA3AF;margin-bottom:16px">${student.name} 학생 ID/비번 안내</div>
+      <div style="background:#F7F8FA;border-radius:10px;padding:14px;font-size:12px;line-height:1.8;color:#5C6470;white-space:pre-wrap;margin-bottom:16px;max-height:200px;overflow-y:auto">${msg}</div>
+      <div style="font-size:12px;color:#9BA3AF;margin-bottom:14px">📱 학부모 번호: ${student.parentPhone||student.phone||'번호 없음'}</div>
+      <div style="display:flex;gap:8px">
+        <button onclick="window.location.href='${kakaoUrl}'" style="flex:1;padding:12px;background:#FEE500;color:#000;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer">카카오톡으로 전송</button>
+        <button onclick="navigator.clipboard&&navigator.clipboard.writeText(${JSON.stringify(msg)}).then(()=>alert('복사되었습니다'))" style="padding:12px 14px;background:#F7F8FA;border:none;border-radius:10px;font-size:13px;cursor:pointer">📋 복사</button>
+        <button onclick="this.closest('.kakao-popup').remove()" style="padding:12px 14px;background:#F7F8FA;border:none;border-radius:10px;font-size:13px;cursor:pointer">✕</button>
+      </div>
+    </div>`;
+  popup.className = 'kakao-popup';
+  popup.onclick = e => { if(e.target === popup) popup.remove(); };
+  document.body.appendChild(popup);
+}
+
+function sendKakaoScoreNotify(sc, mon, wk){
+  const recs = sc.records.filter(r => r.month===mon && r.week===wk);
+  if(!recs.length){ alert('저장된 성적이 없습니다.'); return; }
+  
+  // 전체 발송 안내 팝업
+  const popup = document.createElement('div');
+  popup.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center';
+  popup.className = 'kakao-popup';
+  
+  const rows = recs.map(r => {
+    const s = sc.students.find(x => x.id === r.sid);
+    if(!s) return '';
+    const phone = (s.parentPhone||s.phone||'').replace(/[^0-9]/g,'');
+    const msg = [
+      '[OHENG 영어학원]',
+      '',
+      s.name + ' 학생 ' + mon + ' ' + wk + ' 성적이 등록되었습니다.',
+      '',
+      r.rtSkip ? '' : ('■ RT점수 : ' + (r.rtScore??'-') + '점 (' + (r.rvRank??'-') + '등) ' + (r.rtPass?'✓합격':'✗불합격')),
+      '■ WT점수 : ' + (r.wtSkip?'생략':(r.wtScore??'-')+'점 ('+( r.wtRank??'-')+'등) '+(r.wtPass?'✓합격':'✗불합격')),
+      '■ 전체점수 : ' + (r.totalScore??'-') + '점 (' + (r.totalRank??'-') + '등)',
+      '',
+      '■ ' + (r.hwName1||sc.hw1||'숙제1') + ' : ' + (r.hw1||r.homework||'-'),
+      r.hw2 ? ('■ ' + (r.hwName2||sc.hw2||'숙제2') + ' : ' + r.hw2) : '',
+      r.retestTime ? ('■ 재시험 : ' + r.retestTime) : '',
+      '',
+      '자세한 내용은 성적표 앱에서 확인하세요 :)'
+    ].filter(x=>x!=='').join('\n');
+    
+    const encoded = encodeURIComponent(msg);
+    const kakaoUrl = 'kakaotalk://msg?to=' + phone + '&text=' + encoded;
+    return `<div style="border:1px solid #F0F2F5;border-radius:10px;padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-weight:700;font-size:13px;color:#1A237E">${s.name}</div>
+        <div style="font-size:11px;color:#9BA3AF">${s.parentPhone||s.phone||'번호 없음'} · ${r.totalScore??'-'}점 ${r.totalRank??'-'}등</div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button onclick="navigator.clipboard&&navigator.clipboard.writeText(${JSON.stringify(msg)}).then(()=>this.textContent='✓복사')" style="padding:6px 10px;background:#F7F8FA;border:1px solid #E8ECF0;border-radius:7px;font-size:11px;cursor:pointer">📋 복사</button>
+        <button onclick="window.location.href='${kakaoUrl}'" style="padding:6px 10px;background:#FEE500;color:#000;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer">💬 발송</button>
+      </div>
+    </div>`;
+  }).join('');
+  
+  popup.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:24px;max-width:480px;width:95%;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <div style="font-size:16px;font-weight:800;color:#1A237E">💬 성적 알림 발송</div>
+        <button onclick="this.closest('.kakao-popup').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9BA3AF">✕</button>
+      </div>
+      <div style="font-size:12px;color:#9BA3AF;margin-bottom:16px">${mon} ${wk} · ${recs.length}명</div>
+      <div style="font-size:12px;color:#E65100;background:#FFF8E1;border-radius:8px;padding:10px 12px;margin-bottom:14px">
+        💡 발송 버튼 클릭 → 카카오톡 앱이 열리고 메시지가 자동 입력됩니다.<br>전송 버튼을 눌러 최종 발송하세요.
+      </div>
+      ${rows}
+    </div>`;
+  popup.onclick = e => { if(e.target === popup) popup.remove(); };
+  document.body.appendChild(popup);
+}
+
+function addLog(sc,mon,wk,count,thrRt,thrWt){
+  try{
+    const key='oheng_logs_'+sc.id;
+    const logs=JSON.parse(localStorage.getItem(key)||'[]');
+    const now=new Date();
+    const pad=n=>String(n).padStart(2,'0');
+    logs.push({month:mon,week:wk,count,thrRt,thrWt,
+      savedAt:`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`});
+    localStorage.setItem(key,JSON.stringify(logs.slice(-200)));
+  }catch(e){console.warn('addLog 오류:',e);}
+}
+
+function printStudentList(){
+  const el=document.getElementById('student-list-print');
+  if(!el)return;
+  const w=window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>학생 목록</title>
+  <style>body{font-family:sans-serif;padding:20px}table{width:100%;border-collapse:collapse}th,td{border:0.5px solid #ccc;padding:6px 8px;font-size:12px;text-align:left}th{background:#1a237e;color:#fff}tr:nth-child(even)td{background:#f5f5f5}@media print{button{display:none}}</style>
+  </head><body><h3 style="margin-bottom:12px">학생 목록</h3>${el.innerHTML}<br><button onclick="window.print()">인쇄</button></body></html>`);
+  w.document.close();
+}
+
+function parseCSV(text){
+  const lines=text.trim().split(/\r?\n/).filter(l=>l.trim());
+  const results=[];
+  const firstCols=lines[0].split(',').map(s=>s.trim().toLowerCase());
+  const hasHeader=firstCols.some(h=>['이름','name','학생'].includes(h));
+  const dataLines=hasHeader?lines.slice(1):lines;
+  dataLines.forEach(line=>{
+    const cols=line.split(',').map(s=>s.trim().replace(/^"|"$/g,''));
+    if(!cols[0])return;
+    const typeMap={'재학':'regular','신규':'new','전입':'transfer'};
+    results.push({name:cols[0]||'',phone:cols[1]||'',parentPhone:cols[2]||'',type:typeMap[cols[3]]||'regular'});
+  });
+  return results;
+}
+
+function downloadCSVTemplate(){
+  const rows=['이름,전화번호,학부모전화번호,구분','홍길동,010-1234-5678,010-8765-4321,재학','김영희,010-2222-3333,,신규','이철수,,,전입'];
+  const blob=new Blob(['\uFEFF'+rows.join('\n')],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='학생등록_템플릿.csv';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+}
+
+function exportStudentsExcel(sc){
+  const rows=[['ID','이름','구분','전화번호','학부모전화','비밀번호','등록일']];
+  sc.students.forEach(s=>{
+    const typeMap={new:'신규',transfer:'전입',regular:'재학'};
+    rows.push([s.id,s.name,typeMap[s.type||'regular']||'재학',s.phone||'',s.parentPhone||'',s.pwd,s.createdAt||'']);
+  });
+  const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`${sc.name}_학생목록_${new Date().toISOString().slice(0,10)}.csv`;a.click();
+}
+
+function exportScoresExcel(sc){
+  const rows=[['학교','학년','학생ID','이름','월','주차','RT점수','RT등수','RT합격','WT점수','WT등수','WT합격','전체점수','전체등수','전체반평균','숙제1','숙제2','재시험']];
+  sc.records.forEach(r=>{
+    const s=sc.students.find(x=>x.id===r.sid);
+    rows.push([sc.name,sc.grade,r.sid,s?s.name:r.sid,r.month,r.week,
+      r.rtSkip?'생략':(r.rtScore??''),r.rtSkip?'생략':(r.rvRank??''),
+      r.rtSkip?'생략':(r.rtPass===true?'합격':r.rtPass===false?'불합격':'-'),
+      r.wtSkip?'생략':(r.wtScore??''),r.wtSkip?'생략':(r.wtRank??''),
+      r.wtSkip?'생략':(r.wtPass===true?'합격':r.wtPass===false?'불합격':'-'),
+      r.totalScore??'',r.totalRank??'',r.totalAvg??'',
+      r.hw1||r.homework||'',r.hw2||'',r.retestTime||'']);
+  });
+  const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`${sc.name}_성적데이터_${new Date().toISOString().slice(0,10)}.csv`;a.click();
+}
+
+
+init();
+</script>
+</body>
+</html>

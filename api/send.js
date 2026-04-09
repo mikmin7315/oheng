@@ -18,7 +18,6 @@ export default async function handler(req, res) {
   }
   try {
     const { templateCode, to, variables } = req.body;
-
     const token = await getToken();
     if (!token) return res.status(401).json({ success: false, message: '토큰 발급 실패' });
 

@@ -1784,10 +1784,17 @@ function goToWeek(mon,wk){
 }
 function nextStudentId(sc){
   const prefix='s';
-  const existing=sc.students.map(s=>s.id).filter(id=>id.startsWith(prefix));
-  if(!existing.length)return prefix+'001';
-  const nums=existing.map(id=>parseInt(id.slice(prefix.length))||0).filter(n=>!isNaN(n));
-  return prefix+String(Math.max(...nums)+1).padStart(3,'0');
+  // 전체 학교에서 가장 큰 ID 번호 찾기 (중복 방지)
+  let maxNum=0;
+  DB.schools.forEach(school=>{
+    school.students.forEach(s=>{
+      if(s.id&&s.id.startsWith(prefix)){
+        const n=parseInt(s.id.slice(prefix.length))||0;
+        if(n>maxNum)maxNum=n;
+      }
+    });
+  });
+  return prefix+String(maxNum+1).padStart(3,'0');
 }
 /* ── 카카오톡 발송 ── */
 /* ── 뿌리오 알림톡 발송 ── */
@@ -1908,9 +1915,28 @@ function showPpurioPopup(title, name, phone, tplCode, vars, previewMsg){
         btn.disabled = false; btn.textContent = '💬 카카오 알림톡 발송';
       }
     } catch(e){
-      msg.innerHTML = '⚠️ 로컬 파일에서는 직접 발송이 제한됩니다.<br><span style="font-size:11px;color:#9BA3AF">Vercel 배포 후 자동 발송이 가능합니다.</span>';
-      msg.style.color = '#E65100';
-      btn.disabled = false; btn.textContent = '💬 카카오 알림톡 발송';
+      // CORS 오류 시 Vercel API Route로 재시도
+      try{
+        const proxyRes=await fetch('/api/send',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify(body)
+        });
+        if(proxyRes.ok){
+          msg.textContent='✓ 발송 완료!';msg.style.color='#00897B';
+          btn.textContent='✓ 완료';
+          setTimeout(()=>popup.remove(),1500);
+        } else {
+          const errData=await proxyRes.json().catch(()=>({}));
+          msg.innerHTML='⚠️ 발송 실패: '+(errData.message||proxyRes.status);
+          msg.style.color='#E53935';
+          btn.disabled=false;btn.textContent='💬 카카오 알림톡 발송';
+        }
+      } catch(e2){
+        msg.innerHTML='⚠️ 발송 오류. 잔액 및 설정을 확인해주세요.';
+        msg.style.color='#E53935';
+        btn.disabled=false;btn.textContent='💬 카카오 알림톡 발송';
+      }
     }
   };
 }

@@ -1,6 +1,7 @@
 const SOLAPI_KEY = 'NCSIVKDMSKTDCSKV';
 const SOLAPI_SECRET = 'SGSN3EMLV0HWYGM81ORPUPHHUDFZSWMG';
 const SENDER = '01090080851';
+const PFID = 'KA01PF260409120809915UFtRoM8Y2O1';
 
 function makeSignature() {
   const crypto = require('crypto');
@@ -20,42 +21,26 @@ export default async function handler(req, res) {
     const { templateCode, to, variables } = req.body;
     const { date, salt, signature } = makeSignature();
 
-    // 알림톡 템플릿 심사 전: SMS로 대체 발송
-    const isTest = !templateCode || templateCode === 'test';
-
-    let messageBody;
-
-    if (isTest) {
-      // SMS 테스트
-      messageBody = {
-        messages: [{
-          to: to.replace(/[^0-9]/g, ''),
-          from: SENDER,
-          text: '[OHENG] API 연결 테스트 메시지입니다.'
-        }]
-      };
-    } else {
-      // 알림톡 (템플릿 심사 완료 후)
-      const params = {};
-      if (variables) {
-        Object.entries(variables).forEach(([key, value]) => {
-          params[key] = String(value);
-        });
-      }
-      messageBody = {
-        messages: [{
-          to: to.replace(/[^0-9]/g, ''),
-          from: SENDER,
-          kakaoOptions: {
-            pfId: '@오은실영어랩',
-            templateId: templateCode,
-            variables: params
-          }
-        }]
-      };
+    const params = {};
+    if (variables) {
+      Object.entries(variables).forEach(([key, value]) => {
+        params[key] = String(value);
+      });
     }
 
-    console.log('Request:', JSON.stringify(messageBody));
+    const body = {
+      messages: [{
+        to: to.replace(/[^0-9]/g, ''),
+        from: SENDER,
+        kakaoOptions: {
+          pfId: PFID,
+          templateId: templateCode,
+          variables: params
+        }
+      }]
+    };
+
+    console.log('Request:', JSON.stringify(body));
 
     const sendRes = await fetch('https://api.solapi.com/messages/v4/send-many', {
       method: 'POST',
@@ -63,7 +48,7 @@ export default async function handler(req, res) {
         'Authorization': `HMAC-SHA256 apiKey=${SOLAPI_KEY}, date=${date}, salt=${salt}, signature=${signature}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(messageBody)
+      body: JSON.stringify(body)
     });
 
     const resultText = await sendRes.text();

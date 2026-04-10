@@ -1,5 +1,8 @@
 {
   "name": "oheng",
   "version": "1.0.0",
-  "private": true
+  "private": true,
+  "dependencies": {
+    "solapi": "^6.0.0"
+  }
 }

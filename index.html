@@ -1355,8 +1355,8 @@ function rStudentMgmt(sc){
       <div class="fgrp"><label class="flbl">이름</label><input class="finp" id="ns-name"/></div>
       <div class="fgrp"><label class="flbl">학생 ID</label><input class="finp" id="ns-id" value="${autoId}"/></div>
       <div class="fgrp"><label class="flbl">초기 비밀번호</label><input class="finp" id="ns-pw" value="1234"/></div>
-      <div class="fgrp"><label class="flbl">학생 전화번호</label><input class="finp" id="ns-ph" placeholder="010-0000-0000"/></div>
-      <div class="fgrp"><label class="flbl">학부모 전화번호</label><input class="finp" id="ns-pph" placeholder="010-0000-0000"/></div>
+      <div class="fgrp"><label class="flbl">학생 전화번호</label><input class="finp" id="ns-ph" placeholder="010-0000-0000" oninput="autoHyphen(this)" maxlength="13"/></div>
+      <div class="fgrp"><label class="flbl">학부모 전화번호</label><input class="finp" id="ns-pph" placeholder="010-0000-0000" oninput="autoHyphen(this)" maxlength="13"/></div>
       <div class="fgrp"><label class="flbl">구분</label>
         <select class="finp" id="ns-type"><option value="regular">재학생</option><option value="new">신규생</option><option value="transfer">전입생</option></select>
       </div>
@@ -1810,10 +1810,10 @@ async function sendPpurioIdPw(sc, student){
   if(!phone){ alert(student.name + ' 학생의 전화번호가 없습니다.'); return; }
 
   const variables = {
-    '학생명': student.name,
-    '학교명': sc.name,
-    '아이디': student.id,
-    '비밀번호': student.pwd
+    '#{학생명}': student.name,
+    '#{학교명}': sc.name,
+    '#{아이디}': student.id,
+    '#{비밀번호}': student.pwd
   };
 
   showPpurioPopup('ID/비번 발송', student.name, phone, PPURIO_TPL_ACCOUNT, variables,
@@ -1969,16 +1969,16 @@ function showPpurioAllPopup(sc, type, mon, wk){
     const phone=(s.parentPhone||s.phone||'').replace(/[^0-9]/g,'');
     const rec=isScore?recs.find(r=>r.sid===s.id):null;
     const vars=isScore?{
-      '학생명':s.name,'월':mon,'주차':wk,
-      'RT점수':rec?.rtSkip?'생략':(rec?.rtScore??'-')+'점',
-      'RT합격여부':rec?.rtSkip?'생략':(rec?.rtPass?'합격':'불합격'),
-      'WT점수':rec?.wtSkip?'생략':(rec?.wtScore??'-')+'점',
-      'WT합격여부':rec?.wtSkip?'생략':(rec?.wtPass?'합격':'불합격'),
-      '전체점수':(rec?.totalScore??'-')+'점',
-      '전체등수':(rec?.totalRank??'-')+'등',
-      '공지사항':sc.notices?.[mon+'_'+wk]||'없음'
+      '#{학생명}':s.name,'#{월}':mon,'#{주차}':wk,
+      '#{RT점수}':rec?.rtSkip?'생략':(rec?.rtScore??'-')+'점',
+      '#{RT합격여부}':rec?.rtSkip?'생략':(rec?.rtPass?'합격':'불합격'),
+      '#{WT점수}':rec?.wtSkip?'생략':(rec?.wtScore??'-')+'점',
+      '#{WT합격여부}':rec?.wtSkip?'생략':(rec?.wtPass?'합격':'불합격'),
+      '#{전체점수}':(rec?.totalScore??'-')+'점',
+      '#{전체등수}':(rec?.totalRank??'-')+'등',
+      '#{공지사항}':sc.notices?.[mon+'_'+wk]||'없음'
     }:{
-      '학생명':s.name,'학교명':sc.name,'아이디':s.id,'비밀번호':s.pwd
+      '#{학생명}':s.name,'#{학교명}':sc.name,'#{아이디}':s.id,'#{비밀번호}':s.pwd
     };
     const tpl=isScore?PPURIO_TPL_SCORE:PPURIO_TPL_ACCOUNT;
     return {s, phone, vars, tpl};
@@ -2133,12 +2133,12 @@ function openEditStudent(sc, sid){
         </div>
         <div>
           <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">학생 전화번호</label>
-          <input id="edit-phone" value="${s.phone||''}" placeholder="010-0000-0000" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit"
+          <input id="edit-phone" value="${s.phone||''}" placeholder="010-0000-0000" maxlength="13" oninput="autoHyphen(this)" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit"
             onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">
         </div>
         <div>
           <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">학부모 전화번호</label>
-          <input id="edit-pphone" value="${s.parentPhone||''}" placeholder="010-0000-0000" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit"
+          <input id="edit-pphone" value="${s.parentPhone||''}" placeholder="010-0000-0000" maxlength="13" oninput="autoHyphen(this)" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit"
             onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">
         </div>
         <div>
@@ -2423,6 +2423,13 @@ function exportScoresExcel(sc){
   a.download=`${sc.name}_성적데이터_${new Date().toISOString().slice(0,10)}.csv`;a.click();
 }
 
+
+function autoHyphen(el){
+  let v = el.value.replace(/[^0-9]/g,'');
+  if(v.length <= 3) el.value = v;
+  else if(v.length <= 7) el.value = v.slice(0,3)+'-'+v.slice(3);
+  else el.value = v.slice(0,3)+'-'+v.slice(3,7)+'-'+v.slice(7,11);
+}
 
 init();
 </script>

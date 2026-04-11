@@ -3,6 +3,6 @@
   "version": "1.0.0",
   "private": true,
   "dependencies": {
-    "solapi": "^6.0.0"
+    "solapi": "latest"
   }
 }

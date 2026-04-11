@@ -16,14 +16,17 @@ export default async function handler(req, res) {
     const { templateCode, to, variables } = req.body;
     const phone = to.replace(/[^0-9]/g, '');
 
-    console.log('Send request:', { templateCode, phone, variables });
-
+    // 변수 키를 #{변수명} 형식으로 변환
     const params = {};
     if (variables) {
       Object.entries(variables).forEach(([key, value]) => {
-        params[key] = String(value);
+        // 이미 #{} 형식이면 그대로, 아니면 추가
+        const formattedKey = key.startsWith('#{') ? key : `#{${key}}`;
+        params[formattedKey] = String(value);
       });
     }
+
+    console.log('Send request:', JSON.stringify({ phone, templateCode, params }));
 
     const result = await messageService.send({
       to: phone,
@@ -39,7 +42,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true, data: result });
 
   } catch (error) {
-    console.error('Error:', error.message, error);
+    console.error('Error:', error.message, JSON.stringify(error));
     return res.status(500).json({ success: false, message: error.message });
   }
 }

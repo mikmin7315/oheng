@@ -150,6 +150,19 @@ body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-s
 .section-ttl{font-size:14px;font-weight:700;color:#0D1117;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #F0F2F5;letter-spacing:-0.2px}
 @media print{.top-nav,.tabs,.no-print{display:none!important}.s-content{padding:0}.rpt-hdr{background:#1a237e!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 @media(max-width:500px){.sg4{grid-template-columns:repeat(2,1fr)}.s-content{padding:8px}}
+@media(max-width:768px){
+  .a-wrap{flex-direction:column;height:auto}
+  .a-sidebar{width:100%;border-right:none;border-bottom:1px solid #F0F2F5;padding:10px 12px;box-shadow:none;overflow-x:auto;overflow-y:visible;display:flex;flex-direction:column;gap:6px}
+  .a-sidebar-school{margin-bottom:4px}
+  .a-menu{flex-direction:row;flex-wrap:wrap;gap:4px;margin-bottom:0}
+  .a-menu-item{padding:7px 10px;font-size:12px;white-space:nowrap}
+  .a-sidebar-title{display:none}
+  .a-main{padding:14px 16px}
+  .btbl-wrap{max-height:60vh}
+  .thr-grid{grid-template-columns:1fr 1fr}
+  .form3{grid-template-columns:1fr 1fr}
+  .dash-kpi-grid{grid-template-columns:repeat(2,1fr)!important}
+}
 
 /* ── 로그인 화면 ── */
 .login-page {
@@ -516,8 +529,8 @@ const PPURIO_TPL_SCORE='KA01TP260409171331749ec8E2SNQUj3';     // 성적 알림 
 const APP_URL='https://oheng.vercel.app';
 let DB={schools:INIT_SCHOOLS.map(s=>({...s,students:[...s.students],records:[...s.records],notices:{...s.notices}}))};
 let ST={loggedIn:false,role:null,user:null,userSchool:null,school:null,
-  tab:'report',atab:'records',lmode:'student',
-  bMon:'2월',bWk:'1주',vMon:null,vWk:null,histTab:'wt',showAddSchool:false};
+  tab:'report',atab:'dashboard',lmode:'student',
+  bMon:'2월',bWk:'1주',vMon:null,vWk:null,histTab:'wt',showAddSchool:false,_dirty:false};
 
 function loadDB(){
   try{
@@ -640,11 +653,124 @@ function rLogin(){return`
     </button>
 
     <p style="text-align:center;font-size:12px;color:#C4C9D4;margin-top:20px">
-      ID · 비밀번호 문의는 담당 선생님께
+      <span id="btn-find-idpw" style="color:#9BA3AF;cursor:pointer;text-decoration:underline;font-size:12px">아이디 · 비밀번호 찾기</span>
     </p>
   </div>
 </div>
 `;}
+
+function showFindIdPwModal(){
+  const existing=document.querySelector('.find-idpw-modal');
+  if(existing){existing.remove();return;}
+
+  const modal=document.createElement('div');
+  modal.className='find-idpw-modal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+
+  modal.innerHTML=`
+  <div style="background:#fff;border-radius:20px;padding:32px 28px;width:100%;max-width:360px;box-shadow:0 8px 32px rgba(0,0,0,0.18)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <div style="font-size:17px;font-weight:800;color:#1A237E">아이디 · 비밀번호 찾기</div>
+      <button id="find-close" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9BA3AF;line-height:1">✕</button>
+    </div>
+    <p style="font-size:12px;color:#9BA3AF;margin-bottom:24px">이름과 전화번호로 계정 정보를 확인합니다</p>
+
+    <div style="margin-bottom:14px">
+      <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">이름</label>
+      <input id="find-name" placeholder="학생 이름 입력"
+        style="width:100%;padding:12px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit;transition:border-color 0.15s"
+        onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">
+    </div>
+    <div style="margin-bottom:14px">
+      <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">전화번호</label>
+      <input id="find-phone" placeholder="010-0000-0000 (학생 또는 학부모)"
+        style="width:100%;padding:12px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit;transition:border-color 0.15s"
+        onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'"
+        oninput="autoHyphen(this)" maxlength="13">
+    </div>
+
+    <div id="find-err" style="font-size:12px;color:#E53935;min-height:18px;margin-bottom:8px"></div>
+
+    <button id="find-submit"
+      style="width:100%;padding:13px;background:#1A237E;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:background 0.15s"
+      onmouseover="this.style.background='#121858'" onmouseout="this.style.background='#1A237E'">
+      계정 찾기
+    </button>
+
+    <div id="find-result" style="margin-top:16px"></div>
+  </div>`;
+
+  document.body.appendChild(modal);
+  modal.onclick=e=>{if(e.target===modal)modal.remove();};
+  document.getElementById('find-close').onclick=()=>modal.remove();
+  document.getElementById('find-name').focus();
+
+  // Enter key submit
+  modal.querySelectorAll('input').forEach(inp=>{
+    inp.addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('find-submit').click();});
+  });
+
+  document.getElementById('find-submit').onclick=()=>{
+    const name=document.getElementById('find-name').value.trim();
+    const phone=document.getElementById('find-phone').value.replace(/[^0-9]/g,'');
+    const err=document.getElementById('find-err');
+    const result=document.getElementById('find-result');
+    err.textContent='';result.innerHTML='';
+
+    if(!name){err.textContent='이름을 입력해주세요';return;}
+    if(phone.length<9){err.textContent='전화번호를 정확히 입력해주세요';return;}
+
+    // DB 전체에서 이름+전화번호 매칭
+    let found=null,foundSch=null;
+    for(const sc of DB.schools){
+      const st=sc.students.find(s=>{
+        if(s.name!==name)return false;
+        const sp=(s.phone||'').replace(/[^0-9]/g,'');
+        const pp=(s.parentPhone||'').replace(/[^0-9]/g,'');
+        return sp===phone||pp===phone;
+      });
+      if(st){found=st;foundSch=sc;break;}
+    }
+
+    if(!found){
+      err.textContent='일치하는 계정을 찾을 수 없습니다. 이름과 전화번호를 확인하거나 담당 선생님께 문의해 주세요.';
+      return;
+    }
+
+    result.innerHTML=`
+    <div style="background:linear-gradient(135deg,#1A237E,#3949AB);border-radius:14px;padding:20px;color:#fff">
+      <div style="font-size:11px;color:rgba(255,255,255,0.55);font-weight:600;letter-spacing:0.5px;margin-bottom:12px">계정 정보 확인됨</div>
+      <div style="display:grid;gap:10px">
+        <div style="background:rgba(255,255,255,0.1);border-radius:10px;padding:12px">
+          <div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:4px">학교</div>
+          <div style="font-size:14px;font-weight:700">${foundSch.name} · ${foundSch.grade}</div>
+        </div>
+        <div style="background:rgba(255,255,255,0.1);border-radius:10px;padding:12px;display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:4px">아이디</div>
+            <div style="font-size:16px;font-weight:800;font-family:monospace;letter-spacing:0.5px">${found.id}</div>
+          </div>
+          <button onclick="navigator.clipboard?.writeText('${found.id}').then(()=>{this.textContent='복사됨!';setTimeout(()=>this.textContent='복사',1500)}).catch(()=>{})"
+            style="padding:5px 12px;background:rgba(255,255,255,0.2);color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer">복사</button>
+        </div>
+        <div style="background:rgba(255,255,255,0.1);border-radius:10px;padding:12px;display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:4px">비밀번호</div>
+            <div id="find-pw-val" style="font-size:16px;font-weight:800;font-family:monospace;letter-spacing:1px">••••</div>
+          </div>
+          <button id="find-pw-toggle" onclick="const v=document.getElementById('find-pw-val');const shown=v.dataset.shown==='1';v.textContent=shown?'••••':'${found.pwd}';v.dataset.shown=shown?'0':'1';this.textContent=shown?'보기':'숨기기'"
+            style="padding:5px 12px;background:rgba(255,255,255,0.2);color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer">보기</button>
+        </div>
+      </div>
+      <button onclick="const idEl=document.getElementById('li-id');const pwEl=document.getElementById('li-pw');if(idEl)idEl.value='${found.id}';if(pwEl)pwEl.value='${found.pwd}';document.querySelector('.find-idpw-modal')?.remove();"
+        style="width:100%;margin-top:14px;padding:12px;background:#FFB300;color:#1A237E;border:none;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;transition:opacity 0.15s"
+        onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+        이 계정으로 로그인하기 →
+      </button>
+    </div>`;
+  };
+}
+
 function bLogin(){
   // 기억된 로그인 정보 복원
   try{
@@ -660,6 +786,7 @@ function bLogin(){
   }catch(e){}
   document.getElementById('ls-s').onclick=()=>{ST.lmode='student';render()};
   document.getElementById('ls-a').onclick=()=>{ST.lmode='admin';render()};
+  document.getElementById('btn-find-idpw')?.addEventListener('click',showFindIdPwModal);
   document.getElementById('btn-li').onclick=()=>{
     const id=document.getElementById('li-id').value.trim().toLowerCase();
     const pw=document.getElementById('li-pw').value.trim();
@@ -1121,6 +1248,7 @@ function bStudent(){
 function rAdmin(){
   const sc=curSch();
   const menus=[
+    {id:'dashboard',l:'대시보드',icon:'📊'},
     {id:'records',l:'성적 일괄 입력',icon:'📝'},
     {id:'notices',l:'공지 입력',icon:'📢'},
     {id:'students',l:'학생 관리',icon:'👥'},
@@ -1130,7 +1258,8 @@ function rAdmin(){
     {id:'sendlogs',l:'발송 이력',icon:'💬'}
   ];
   let inner='';
-  if(ST.atab==='records') inner=rBulk(sc);
+  if(ST.atab==='dashboard') inner=rDashboard(sc);
+  else if(ST.atab==='records') inner=rBulk(sc);
   else if(ST.atab==='notices') inner=rNotices(sc);
   else if(ST.atab==='students') inner=rStudentMgmt(sc);
   else if(ST.atab==='school-settings') inner=rSchoolSettings(sc);
@@ -1170,6 +1299,103 @@ function rAdmin(){
       <div class="a-main-sub">${sc.name} · ${sc.grade}</div>
       ${inner}
     </div>
+  </div>`;}
+
+function rDashboard(sc){
+  const allR=sc.records;
+  const weekSet=[...new Set(allR.map(r=>r.month+'_'+r.week))].sort((a,b)=>{
+    const[am,aw]=a.split('_'),[bm,bw]=b.split('_');
+    return moI(am)-moI(bm)||wkI(aw)-wkI(bw);
+  });
+  const lastWk=weekSet[weekSet.length-1]||null;
+  const[lastMon,lastWkStr]=lastWk?lastWk.split('_'):[null,null];
+
+  let wtPassRate='-',rtPassRate='-',lastCount=0,wtPassColor='#9BA3AF',rtPassColor='#9BA3AF';
+  if(lastWk){
+    const wR=allR.filter(r=>r.month===lastMon&&r.week===lastWkStr);
+    lastCount=wR.length;
+    const wtR=wR.filter(r=>!r.wtSkip&&r.rtPass!==null&&r.wtPass!==null);
+    const rtR=wR.filter(r=>!r.rtSkip&&r.rtPass!==null);
+    if(wtR.length){const p=Math.round(wtR.filter(r=>r.wtPass).length/wtR.length*100);wtPassRate=p+'%';wtPassColor=p>=70?'#00897B':'#E53935';}
+    if(rtR.length){const p=Math.round(rtR.filter(r=>r.rtPass).length/rtR.length*100);rtPassRate=p+'%';rtPassColor=p>=70?'#00897B':'#E53935';}
+  }
+
+  const sentLogs=lastWk?getSendLogs(sc.id).filter(l=>l.type==='score'&&l.month===lastMon&&l.week===lastWkStr&&l.status==='success'):[];
+  const sentSids=new Set(sentLogs.map(l=>l.sid));
+  const notSentCount=lastWk?allR.filter(r=>r.month===lastMon&&r.week===lastWkStr&&!sentSids.has(r.sid)).length:0;
+
+  const recentWks=weekSet.slice(-8);
+  const dashLabels=recentWks.map(w=>w.replace('_',' '));
+  const wtAvgJS=JSON.stringify(recentWks.map(w=>{const[m,wk]=w.split('_');return allR.find(r=>r.month===m&&r.week===wk&&r.wtAvg!=null)?.wtAvg??null;}));
+  const totAvgJS=JSON.stringify(recentWks.map(w=>{const[m,wk]=w.split('_');return allR.find(r=>r.month===m&&r.week===wk&&r.totalAvg!=null)?.totalAvg??null;}));
+  const labelsJS=JSON.stringify(dashLabels);
+
+  const tableRows=[...weekSet].reverse().slice(0,12).map(w=>{
+    const[m,wk]=w.split('_');
+    const wR=allR.filter(r=>r.month===m&&r.week===wk);
+    const wtR=wR.filter(r=>!r.wtSkip&&r.wtPass!==null);
+    const rtR=wR.filter(r=>!r.rtSkip&&r.rtPass!==null);
+    const wtP=wtR.length?Math.round(wtR.filter(r=>r.wtPass).length/wtR.length*100):null;
+    const rtP=rtR.length?Math.round(rtR.filter(r=>r.rtPass).length/rtR.length*100):null;
+    const avg=wR.find(r=>r.totalAvg!=null)?.totalAvg??null;
+    return`<tr style="border-bottom:1px solid #F7F8FA" onmouseover="this.style.background='#F7F8FA'" onmouseout="this.style.background=''">
+      <td style="padding:10px 12px;font-weight:700;color:#1A237E">${m} ${wk}</td>
+      <td style="padding:10px 12px;text-align:center;color:#5C6470">${wR.length}명</td>
+      <td style="padding:10px 12px;text-align:center;font-weight:700;color:${wtP===null?'#9BA3AF':wtP>=70?'#00897B':'#E53935'}">${wtP===null?'-':wtP+'%'}</td>
+      <td style="padding:10px 12px;text-align:center;font-weight:700;color:${rtP===null?'#9BA3AF':rtP>=70?'#00897B':'#E53935'}">${rtP===null?'-':rtP+'%'}</td>
+      <td style="padding:10px 12px;text-align:center;color:#5C6470">${avg!==null?avg+'점':'-'}</td>
+      <td style="padding:10px 12px;text-align:center"><button onclick="ST.atab='records';ST.bMon='${m}';ST.bWk='${wk}';render()" style="padding:4px 10px;background:#EEF0FB;color:#1A237E;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">열기</button></td>
+    </tr>`;}).join('');
+
+  return`
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px" class="dash-kpi-grid">
+    <div style="background:#fff;border-radius:14px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.06)">
+      <div style="font-size:10px;font-weight:700;color:#9BA3AF;margin-bottom:8px;letter-spacing:0.5px">등록 학생</div>
+      <div style="font-size:28px;font-weight:900;color:#1A237E">${sc.students.length}</div>
+      <div style="font-size:11px;color:#9BA3AF;margin-top:2px">명</div>
+    </div>
+    <div style="background:#fff;border-radius:14px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.06)">
+      <div style="font-size:10px;font-weight:700;color:#9BA3AF;margin-bottom:8px;letter-spacing:0.5px">최근 저장 주차</div>
+      <div style="font-size:18px;font-weight:800;color:#1A237E">${lastWk?lastWk.replace('_',' '):'-'}</div>
+      <div style="font-size:11px;color:#9BA3AF;margin-top:2px">${lastCount}명 저장됨</div>
+    </div>
+    <div style="background:#fff;border-radius:14px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.06)">
+      <div style="font-size:10px;font-weight:700;color:#9BA3AF;margin-bottom:8px;letter-spacing:0.5px">WT 합격률</div>
+      <div style="font-size:28px;font-weight:900;color:${wtPassColor}">${wtPassRate}</div>
+      <div style="font-size:11px;color:#9BA3AF;margin-top:2px">RT ${rtPassRate} · 최근 주차</div>
+    </div>
+    <div style="background:#fff;border-radius:14px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.06);cursor:pointer" onclick="ST.atab='sendlogs';render()">
+      <div style="font-size:10px;font-weight:700;color:#9BA3AF;margin-bottom:8px;letter-spacing:0.5px">알림톡 미발송</div>
+      <div style="font-size:28px;font-weight:900;color:${notSentCount>0?'#E53935':'#00897B'}">${notSentCount}</div>
+      <div style="font-size:11px;color:#9BA3AF;margin-top:2px">명 (최근 주차)</div>
+    </div>
+  </div>
+
+  <div style="background:#fff;border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,0.06)">
+    <div style="font-size:13px;font-weight:700;color:#0D1117;margin-bottom:2px">반 평균 추이</div>
+    <div style="font-size:11px;color:#9BA3AF;margin-bottom:16px">최근 ${recentWks.length}주차 · WT / 전체</div>
+    <div style="position:relative;height:200px"><canvas id="dash-avg"></canvas></div>
+    <script>window._dashLabels=${labelsJS};window._wtAvgD=${wtAvgJS};window._totAvgD=${totAvgJS};<\/script>
+    <div style="display:flex;gap:16px;margin-top:10px">
+      <div style="display:flex;align-items:center;gap:5px"><div style="width:20px;height:3px;background:#1A237E;border-radius:2px"></div><span style="font-size:11px;color:#9BA3AF">WT 반평균</span></div>
+      <div style="display:flex;align-items:center;gap:5px"><div style="width:20px;height:3px;background:#E65100;border-radius:2px"></div><span style="font-size:11px;color:#9BA3AF">전체 반평균</span></div>
+    </div>
+  </div>
+
+  <div style="background:#fff;border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,0.06)">
+    <div style="font-size:13px;font-weight:700;color:#0D1117;margin-bottom:16px">주차별 저장 현황</div>
+    ${weekSet.length===0?'<div style="text-align:center;color:#9BA3AF;font-size:13px;padding:20px">저장된 데이터가 없습니다</div>':
+    `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="background:#F7F8FA">
+        <th style="padding:8px 12px;text-align:left;font-weight:700;color:#9BA3AF;white-space:nowrap">주차</th>
+        <th style="padding:8px 12px;text-align:center;font-weight:700;color:#9BA3AF">저장</th>
+        <th style="padding:8px 12px;text-align:center;font-weight:700;color:#9BA3AF">WT 합격률</th>
+        <th style="padding:8px 12px;text-align:center;font-weight:700;color:#9BA3AF">RT 합격률</th>
+        <th style="padding:8px 12px;text-align:center;font-weight:700;color:#9BA3AF">반평균</th>
+        <th style="padding:8px 12px;text-align:center;font-weight:700;color:#9BA3AF"></th>
+      </tr></thead>
+      <tbody>${tableRows}</tbody>
+    </table></div>`}
   </div>`;}
 
 function lastThr(sc,mon,wk){
@@ -1318,6 +1544,28 @@ function rNotices(sc){
   const mon=ST.bMon||'2월',wk=ST.bWk||'1주';
   const key=`${mon}_${wk}`;
   const existing=sc.notices[key]||'';
+
+  const noticeEntries=Object.entries(sc.notices||{}).sort((a,b)=>{
+    const[am,aw]=a[0].split('_'),[bm,bw]=b[0].split('_');
+    return moI(am)-moI(bm)||wkI(aw)-wkI(bw);
+  }).reverse();
+
+  const noticeListHtml=noticeEntries.length===0
+    ?'<div style="text-align:center;color:#9BA3AF;font-size:13px;padding:16px 0">등록된 공지가 없습니다</div>'
+    :noticeEntries.map(([k,txt])=>{
+      const[m,w]=k.split('_');
+      const safe=txt.replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+      return`<div style="background:#F7F8FA;border-radius:10px;padding:12px 14px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:700;color:#1A237E;margin-bottom:4px">${m} ${w}</div>
+          <div style="font-size:12px;color:#5C6470;line-height:1.6;word-break:break-all">${txt}</div>
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          <button onclick="document.getElementById('nc-mon').value='${m}';document.getElementById('nc-wk').value='${w}';document.getElementById('nc-txt').value=decodeURIComponent('${encodeURIComponent(txt)}')" style="padding:4px 10px;background:#EEF0FB;color:#1A237E;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">수정</button>
+          <button data-nc-del="${k}" style="padding:4px 8px;background:#FFEBEE;color:#E53935;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">삭제</button>
+        </div>
+      </div>`;}).join('');
+
   return`<div class="section-card">
     <div class="section-ttl">공지사항 입력</div>
     <div class="form2" style="margin-bottom:12px">
@@ -1329,6 +1577,10 @@ function rNotices(sc){
     </div>
     <button class="abtn abtn-blue" id="btn-nc-save">저장</button>
     <div id="nc-msg" style="font-size:12px;margin-top:8px"></div>
+  </div>
+  <div class="section-card">
+    <div class="section-ttl">공지 이력 (${noticeEntries.length}건)</div>
+    <div style="display:flex;flex-direction:column;gap:8px">${noticeListHtml}</div>
   </div>`;}
 
 function rStudentMgmt(sc){
@@ -1411,7 +1663,12 @@ function rSchoolSettings(sc){return`
     <div id="ss-msg" style="font-size:12px;margin-top:8px;font-weight:600"></div>
   </div>`;}
 
-function rAdminSettings(sc){return`
+function rAdminSettings(sc){
+  const lastBackup=localStorage.getItem('oheng_last_backup')||'';
+  const backupWarn=!lastBackup||((Date.now()-new Date(lastBackup).getTime())>7*24*60*60*1000);
+  const recCount=sc.records.length;
+  const weekSet=[...new Set(sc.records.map(r=>r.month+'_'+r.week))];
+  return`
   <div class="section-card">
     <div class="section-ttl">관리자 비밀번호 변경</div>
     <div style="margin-bottom:12px"><label class="flbl">현재 비밀번호</label><input class="finp" type="password" id="apw-cur"></div>
@@ -1422,6 +1679,9 @@ function rAdminSettings(sc){return`
   </div>
   <div class="section-card">
     <div class="section-ttl">데이터 백업 / 복원</div>
+    ${backupWarn?`<div style="background:#FFF8E1;border:1.5px solid #FFE082;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#E65100;font-weight:600">
+      ⚠️ ${lastBackup?'마지막 백업: '+lastBackup+' — 7일 이상 경과했습니다.':'아직 백업을 받지 않았습니다.'} 지금 백업하세요.
+    </div>`:''}
     <div style="font-size:12px;color:#5C6470;margin-bottom:14px;line-height:1.7">
       전체 성적·학생·설정 데이터를 JSON 파일로 내보내거나, 백업 파일을 불러와 복원합니다.<br>
       <span style="color:#E65100;font-weight:600">복원 시 현재 데이터는 덮어씌워집니다.</span>
@@ -1433,6 +1693,20 @@ function rAdminSettings(sc){return`
       </label>
     </div>
     <div id="backup-msg" style="font-size:12px;min-height:18px"></div>
+  </div>
+  <div class="section-card">
+    <div class="section-ttl">학기 관리</div>
+    <div style="background:#F7F8FA;border-radius:12px;padding:14px;margin-bottom:14px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;text-align:center">
+      <div><div style="font-size:10px;color:#9BA3AF;font-weight:700;margin-bottom:4px">등록 학생</div><div style="font-size:20px;font-weight:800;color:#1A237E">${sc.students.length}명</div></div>
+      <div><div style="font-size:10px;color:#9BA3AF;font-weight:700;margin-bottom:4px">성적 레코드</div><div style="font-size:20px;font-weight:800;color:#1A237E">${recCount}건</div></div>
+      <div><div style="font-size:10px;color:#9BA3AF;font-weight:700;margin-bottom:4px">저장 주차 수</div><div style="font-size:20px;font-weight:800;color:#1A237E">${weekSet.length}주</div></div>
+    </div>
+    <div style="font-size:12px;color:#5C6470;margin-bottom:14px;line-height:1.7">
+      새 학기 시작 시 이 학교의 <strong>모든 성적 기록을 초기화</strong>하고, 신규·전입 학생을 재학생으로 전환합니다.<br>
+      <span style="color:#E65100;font-weight:600">실행 전 반드시 JSON 백업을 받아두세요.</span>
+    </div>
+    <button class="abtn" id="btn-new-semester" style="background:#E53935;color:#fff;border-color:#E53935;padding:10px 20px;font-weight:700">🔄 새 학기 시작 (성적 초기화)</button>
+    <div id="semester-msg" style="font-size:12px;margin-top:8px;min-height:18px"></div>
   </div>`;}
 
 function rLogs(sc){
@@ -1485,7 +1759,24 @@ function bAdmin(){
   const sc=curSch();
   document.getElementById('btn-alo').onclick=()=>{ST.loggedIn=false;render()};
   document.getElementById('btn-back-school').onclick=()=>{ST.school=null;render()};
-  document.querySelectorAll('[data-atab]').forEach(t=>{t.onclick=()=>{ST.atab=t.dataset.atab;render()}});
+  document.querySelectorAll('[data-atab]').forEach(t=>{t.onclick=()=>{
+    if(ST.atab==='records'&&ST._dirty&&t.dataset.atab!=='records'){
+      if(!confirm('저장하지 않은 입력이 있습니다.\n이 페이지를 벗어나시겠습니까?'))return;
+    }
+    ST._dirty=false;ST.atab=t.dataset.atab;render();
+  };});
+  if(ST.atab==='dashboard'){
+    setTimeout(()=>{
+      const c=document.getElementById('dash-avg');
+      if(!c||typeof Chart==='undefined'||!window._dashLabels)return;
+      new Chart(c,{type:'line',data:{labels:window._dashLabels,datasets:[
+        {label:'WT 반평균',data:window._wtAvgD,borderColor:'#1A237E',backgroundColor:'#1A237E18',borderWidth:2.5,tension:.35,pointRadius:4,pointBackgroundColor:'#fff',pointBorderColor:'#1A237E',pointBorderWidth:2,fill:true,spanGaps:true},
+        {label:'전체 반평균',data:window._totAvgD,borderColor:'#E65100',backgroundColor:'transparent',borderWidth:2.5,tension:.35,pointRadius:4,pointBackgroundColor:'#fff',pointBorderColor:'#E65100',pointBorderWidth:2,fill:false,spanGaps:true},
+      ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.parsed.y}점`}}},
+        scales:{y:{min:0,max:100,grid:{color:'rgba(128,128,128,.1)'},ticks:{font:{size:10},callback:v=>`${v}점`}},x:{grid:{display:false},ticks:{font:{size:10},maxRotation:0}}}}});
+    },150);
+    return;
+  }
   if(ST.atab==='school-settings'){
     document.getElementById('btn-ss-save').onclick=()=>{
       const nm=document.getElementById('ss-name').value.trim();
@@ -1510,7 +1801,16 @@ function bAdmin(){
       saveDB();
       const msg=document.getElementById('nc-msg');
       msg.textContent='✓ 공지 저장 완료';msg.style.color='#00897B';
-    };return;
+      setTimeout(()=>render(),600);
+    };
+    document.querySelectorAll('[data-nc-del]').forEach(b=>{
+      b.onclick=()=>{
+        if(!confirm('이 공지를 삭제할까요?'))return;
+        delete sc.notices[b.dataset.ncDel];
+        saveDB();render();
+      };
+    });
+    return;
   }
   if(ST.atab==='students'){
     document.getElementById('btn-ns').onclick=()=>{
@@ -1554,7 +1854,7 @@ function bAdmin(){
     document.querySelectorAll('[data-ppurio-id]').forEach(b=>{
       b.onclick=()=>{const s=sc.students.find(x=>x.id===b.dataset.ppurioId);if(s)sendPpurioIdPw(sc,s);};
     });
-    document.querySelectorAll('[data-ds]').forEach(b=>{b.onclick=()=>{const s=sc.students.find(x=>x.id===b.dataset.ds);if(!confirm(`${s?.name||'이 학생'}을 삭제할까요?`))return;sc.students=sc.students.filter(x=>x.id!==b.dataset.ds);saveDB();render();};});
+    document.querySelectorAll('[data-ds]').forEach(b=>{b.onclick=()=>{const s=sc.students.find(x=>x.id===b.dataset.ds);if(!confirm(`${s?.name||'이 학생'}을 삭제할까요?\n해당 학생의 성적 기록도 함께 삭제됩니다.`))return;sc.students=sc.students.filter(x=>x.id!==b.dataset.ds);sc.records=sc.records.filter(x=>x.sid!==b.dataset.ds);saveDB();render();};});
     return;
   }
   if(ST.atab==='admin-settings'){
@@ -1566,6 +1866,21 @@ function bAdmin(){
       if(nw!==con){msg.textContent='비밀번호가 일치하지 않습니다';msg.style.color='#E53935';return;}
       ADMIN_PWD=nw;saveDB();msg.textContent='✓ 변경 완료';msg.style.color='#00897B';
     });
+    // 새 학기 시작
+    document.getElementById('btn-new-semester')?.addEventListener('click',()=>{
+      const sc2=curSch();
+      const recCnt=sc2.records.length;
+      if(!confirm(`[${sc2.name}] 새 학기를 시작합니다.\n\n• 성적 기록 ${recCnt}건이 모두 삭제됩니다.\n• 신규·전입 학생은 재학생으로 전환됩니다.\n• 학생 목록과 설정은 유지됩니다.\n\n반드시 먼저 JSON 백업을 받아두세요!\n\n계속하시겠습니까?`))return;
+      sc2.records=[];
+      sc2.students=sc2.students.map(s=>({...s,type:'regular'}));
+      sc2.notices={};
+      if(!sc2.hwNames)sc2.hwNames={};
+      sc2.hwNames={};
+      saveDB();
+      const msg=document.getElementById('semester-msg');
+      if(msg){msg.textContent='✓ 새 학기 시작 완료. 성적 기록이 초기화되었습니다.';msg.style.color='#00897B';}
+      setTimeout(()=>render(),1200);
+    });
     // 백업 내보내기
     document.getElementById('btn-backup-export')?.addEventListener('click',()=>{
       const payload = JSON.stringify({...DB, adminPwd:ADMIN_PWD, exportedAt: nowStr()}, null, 2);
@@ -1574,6 +1889,7 @@ function bAdmin(){
       a.href = URL.createObjectURL(blob);
       a.download = `oheng_backup_${new Date().toISOString().slice(0,10)}.json`;
       a.click(); URL.revokeObjectURL(a.href);
+      localStorage.setItem('oheng_last_backup', new Date().toISOString().slice(0,16).replace('T',' '));
     });
     // 백업 불러오기
     document.getElementById('backup-import-file')?.addEventListener('change', e=>{
@@ -1635,9 +1951,11 @@ function bAdmin(){
   document.getElementById('btn-wt-all').onclick=()=>{document.querySelectorAll('#bk-body tr').forEach(r=>applyWtSkip(r,true));recalc();};
   document.getElementById('btn-wt-none').onclick=()=>{document.querySelectorAll('#bk-body tr').forEach(r=>applyWtSkip(r,false));recalc();};
   const tbody=document.getElementById('bk-body');
+  ST._dirty=false;
   if(tbody){
     function onScoreChange(e){const t=e.target;if(t.classList.contains('inp-rt')||t.classList.contains('inp-wt'))recalc();}
     tbody.addEventListener('input',onScoreChange);tbody.addEventListener('change',onScoreChange);
+    tbody.addEventListener('input',()=>{ST._dirty=true;});
     tbody.addEventListener('keydown',e=>{
       if(e.key!=='Enter')return;e.preventDefault();
       const CI_SELS=['.inp-rt','.inp-wt','.inp-rt2'];
@@ -1691,11 +2009,13 @@ function bAdmin(){
       const idx=sc.records.findIndex(x=>x.sid===sid&&x.month===mon&&x.week===wk);
       if(idx>=0)sc.records[idx]=rec;else sc.records.push(rec);saved++;
     });
-    addLog(sc,mon,wk,saved,thrRt,thrWt);saveDB();
+    addLog(sc,mon,wk,saved,thrRt,thrWt);saveDB();ST._dirty=false;
     const srEl=document.getElementById('saved-result-table');
     if(srEl){srEl.innerHTML=renderSavedTable(sc,mon,wk);srEl.querySelectorAll('[data-dr]').forEach(function(b){b.onclick=function(){sc.records.splice(parseInt(b.dataset.dr),1);saveDB();srEl.innerHTML=renderSavedTable(sc,ST.bMon,ST.bWk);};});}
     renderScoreDropAlert(sc, mon, wk);
-    const msg=document.getElementById('save-msg');msg.textContent='✓ '+saved+'명 저장 완료';msg.style.color='#00897B';
+    const msg=document.getElementById('save-msg');
+    msg.innerHTML=`✓ ${saved}명 저장 완료 &nbsp;<span style="color:#E65100;font-weight:700;cursor:pointer;text-decoration:underline" onclick="const b=document.getElementById('btn-ppurio-notify');if(b){b.scrollIntoView({behavior:'smooth',block:'center'});b.style.outline='3px solid #FFB300';setTimeout(()=>b.style.outline='',2000);}">💬 알림톡 발송 →</span>`;
+    msg.style.color='#00897B';
     recalc();
   };
   document.querySelectorAll('[data-dr]').forEach(b=>{b.onclick=()=>{sc.records.splice(parseInt(b.dataset.dr),1);saveDB();const se=document.getElementById('saved-result-table');if(se)se.innerHTML=renderSavedTable(sc,ST.bMon,ST.bWk);};});

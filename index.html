@@ -665,31 +665,38 @@ function showFindIdPwModal(){
 
   const modal=document.createElement('div');
   modal.className='find-idpw-modal';
-  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto';
 
   modal.innerHTML=`
-  <div style="background:#fff;border-radius:20px;padding:32px 28px;width:100%;max-width:360px;box-shadow:0 8px 32px rgba(0,0,0,0.18)">
+  <div style="background:#fff;border-radius:20px;padding:32px 28px;width:100%;max-width:380px;box-shadow:0 8px 32px rgba(0,0,0,0.18)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
       <div style="font-size:17px;font-weight:800;color:#1A237E">아이디 · 비밀번호 찾기</div>
       <button id="find-close" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9BA3AF;line-height:1">✕</button>
     </div>
-    <p style="font-size:12px;color:#9BA3AF;margin-bottom:24px">이름과 전화번호로 계정 정보를 확인합니다</p>
+    <p style="font-size:12px;color:#9BA3AF;margin-bottom:20px">이름 · 학생 번호 · 학부모 번호를 모두 입력해야 확인됩니다</p>
 
-    <div style="margin-bottom:14px">
-      <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">이름</label>
-      <input id="find-name" placeholder="학생 이름 입력"
+    <div style="margin-bottom:12px">
+      <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">학생 이름</label>
+      <input id="find-name" placeholder="홍길동"
         style="width:100%;padding:12px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit;transition:border-color 0.15s"
         onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">
     </div>
-    <div style="margin-bottom:14px">
-      <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">전화번호</label>
-      <input id="find-phone" placeholder="010-0000-0000 (학생 또는 학부모)"
+    <div style="margin-bottom:12px">
+      <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">학생 전화번호</label>
+      <input id="find-phone-s" placeholder="010-0000-0000"
+        style="width:100%;padding:12px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit;transition:border-color 0.15s"
+        onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'"
+        oninput="autoHyphen(this)" maxlength="13">
+    </div>
+    <div style="margin-bottom:16px">
+      <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">학부모 전화번호</label>
+      <input id="find-phone-p" placeholder="010-0000-0000"
         style="width:100%;padding:12px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit;transition:border-color 0.15s"
         onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'"
         oninput="autoHyphen(this)" maxlength="13">
     </div>
 
-    <div id="find-err" style="font-size:12px;color:#E53935;min-height:18px;margin-bottom:8px"></div>
+    <div id="find-err" style="font-size:12px;color:#E53935;min-height:18px;margin-bottom:8px;line-height:1.5"></div>
 
     <button id="find-submit"
       style="width:100%;padding:13px;background:#1A237E;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:background 0.15s"
@@ -705,41 +712,47 @@ function showFindIdPwModal(){
   document.getElementById('find-close').onclick=()=>modal.remove();
   document.getElementById('find-name').focus();
 
-  // Enter key submit
   modal.querySelectorAll('input').forEach(inp=>{
     inp.addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('find-submit').click();});
   });
 
   document.getElementById('find-submit').onclick=()=>{
     const name=document.getElementById('find-name').value.trim();
-    const phone=document.getElementById('find-phone').value.replace(/[^0-9]/g,'');
+    const phoneS=document.getElementById('find-phone-s').value.replace(/[^0-9]/g,'');
+    const phoneP=document.getElementById('find-phone-p').value.replace(/[^0-9]/g,'');
     const err=document.getElementById('find-err');
     const result=document.getElementById('find-result');
     err.textContent='';result.innerHTML='';
 
     if(!name){err.textContent='이름을 입력해주세요';return;}
-    if(phone.length<9){err.textContent='전화번호를 정확히 입력해주세요';return;}
+    if(phoneS.length<9){err.textContent='학생 전화번호를 정확히 입력해주세요';return;}
+    if(phoneP.length<9){err.textContent='학부모 전화번호를 정확히 입력해주세요';return;}
 
-    // DB 전체에서 이름+전화번호 매칭
+    // 이름 + 학생번호 + 학부모번호 세 가지 모두 일치해야 통과
     let found=null,foundSch=null;
     for(const sc of DB.schools){
       const st=sc.students.find(s=>{
         if(s.name!==name)return false;
         const sp=(s.phone||'').replace(/[^0-9]/g,'');
         const pp=(s.parentPhone||'').replace(/[^0-9]/g,'');
-        return sp===phone||pp===phone;
+        return sp===phoneS && pp===phoneP;
       });
       if(st){found=st;foundSch=sc;break;}
     }
 
     if(!found){
-      err.textContent='일치하는 계정을 찾을 수 없습니다. 이름과 전화번호를 확인하거나 담당 선생님께 문의해 주세요.';
+      err.textContent='일치하는 계정을 찾을 수 없습니다.\n이름·학생번호·학부모번호를 모두 확인해 주세요.\n번호가 등록되지 않은 경우 담당 선생님께 문의하세요.';
+      err.style.whiteSpace='pre-line';
       return;
     }
 
+    // 비밀번호 힌트: 첫 글자 + 나머지 마스킹 + 자릿수
+    const pwd=found.pwd||'';
+    const pwdHint=pwd.length>0 ? pwd[0]+'●'.repeat(pwd.length-1)+` (${pwd.length}자리)` : `(${pwd.length}자리)`;
+
     result.innerHTML=`
     <div style="background:linear-gradient(135deg,#1A237E,#3949AB);border-radius:14px;padding:20px;color:#fff">
-      <div style="font-size:11px;color:rgba(255,255,255,0.55);font-weight:600;letter-spacing:0.5px;margin-bottom:12px">계정 정보 확인됨</div>
+      <div style="font-size:11px;color:rgba(255,255,255,0.55);font-weight:600;letter-spacing:0.5px;margin-bottom:12px">✓ 계정 확인됨</div>
       <div style="display:grid;gap:10px">
         <div style="background:rgba(255,255,255,0.1);border-radius:10px;padding:12px">
           <div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:4px">학교</div>
@@ -753,19 +766,16 @@ function showFindIdPwModal(){
           <button onclick="navigator.clipboard?.writeText('${found.id}').then(()=>{this.textContent='복사됨!';setTimeout(()=>this.textContent='복사',1500)}).catch(()=>{})"
             style="padding:5px 12px;background:rgba(255,255,255,0.2);color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer">복사</button>
         </div>
-        <div style="background:rgba(255,255,255,0.1);border-radius:10px;padding:12px;display:flex;justify-content:space-between;align-items:center">
-          <div>
-            <div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:4px">비밀번호</div>
-            <div id="find-pw-val" style="font-size:16px;font-weight:800;font-family:monospace;letter-spacing:1px">••••</div>
-          </div>
-          <button id="find-pw-toggle" onclick="const v=document.getElementById('find-pw-val');const shown=v.dataset.shown==='1';v.textContent=shown?'••••':'${found.pwd}';v.dataset.shown=shown?'0':'1';this.textContent=shown?'보기':'숨기기'"
-            style="padding:5px 12px;background:rgba(255,255,255,0.2);color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer">보기</button>
+        <div style="background:rgba(255,255,255,0.1);border-radius:10px;padding:12px">
+          <div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:4px">비밀번호 힌트</div>
+          <div style="font-size:16px;font-weight:800;font-family:monospace;letter-spacing:1px">${pwdHint}</div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.45);margin-top:6px">전체 비밀번호는 담당 선생님께 문의하세요</div>
         </div>
       </div>
-      <button onclick="const idEl=document.getElementById('li-id');const pwEl=document.getElementById('li-pw');if(idEl)idEl.value='${found.id}';if(pwEl)pwEl.value='${found.pwd}';document.querySelector('.find-idpw-modal')?.remove();"
+      <button onclick="const idEl=document.getElementById('li-id');if(idEl)idEl.value='${found.id}';document.querySelector('.find-idpw-modal')?.remove();document.getElementById('li-pw')?.focus();"
         style="width:100%;margin-top:14px;padding:12px;background:#FFB300;color:#1A237E;border:none;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;transition:opacity 0.15s"
         onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
-        이 계정으로 로그인하기 →
+        아이디 채우고 로그인하기 →
       </button>
     </div>`;
   };

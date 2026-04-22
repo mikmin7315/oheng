@@ -1494,6 +1494,12 @@ function bStudent(){
     saveDB();
     msg.textContent='✓ 제안이 전달되었습니다. 감사합니다!';msg.style.color='#00897B';
     document.getElementById('sug-txt').value='';
+    // 선생님에게 푸시 알림
+    fetch('/api/push',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({studentId:'admin',schoolId:sc.id,
+        title:'OHENG — 새 제안이 도착했습니다',
+        body:`[${cat}] ${ST.user.name}: ${txt.slice(0,40)}${txt.length>40?'…':''}`,
+        url:'/'})}).catch(()=>{});
     setTimeout(()=>render(),1200);
   };
   const pwBtn=document.getElementById('btn-pw-save');
@@ -1959,6 +1965,12 @@ function rAdminSettings(sc){
   const weekSet=[...new Set(sc.records.map(r=>r.month+'_'+r.week))];
   return`
   <div class="section-card">
+    <div class="section-ttl">🔔 선생님 알림 설정</div>
+    <div style="font-size:13px;color:#5C6470;margin-bottom:14px;line-height:1.7">학생이 제안을 보내면 <strong>선생님 폰으로 바로 푸시 알림</strong>이 옵니다.<br>이 기기에서 한 번만 허용하면 됩니다.</div>
+    <button id="btn-admin-push-sub" style="padding:11px 24px;background:#1A237E;color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">🔔 알림 허용하기</button>
+    <div id="admin-push-msg" style="font-size:12px;margin-top:8px;min-height:18px"></div>
+  </div>
+  <div class="section-card">
     <div class="section-ttl">관리자 비밀번호 변경</div>
     <div style="margin-bottom:12px"><label class="flbl">현재 비밀번호</label><input class="finp" type="password" id="apw-cur"></div>
     <div style="margin-bottom:12px"><label class="flbl">새 비밀번호</label><input class="finp" type="password" id="apw-new" placeholder="4자 이상"></div>
@@ -2148,6 +2160,38 @@ function bAdmin(){
     return;
   }
   if(ST.atab==='admin-settings'){
+    const adminPushBtn=document.getElementById('btn-admin-push-sub');
+    const adminPushMsg=document.getElementById('admin-push-msg');
+    if(adminPushBtn){
+      if(!isPushSupported()){
+        adminPushBtn.textContent='이 브라우저는 알림 미지원';adminPushBtn.disabled=true;
+        adminPushBtn.style.background='#E8ECF0';adminPushBtn.style.color='#9BA3AF';
+      } else {
+        navigator.serviceWorker.ready.then(reg=>reg.pushManager.getSubscription()).then(sub=>{
+          if(sub){adminPushBtn.textContent='✓ 알림 허용됨';adminPushBtn.style.background='#00897B';
+            if(adminPushMsg)adminPushMsg.textContent='학생 제안 시 이 기기로 알림이 옵니다.';}
+        });
+        adminPushBtn.onclick=async()=>{
+          adminPushBtn.disabled=true;adminPushBtn.textContent='처리 중...';
+          try{
+            const reg=await navigator.serviceWorker.ready;
+            let sub=await reg.pushManager.getSubscription();
+            if(!sub){
+              const perm=await Notification.requestPermission();
+              if(perm!=='granted')throw new Error('denied');
+              sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlB64ToUint8(VAPID_PUBLIC_KEY)});
+            }
+            await fetch('/api/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},
+              body:JSON.stringify({studentId:'admin',schoolId:sc.id,subscription:sub.toJSON()})});
+            adminPushBtn.textContent='✓ 알림 허용됨';adminPushBtn.style.background='#00897B';
+            if(adminPushMsg){adminPushMsg.textContent='완료! 학생 제안 시 알림이 옵니다.';adminPushMsg.style.color='#00897B';}
+          }catch(e){
+            adminPushBtn.textContent='🔔 알림 허용하기';adminPushBtn.disabled=false;
+            if(adminPushMsg){adminPushMsg.textContent='허용이 거부되었거나 실패했습니다.';adminPushMsg.style.color='#E53935';}
+          }
+        };
+      }
+    }
     document.getElementById('btn-apw-save')?.addEventListener('click',()=>{
       const cur=document.getElementById('apw-cur')?.value;const nw=document.getElementById('apw-new')?.value;const con=document.getElementById('apw-con')?.value;
       const msg=document.getElementById('apw-msg');

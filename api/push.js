@@ -1,5 +1,7 @@
 import webpush from 'web-push';
-import { kv } from '@vercel/kv';
+import { Redis } from '@upstash/redis';
+
+const redis = Redis.fromEnv();
 
 const {
   VAPID_PUBLIC_KEY,
@@ -19,9 +21,9 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing studentId or schoolId' });
   }
 
-  const subscription = await kv.get(`sub:${schoolId}:${studentId}`);
+  const subscription = await redis.get(`sub:${schoolId}:${studentId}`);
   if (!subscription) {
-    return res.status(404).json({ error: 'No subscription for this student' });
+    return res.status(404).json({ error: 'No subscription for this user' });
   }
 
   webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);

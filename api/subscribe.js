@@ -1,4 +1,6 @@
-import { kv } from '@vercel/kv';
+import { Redis } from '@upstash/redis';
+
+const redis = Redis.fromEnv();
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
@@ -9,7 +11,7 @@ export default async function handler(req, res) {
   }
 
   // 1년 TTL로 구독 정보 저장
-  await kv.set(
+  await redis.set(
     `sub:${schoolId}:${studentId}`,
     subscription,
     { ex: 60 * 60 * 24 * 365 }

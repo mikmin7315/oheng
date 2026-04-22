@@ -1,0 +1,21 @@
+{
+  "name": "OHENG 성적 관리",
+  "short_name": "OHENG",
+  "description": "영어학원 주간 성적 관리 시스템",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1A237E",
+  "theme_color": "#1A237E",
+  "lang": "ko",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "categories": ["education", "productivity"]
+}

@@ -2,8 +2,15 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>OHENG 성적 관리</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#1A237E">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="OHENG">
+<link rel="apple-touch-icon" href="/icons/icon.svg">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.4/kakao.min.js" crossorigin="anonymous"></script>
 <style>
@@ -571,6 +578,12 @@ function mkLine(id,labels,sD,aD,col,hMin=50,hMax=100){
   ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.parsed.y}점`}}},
     scales:{y:{min,max,grid:{color:'rgba(128,128,128,.1)'},ticks:{font:{size:10},callback:v=>`${v}점`}},x:{grid:{display:false},ticks:{font:{size:10},maxRotation:0}}}}});}
 
+function initSW(){
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('/sw.js').catch(e=>console.warn('SW 등록 실패:',e));
+  }
+}
+
 function initKakao(){
   try{
     if(KAKAO_APP_KEY&&typeof Kakao!=='undefined'&&!Kakao.isInitialized()){
@@ -581,6 +594,7 @@ function initKakao(){
 
 function init(){
   try{loadDB();}catch(e){console.warn('init loadDB 오류:',e);}
+  initSW();
   initKakao();
   // 학교 hw1/hw2 마이그레이션
   DB.schools.forEach(sc=>{
@@ -918,7 +932,7 @@ function rSuggest(){
     </div>
     <div style="margin-bottom:14px">
       <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.4px">내용</label>
-      <textarea id="sug-txt" rows="4" placeholder="자유롭게 적어주세요. 익명으로 전달되지 않으며 선생님이 확인합니다." style="width:100%;padding:12px 14px;border:1.5px solid #E8ECF0;border-radius:10px;font-size:13px;color:#0D1117;background:#fff;font-family:inherit;outline:none;resize:vertical;line-height:1.6" onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'"></textarea>
+      <textarea id="sug-txt" rows="4" placeholder="자유롭게 적어주세요. 실명으로 전달되며 선생님이 확인합니다." style="width:100%;padding:12px 14px;border:1.5px solid #E8ECF0;border-radius:10px;font-size:13px;color:#0D1117;background:#fff;font-family:inherit;outline:none;resize:vertical;line-height:1.6" onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'"></textarea>
     </div>
     <div id="sug-msg" style="font-size:12px;min-height:18px;margin-bottom:8px"></div>
     <button id="btn-sug-send" style="width:100%;padding:13px;background:#1A237E;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.18s" onmouseover="this.style.background='#121858'" onmouseout="this.style.background='#1A237E'">제안 보내기</button>

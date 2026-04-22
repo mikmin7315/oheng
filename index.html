@@ -613,6 +613,28 @@ async function subscribePush(){
   }catch(e){console.warn('Push 구독 실패:',e);return false;}
 }
 
+async function pushStudents(sc, studentIds, title, body, url='/'){
+  if(!studentIds?.length)return;
+  await Promise.allSettled(studentIds.map(sid=>
+    fetch('/api/push',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({studentId:sid,schoolId:sc.id,title,body,url})}).catch(()=>{})
+  ));
+}
+
+function showPushPermissionBanner(){
+  if(!isPushSupported()||Notification.permission!=='default')return;
+  if(document.getElementById('push-banner'))return;
+  const asked=localStorage.getItem('oheng_push_asked_'+ST.user.id);
+  if(asked)return;
+  const b=document.createElement('div');
+  b.id='push-banner';
+  b.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:440px;background:#1A237E;color:#fff;border-radius:18px;padding:16px 18px;box-shadow:0 8px 32px rgba(26,35,126,0.4);z-index:9999;display:flex;align-items:center;gap:12px';
+  b.innerHTML=`<div style="flex:1"><div style="font-size:13px;font-weight:700;margin-bottom:2px">📲 성적·공지 알림 받기</div><div style="font-size:11px;opacity:.8">성적 등록·공지 발송 시 폰으로 바로 알려드려요</div></div><button id="push-banner-ok" style="padding:8px 16px;background:#FFB300;color:#1A237E;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;font-family:inherit">허용</button><button id="push-banner-x" style="padding:6px 10px;background:rgba(255,255,255,.15);border:none;border-radius:8px;color:#fff;cursor:pointer;font-size:15px;flex-shrink:0">✕</button>`;
+  document.body.appendChild(b);
+  document.getElementById('push-banner-x').onclick=()=>{localStorage.setItem('oheng_push_asked_'+ST.user.id,'1');b.remove();};
+  document.getElementById('push-banner-ok').onclick=async()=>{localStorage.setItem('oheng_push_asked_'+ST.user.id,'1');b.remove();await subscribePush();};
+}
+
 async function unsubscribePush(){
   try{
     const reg=await navigator.serviceWorker.ready;
@@ -1380,7 +1402,7 @@ function rStudentSettings(){return`
 
   <div style="background:#fff;border-radius:18px;padding:20px;margin-bottom:12px;box-shadow:0 2px 12px rgba(0,0,0,0.06)">
     <div style="font-size:10px;font-weight:700;color:#9BA3AF;letter-spacing:1px;margin-bottom:14px">🔔 알림 설정</div>
-    <div style="font-size:13px;color:#5C6470;margin-bottom:14px;line-height:1.7">선생님이 제안에 답변하면 <strong>폰으로 바로 알림</strong>이 옵니다.<br>아래 버튼을 눌러 알림을 허용하세요.</div>
+    <div style="font-size:13px;color:#5C6470;margin-bottom:14px;line-height:1.7">알림을 허용하면 <strong>성적 등록·공지사항·선생님 답변</strong> 시 폰으로 바로 알림이 옵니다.</div>
     <button id="btn-push-sub" style="width:100%;padding:12px;background:#1A237E;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">🔔 알림 허용하기</button>
     <div id="push-msg" style="font-size:12px;margin-top:8px;min-height:18px;text-align:center"></div>
   </div>
@@ -1454,12 +1476,15 @@ function bStudent(){
         pushBtn.disabled=true;pushBtn.textContent='처리 중...';
         const ok=await subscribePush();
         if(ok){pushBtn.textContent='✓ 알림 허용됨';pushBtn.style.background='#00897B';
-          if(pushMsg){pushMsg.textContent='완료! 선생님 답변 시 알림이 옵니다.';pushMsg.style.color='#00897B';}}
+          if(pushMsg){pushMsg.textContent='완료! 성적·공지·답변 알림이 옵니다.';pushMsg.style.color='#00897B';}}
         else{pushBtn.textContent='🔔 알림 허용하기';pushBtn.disabled=false;
           if(pushMsg){pushMsg.textContent='알림 허용이 거부되었거나 실패했습니다.';pushMsg.style.color='#E53935';}}
       };
     }
   }
+
+  // 로그인 후 알림 배너 (최초 1회)
+  setTimeout(()=>showPushPermissionBanner(), 800);
 
   const chatBtn=document.getElementById('btn-kakao-chat');
   if(chatBtn){
@@ -2103,6 +2128,7 @@ function bAdmin(){
       saveDB();
       const msg=document.getElementById('nc-msg');
       msg.textContent='✓ 공지 저장 완료';msg.style.color='#00897B';
+      if(txt){const allSids=sc.students.map(s=>s.id);pushStudents(sc,allSids,'📢 공지사항',txt.length>40?txt.slice(0,40)+'…':txt,'/');}
       setTimeout(()=>render(),600);
     };
     document.querySelectorAll('[data-nc-del]').forEach(b=>{
@@ -2124,8 +2150,11 @@ function bAdmin(){
       if(DB.schools.some(s=>s.students.some(st=>st.id===id))){msg.textContent='이미 사용 중인 ID입니다';msg.style.color='#E53935';return;}
       const sType=document.getElementById('ns-type')?.value||'regular';
       const today=new Date().toISOString().slice(0,10);
-      sc.students.push({id,name,pwd:pw,phone:document.getElementById('ns-ph').value,parentPhone:document.getElementById('ns-pph').value,type:sType,createdAt:today});
+      const newSt={id,name,pwd:pw,phone:document.getElementById('ns-ph').value,parentPhone:document.getElementById('ns-pph').value,type:sType,createdAt:today};
+      sc.students.push(newSt);
       saveDB();msg.textContent=`✓ ${name} 추가 완료!`;msg.style.color='#00897B';render();
+      // 카카오 ID/비번 자동 발송 팝업
+      if(newSt.parentPhone||newSt.phone)sendPpurioIdPw(sc,newSt);
     };
     const csvInput=document.getElementById('csv-upload');
     if(csvInput){csvInput.onchange=e=>{const f=e.target.files[0];if(f){const el=document.getElementById('csv-filename');if(el)el.textContent=f.name;}};}
@@ -2372,7 +2401,7 @@ function bAdmin(){
     const totSorted=[...totItems].filter(x=>x.v!==null).sort((a,b)=>b.v-a.v);let trk=1;totSorted.forEach((s,i)=>{if(i>0&&totSorted[i-1].v===s.v)s.rank=totSorted[i-1].rank;else{s.rank=trk;}trk++;});
     const totRankMap=Object.fromEntries(totSorted.map(s=>[s.sid,s.rank]));
     const totValMap=Object.fromEntries(totItems.map(s=>[s.sid,s.v]));
-    let saved=0;
+    let saved=0;const savedSids=[];
     rows.forEach(r=>{
       const sid=r.dataset.sid;if(!sid)return;
       const rsk=r.dataset.rtskip==='1';const wsk=r.dataset.wtskip==='1';
@@ -2391,7 +2420,7 @@ function bAdmin(){
         hwName2:(()=>{const _k=mon+'_'+wk;return sc.hwNames&&sc.hwNames[_k]?sc.hwNames[_k].hw2:sc.hw2||'숙제2';})(),
         retestTime:r.querySelector('.inp-rt2').value,notice:''};
       const idx=sc.records.findIndex(x=>x.sid===sid&&x.month===mon&&x.week===wk);
-      if(idx>=0)sc.records[idx]=rec;else sc.records.push(rec);saved++;
+      if(idx>=0)sc.records[idx]=rec;else sc.records.push(rec);saved++;savedSids.push(sid);
     });
     addLog(sc,mon,wk,saved,thrRt,thrWt);saveDB();ST._dirty=false;
     const srEl=document.getElementById('saved-result-table');
@@ -2400,6 +2429,7 @@ function bAdmin(){
     const msg=document.getElementById('save-msg');
     msg.innerHTML=`✓ ${saved}명 저장 완료 &nbsp;<span style="color:#E65100;font-weight:700;cursor:pointer;text-decoration:underline" onclick="const b=document.getElementById('btn-ppurio-notify');if(b){b.scrollIntoView({behavior:'smooth',block:'center'});b.style.outline='3px solid #FFB300';setTimeout(()=>b.style.outline='',2000);}">💬 알림톡 발송 →</span>`;
     msg.style.color='#00897B';
+    pushStudents(sc,savedSids,'📊 성적이 등록됐어요',`${mon} ${wk} 성적을 확인해보세요`,'/');
     recalc();
   };
   document.querySelectorAll('[data-dr]').forEach(b=>{b.onclick=()=>{sc.records.splice(parseInt(b.dataset.dr),1);saveDB();const se=document.getElementById('saved-result-table');if(se)se.innerHTML=renderSavedTable(sc,ST.bMon,ST.bWk);};});

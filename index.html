@@ -537,6 +537,7 @@ const PPURIO_TPL_SCORE='KA01TP260409171331749ec8E2SNQUj3';     // 성적 알림 
 const APP_URL='https://oheng.vercel.app';
 const KAKAO_APP_KEY='';  // TODO: Kakao Developers → 앱 키 → JavaScript 키 입력
 const KAKAO_CHANNEL_ID='_QXNZX';
+const VAPID_PUBLIC_KEY='BClrX5_mErAwCfnxMnn7JxqUECaVChgQ8zTADG7HWfg8vCcNTGE2Xx0vzX-Gl3UE6lhj6RZgJYxCu6cjjVcgIHg';
 let DB={schools:INIT_SCHOOLS.map(s=>({...s,students:[...s.students],records:[...s.records],notices:{...s.notices}}))};
 let ST={loggedIn:false,role:null,user:null,userSchool:null,school:null,
   tab:'report',atab:'dashboard',lmode:'student',
@@ -577,6 +578,51 @@ function mkLine(id,labels,sD,aD,col,hMin=50,hMax=100){
     {label:'반평균',data:aD,borderColor:col,backgroundColor:'transparent',borderWidth:1.8,borderDash:[7,4],tension:.35,pointRadius:3,pointBackgroundColor:col,fill:false,spanGaps:true},
   ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.parsed.y}점`}}},
     scales:{y:{min,max,grid:{color:'rgba(128,128,128,.1)'},ticks:{font:{size:10},callback:v=>`${v}점`}},x:{grid:{display:false},ticks:{font:{size:10},maxRotation:0}}}}});}
+
+function urlB64ToUint8(b64){
+  const pad='='.repeat((4-b64.length%4)%4);
+  const b=(b64+pad).replace(/-/g,'+').replace(/_/g,'/');
+  const raw=atob(b);const out=new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);
+  return out;
+}
+
+async function subscribePush(){
+  try{
+    if(!('serviceWorker' in navigator)||!('PushManager' in window))return false;
+    const reg=await navigator.serviceWorker.ready;
+    let sub=await reg.pushManager.getSubscription();
+    if(!sub){
+      const perm=await Notification.requestPermission();
+      if(perm!=='granted')return false;
+      sub=await reg.pushManager.subscribe({
+        userVisibleOnly:true,
+        applicationServerKey:urlB64ToUint8(VAPID_PUBLIC_KEY)
+      });
+    }
+    await fetch('/api/subscribe',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        studentId:ST.user.id,
+        schoolId:ST.userSchool.id,
+        subscription:sub.toJSON()
+      })
+    });
+    return true;
+  }catch(e){console.warn('Push 구독 실패:',e);return false;}
+}
+
+async function unsubscribePush(){
+  try{
+    const reg=await navigator.serviceWorker.ready;
+    const sub=await reg.pushManager.getSubscription();
+    if(sub)await sub.unsubscribe();
+    return true;
+  }catch(e){return false;}
+}
+
+function isPushSupported(){return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;}
 
 function initSW(){
   if('serviceWorker' in navigator){
@@ -897,7 +943,14 @@ function bSchoolSelect(){
 }
 
 function rStudent(){
-  const tabs=[{id:'report',l:'성적표'},{id:'suggest',l:'제안하기'},{id:'inquiry',l:'문의하기'},{id:'settings',l:'설정'}];
+  const sc=ST.userSchool;
+  const unreadReplies=(sc?.suggestions||[]).filter(s=>s.sid===ST.user.id&&s.reply&&!s.replyRead).length;
+  const tabs=[
+    {id:'report',l:'성적표'},
+    {id:'suggest',l:'제안하기'+(unreadReplies?` <span style="background:#E53935;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;vertical-align:middle">${unreadReplies}</span>`:'')},
+    {id:'inquiry',l:'문의하기'},
+    {id:'settings',l:'설정'}
+  ];
   const recs=sRecs(ST.user.id,ST.userSchool);
   let inner='';
   if(ST.tab==='report') inner=rReport(recs);
@@ -941,14 +994,26 @@ function rSuggest(){
   ${mySugs.length?`
   <div style="background:#fff;border-radius:18px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,0.06)">
     <div style="font-size:12px;font-weight:700;color:#9BA3AF;letter-spacing:0.5px;margin-bottom:12px">내가 보낸 제안 (${mySugs.length}건)</div>
-    ${mySugs.map(s=>`
-    <div style="border:1px solid #F0F2F5;border-radius:12px;padding:14px;margin-bottom:10px">
+    ${mySugs.map(s=>{
+      const hasReply=!!s.reply;
+      const newReply=hasReply&&!s.replyRead;
+      return`
+    <div style="border:1.5px solid ${newReply?'#00897B':hasReply?'#A7F3D0':'#F0F2F5'};border-radius:12px;padding:14px;margin-bottom:10px;cursor:${hasReply?'pointer':'default'}" ${hasReply?`data-sug-reply-read="${s.id}"`:''}>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:#EEF0FB;color:#1A237E">${s.cat}</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:#EEF0FB;color:#1A237E">${s.cat}</span>
+          ${newReply?'<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:#00897B;color:#fff">NEW 답변</span>':''}
+          ${hasReply&&!newReply?'<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:#E0F7F4;color:#00695C">답변완료</span>':''}
+          ${!hasReply?'<span style="font-size:10px;color:#9BA3AF">답변 대기중</span>':''}
+        </div>
         <span style="font-size:11px;color:#C4C9D4">${s.date}</span>
       </div>
       <div style="font-size:13px;color:#5C6470;line-height:1.6">${s.txt}</div>
-    </div>`).join('')}
+      ${hasReply?`<div style="margin-top:10px;padding:10px 14px;background:#F0FDF9;border-radius:10px;border-left:3px solid #00897B">
+        <div style="font-size:10px;font-weight:700;color:#00695C;margin-bottom:4px">선생님 답변 · ${s.reply.date}</div>
+        <div style="font-size:13px;color:#047857;line-height:1.6">${s.reply.txt}</div>
+      </div>`:''}
+    </div>`;}).join('')}
   </div>`:''}`;
 }
 
@@ -1311,6 +1376,35 @@ function rStudentSettings(){return`
     </div>
     <div id="pw-msg" style="font-size:12px;margin-bottom:10px;min-height:18px"></div>
     <button id="btn-pw-save" style="width:100%;padding:13px;background:#1A237E;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.15s" onmouseover="this.style.background='#121858'" onmouseout="this.style.background='#1A237E'">비밀번호 변경</button>
+  </div>
+
+  <div style="background:#fff;border-radius:18px;padding:20px;margin-bottom:12px;box-shadow:0 2px 12px rgba(0,0,0,0.06)">
+    <div style="font-size:10px;font-weight:700;color:#9BA3AF;letter-spacing:1px;margin-bottom:14px">🔔 알림 설정</div>
+    <div style="font-size:13px;color:#5C6470;margin-bottom:14px;line-height:1.7">선생님이 제안에 답변하면 <strong>폰으로 바로 알림</strong>이 옵니다.<br>아래 버튼을 눌러 알림을 허용하세요.</div>
+    <button id="btn-push-sub" style="width:100%;padding:12px;background:#1A237E;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">🔔 알림 허용하기</button>
+    <div id="push-msg" style="font-size:12px;margin-top:8px;min-height:18px;text-align:center"></div>
+  </div>
+
+  <div style="background:#FFF8E1;border:1.5px solid #FFE082;border-radius:18px;padding:20px">
+    <div style="font-size:10px;font-weight:700;color:#E65100;letter-spacing:1px;margin-bottom:14px">📱 앱 설치 방법</div>
+    <div style="margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;color:#5C6470;margin-bottom:8px">🍎 아이폰 (Safari)</div>
+      <ol style="font-size:12px;color:#5C6470;line-height:2;padding-left:18px">
+        <li>Safari로 <strong>oheng.vercel.app</strong> 접속</li>
+        <li>하단 가운데 <strong>공유 버튼</strong> 탭 (□↑)</li>
+        <li><strong>홈 화면에 추가</strong> 선택</li>
+        <li><strong>추가</strong> 탭 → 홈 화면에 OHENG 앱 생성</li>
+      </ol>
+    </div>
+    <div>
+      <div style="font-size:12px;font-weight:700;color:#5C6470;margin-bottom:8px">🤖 안드로이드 (Chrome)</div>
+      <ol style="font-size:12px;color:#5C6470;line-height:2;padding-left:18px">
+        <li>Chrome으로 <strong>oheng.vercel.app</strong> 접속</li>
+        <li>주소창 오른쪽 <strong>⋮ 메뉴</strong> 탭</li>
+        <li><strong>앱 설치</strong> 또는 <strong>홈 화면에 추가</strong> 선택</li>
+        <li><strong>설치</strong> 탭 → 홈 화면에 OHENG 앱 생성</li>
+      </ol>
+    </div>
   </div>`;}
 
 function bD(recs){return{
@@ -1335,6 +1429,38 @@ function bStudent(){
   const nextBtn=document.getElementById('wk-next');
   if(prevBtn){prevBtn.onclick=()=>{if(curIdx>0){const[m,w]=opts0[curIdx-1].split(' ');ST.vMon=m;ST.vWk=w;render();}};}
   if(nextBtn){nextBtn.onclick=()=>{if(curIdx<opts0.length-1){const[m,w]=opts0[curIdx+1].split(' ');ST.vMon=m;ST.vWk=w;render();};};}
+  // 답변 읽음 처리
+  document.querySelectorAll('[data-sug-reply-read]').forEach(card=>{
+    card.onclick=()=>{
+      const sc=DB.schools.find(s=>s.id===ST.userSchool.id);
+      const sug=(sc?.suggestions||[]).find(s=>s.id===card.dataset.sugReplyRead);
+      if(sug&&!sug.replyRead){sug.replyRead=true;ST.userSchool=sc;saveDB();render();}
+    };
+  });
+
+  // 푸시 알림 허용 버튼
+  const pushBtn=document.getElementById('btn-push-sub');
+  if(pushBtn){
+    const pushMsg=document.getElementById('push-msg');
+    if(!isPushSupported()){
+      pushBtn.textContent='이 브라우저는 알림 미지원';pushBtn.disabled=true;
+      pushBtn.style.background='#E8ECF0';pushBtn.style.color='#9BA3AF';
+    } else {
+      navigator.serviceWorker.ready.then(reg=>reg.pushManager.getSubscription()).then(sub=>{
+        if(sub){pushBtn.textContent='✓ 알림 허용됨';pushBtn.style.background='#00897B';
+          if(pushMsg)pushMsg.textContent='선생님 답변 시 폰으로 알림이 옵니다.';}
+      });
+      pushBtn.onclick=async()=>{
+        pushBtn.disabled=true;pushBtn.textContent='처리 중...';
+        const ok=await subscribePush();
+        if(ok){pushBtn.textContent='✓ 알림 허용됨';pushBtn.style.background='#00897B';
+          if(pushMsg){pushMsg.textContent='완료! 선생님 답변 시 알림이 옵니다.';pushMsg.style.color='#00897B';}}
+        else{pushBtn.textContent='🔔 알림 허용하기';pushBtn.disabled=false;
+          if(pushMsg){pushMsg.textContent='알림 허용이 거부되었거나 실패했습니다.';pushMsg.style.color='#E53935';}}
+      };
+    }
+  }
+
   const chatBtn=document.getElementById('btn-kakao-chat');
   if(chatBtn){
     const kakaoReady=KAKAO_APP_KEY&&typeof Kakao!=='undefined'&&Kakao.isInitialized();
@@ -2083,10 +2209,48 @@ function bAdmin(){
     document.querySelectorAll('[data-sug-filter]').forEach(btn=>{
       btn.onclick=()=>{ST._sugCat=btn.dataset.sugFilter;render();};
     });
-    document.querySelectorAll('[data-sug-read]').forEach(card=>{
-      card.onclick=()=>{
-        const sug=(sc.suggestions||[]).find(s=>s.id===card.dataset.sugRead);
-        if(sug&&!sug.read){sug.read=true;saveDB();render();}
+    document.querySelectorAll('[data-sug-toggle]').forEach(btn=>{
+      btn.onclick=()=>{
+        const id=btn.dataset.sugToggle;
+        const sug=(sc.suggestions||[]).find(s=>s.id===id);
+        if(sug&&!sug.read){sug.read=true;saveDB();}
+        ST._sugExpand=ST._sugExpand===id?null:id;
+        render();
+      };
+    });
+    document.querySelectorAll('[data-sug-reply]').forEach(btn=>{
+      btn.onclick=async()=>{
+        const id=btn.dataset.sugReply;
+        const sid=btn.dataset.sugSid;
+        const txt=document.getElementById('reply-txt-'+id)?.value.trim();
+        const msgEl=document.getElementById('reply-msg-'+id);
+        if(!txt){if(msgEl){msgEl.textContent='답변 내용을 입력하세요';msgEl.style.color='#E53935';}return;}
+        const sug=(sc.suggestions||[]).find(s=>s.id===id);
+        if(!sug)return;
+        const now=new Date();
+        const date=`${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')}`;
+        const isNew=!sug.reply;
+        sug.reply={txt,date};
+        sug.replyRead=false;
+        saveDB();
+        if(msgEl){msgEl.textContent='저장 중...';msgEl.style.color='#9BA3AF';}
+        if(isNew){
+          try{
+            await fetch('/api/push',{
+              method:'POST',
+              headers:{'Content-Type':'application/json'},
+              body:JSON.stringify({
+                studentId:sid,
+                schoolId:sc.id,
+                title:'OHENG — 선생님 답변 도착',
+                body:'제안하신 내용에 선생님이 답변을 남겼습니다.',
+                url:'/'
+              })
+            });
+          }catch(e){console.warn('Push 발송 실패:',e);}
+        }
+        if(msgEl){msgEl.textContent='✓ 저장 완료'+(isNew?' · 푸시 알림 발송':'');msgEl.style.color='#00897B';}
+        setTimeout(()=>{ST._sugExpand=null;render();},900);
       };
     });
     return;
@@ -2478,6 +2642,7 @@ function renderSendLogTable(sc){
 
 function rAdminSuggestions(sc){
   const sugs=(sc.suggestions||[]).slice().reverse();
+  const unanswered=sugs.filter(s=>!s.reply).length;
   if(!sugs.length)return`
   <div class="section-card" style="text-align:center;padding:40px 0">
     <div style="font-size:36px;margin-bottom:12px">💡</div>
@@ -2487,25 +2652,46 @@ function rAdminSuggestions(sc){
   const cats=[...new Set(sugs.map(s=>s.cat))];
   const catFilter=ST._sugCat||'전체';
   const filtered=catFilter==='전체'?sugs:sugs.filter(s=>s.cat===catFilter);
+  const expandedId=ST._sugExpand||null;
   return`
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
     ${['전체',...cats].map(c=>`<button data-sug-filter="${c}" style="padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid ${catFilter===c?'#1A237E':'#E8ECF0'};background:${catFilter===c?'#1A237E':'#fff'};color:${catFilter===c?'#fff':'#5C6470'};transition:all 0.15s">${c}</button>`).join('')}
-    <span style="font-size:12px;color:#9BA3AF;margin-left:auto">총 ${sugs.length}건</span>
+    <span style="font-size:12px;color:#9BA3AF;margin-left:auto">총 ${sugs.length}건 · 미답변 <strong style="color:#E53935">${unanswered}</strong>건</span>
   </div>
   ${filtered.map(s=>{
     const st=sc.students.find(u=>u.id===s.sid);
-    const read=s.read;
-    return`<div class="section-card" style="border-left:4px solid ${read?'#E8ECF0':'#1A237E'};padding:16px 18px;margin-bottom:10px;cursor:pointer" data-sug-read="${s.id}">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:#EEF0FB;color:#1A237E">${s.cat}</span>
-          ${!read?'<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:#1A237E;color:#fff">NEW</span>':''}
-        </div>
-        <div style="display:flex;align-items:center;gap:10px">
+    const expanded=expandedId===s.id;
+    const hasReply=!!s.reply;
+    return`
+    <div class="section-card" style="border-left:4px solid ${hasReply?'#00897B':s.read?'#E8ECF0':'#1A237E'};padding:0;margin-bottom:10px;overflow:hidden">
+      <div style="padding:16px 18px;cursor:pointer" data-sug-toggle="${s.id}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:#EEF0FB;color:#1A237E">${s.cat}</span>
+            ${!s.read?'<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:#1A237E;color:#fff">NEW</span>':''}
+            ${hasReply?'<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:#E0F7F4;color:#00695C">답변완료</span>':'<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:#FFF3E0;color:#E65100">미답변</span>'}
+          </div>
           <span style="font-size:11px;color:#9BA3AF">${st?st.name:'(탈퇴)'} · ${s.date}</span>
         </div>
+        <div style="font-size:13px;color:#5C6470;line-height:1.7">${s.txt}</div>
+        ${hasReply?`<div style="margin-top:10px;padding:10px 14px;background:#F0FDF9;border-radius:10px;border-left:3px solid #00897B">
+          <div style="font-size:10px;font-weight:700;color:#00695C;margin-bottom:4px">선생님 답변 · ${s.reply.date}</div>
+          <div style="font-size:13px;color:#047857;line-height:1.6">${s.reply.txt}</div>
+        </div>`:''}
       </div>
-      <div style="font-size:13px;color:#5C6470;line-height:1.7">${s.txt}</div>
+      ${expanded?`<div style="padding:0 18px 16px;border-top:1px solid #F0F2F5">
+        <div style="padding-top:14px">
+          <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.4px">답변 작성</label>
+          <textarea id="reply-txt-${s.id}" rows="3" placeholder="학생에게 전달할 답변을 입력하세요" style="width:100%;padding:10px 12px;border:1.5px solid #E8ECF0;border-radius:10px;font-size:13px;font-family:inherit;outline:none;resize:vertical;line-height:1.6" onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">${s.reply?s.reply.txt:''}</textarea>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button data-sug-reply="${s.id}" data-sug-sid="${s.sid}" style="flex:1;padding:10px;background:#1A237E;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">💾 답변 저장 + 알림 발송</button>
+            <button data-sug-toggle="${s.id}" style="padding:10px 14px;background:#F7F8FA;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit">취소</button>
+          </div>
+          <div id="reply-msg-${s.id}" style="font-size:12px;margin-top:6px;min-height:18px"></div>
+        </div>
+      </div>`:`<div style="padding:0 18px 12px">
+        <button data-sug-toggle="${s.id}" style="font-size:12px;font-weight:600;color:#1A237E;background:none;border:none;cursor:pointer;padding:0">✏️ ${hasReply?'답변 수정':'답변 달기'}</button>
+      </div>`}
     </div>`;
   }).join('')}`;
 }

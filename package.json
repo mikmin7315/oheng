@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "dependencies": {
-    "solapi": "latest"
+    "solapi": "latest",
+    "web-push": "^3.6.7",
+    "@vercel/kv": "^3.0.0"
   }
 }

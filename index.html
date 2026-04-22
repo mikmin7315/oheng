@@ -1468,17 +1468,29 @@ function bStudent(){
       pushBtn.textContent='이 브라우저는 알림 미지원';pushBtn.disabled=true;
       pushBtn.style.background='#E8ECF0';pushBtn.style.color='#9BA3AF';
     } else {
-      navigator.serviceWorker.ready.then(reg=>reg.pushManager.getSubscription()).then(sub=>{
-        if(sub){pushBtn.textContent='✓ 알림 허용됨';pushBtn.style.background='#00897B';
-          if(pushMsg)pushMsg.textContent='선생님 답변 시 폰으로 알림이 옵니다.';}
-      });
+      const setSubState=(subscribed)=>{
+        if(subscribed){
+          pushBtn.textContent='🔕 알림 끄기';pushBtn.style.background='#E53935';
+          if(pushMsg){pushMsg.textContent='알림이 켜져 있어요. 성적·공지·답변 시 알림이 옵니다.';pushMsg.style.color='#00897B';}
+        } else {
+          pushBtn.textContent='🔔 알림 허용하기';pushBtn.style.background='#1A237E';
+          if(pushMsg){pushMsg.textContent='';}}
+      };
+      navigator.serviceWorker.ready.then(reg=>reg.pushManager.getSubscription()).then(sub=>setSubState(!!sub));
       pushBtn.onclick=async()=>{
         pushBtn.disabled=true;pushBtn.textContent='처리 중...';
-        const ok=await subscribePush();
-        if(ok){pushBtn.textContent='✓ 알림 허용됨';pushBtn.style.background='#00897B';
-          if(pushMsg){pushMsg.textContent='완료! 성적·공지·답변 알림이 옵니다.';pushMsg.style.color='#00897B';}}
-        else{pushBtn.textContent='🔔 알림 허용하기';pushBtn.disabled=false;
-          if(pushMsg){pushMsg.textContent='알림 허용이 거부되었거나 실패했습니다.';pushMsg.style.color='#E53935';}}
+        const reg=await navigator.serviceWorker.ready;
+        const sub=await reg.pushManager.getSubscription();
+        if(sub){
+          await unsubscribePush();
+          setSubState(false);
+          if(pushMsg){pushMsg.textContent='알림이 꺼졌습니다.';pushMsg.style.color='#9BA3AF';}
+        } else {
+          const ok=await subscribePush();
+          setSubState(ok);
+          if(!ok&&pushMsg){pushMsg.textContent='알림 허용이 거부되었거나 실패했습니다.';pushMsg.style.color='#E53935';}
+        }
+        pushBtn.disabled=false;
       };
     }
   }

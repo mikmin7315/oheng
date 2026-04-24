@@ -2506,7 +2506,7 @@ function recalc(){
   /* 반평균 자동계산 */
   const rtVals=rtItems.filter(x=>!x.skip&&!isNaN(x.v));
   const wtVals=wtItems.filter(x=>!x.skip&&!isNaN(x.v));
-  const totVals=totItems.filter(x=>!isNaN(x.v));
+  const totVals=totItems.filter(x=>x.v!==null&&!isNaN(x.v));
   const avg=(arr)=>arr.length?Math.round(arr.reduce((a,b)=>a+b,0)/arr.length*10)/10:null;
   const rvAvgCalc=avg(rtVals.map(x=>x.v));
   const wtAvgCalc=avg(wtVals.map(x=>x.v));

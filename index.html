@@ -555,6 +555,27 @@ function saveDB(){
 }
 function resetDB(){localStorage.removeItem(SKEY);DB={schools:INIT_SCHOOLS.map(s=>({...s,students:[...s.students],records:[...s.records],notices:{...s.notices}}))};ADMIN_PWD='oheng2024';}
 
+function migrateAvgs(sc){
+  sc.records.forEach(rec=>{
+    const rtOk=rec.rtSkip||rec.rtScore!=null;
+    const wtOk=rec.wtSkip||rec.wtScore!=null;
+    const hasAny=(!rec.rtSkip&&rec.rtScore!=null)||(!rec.wtSkip&&rec.wtScore!=null);
+    if(!rtOk||!wtOk||!hasAny){rec.totalScore=null;rec.totalRank=null;}
+    else rec.totalScore=(rec.rtSkip?0:(rec.rtScore||0))+(rec.wtSkip?0:(rec.wtScore||0));
+  });
+  const weeks=[...new Set(sc.records.map(r=>r.month+'_'+r.week))];
+  weeks.forEach(wk=>{
+    const[mon,week]=wk.split('_');
+    const wkRecs=sc.records.filter(r=>r.month===mon&&r.week===week);
+    const valid=wkRecs.filter(r=>r.totalScore!=null);
+    const sorted=[...valid].sort((a,b)=>b.totalScore-a.totalScore);
+    let rk=1;sorted.forEach((r,i)=>{if(i>0&&sorted[i-1].totalScore===r.totalScore)r.totalRank=sorted[i-1].totalRank;else{r.totalRank=rk;}rk++;});
+    const avg=valid.length?Math.round(valid.reduce((s,r)=>s+r.totalScore,0)/valid.length*10)/10:null;
+    wkRecs.forEach(r=>{r.totalAvg=avg;});
+  });
+  saveDB();
+}
+
 function moI(m){return MONTHS.indexOf(m)}
 function wkI(w){return WEEKS.indexOf(w)}
 function curSch(){return DB.schools.find(s=>s.id===ST.school)||DB.schools[0]}
@@ -2033,6 +2054,15 @@ function rAdminSettings(sc){
     <div id="backup-msg" style="font-size:12px;min-height:18px"></div>
   </div>
   <div class="section-card">
+    <div class="section-ttl">전체 반평균 재계산</div>
+    <div style="font-size:12px;color:#5C6470;margin-bottom:14px;line-height:1.7">
+      이전에 저장된 성적 데이터 중 RT 또는 WT 중 하나만 입력된 학생이 전체 반평균에 포함된 경우, 이 버튼을 눌러 전체 기간의 반평균을 올바르게 재계산합니다.<br>
+      <span style="color:#E65100;font-weight:600">실행 전 JSON 백업을 권장합니다.</span>
+    </div>
+    <button class="abtn abtn-blue" id="btn-migrate-avg" style="padding:10px 20px">전체 반평균 일괄 재계산</button>
+    <div id="migrate-avg-msg" style="font-size:12px;margin-top:8px;min-height:18px"></div>
+  </div>
+  <div class="section-card">
     <div class="section-ttl">학기 관리</div>
     <div style="background:#F7F8FA;border-radius:12px;padding:14px;margin-bottom:14px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;text-align:center">
       <div><div style="font-size:10px;color:#9BA3AF;font-weight:700;margin-bottom:4px">등록 학생</div><div style="font-size:20px;font-weight:800;color:#1A237E">${sc.students.length}명</div></div>
@@ -2242,6 +2272,14 @@ function bAdmin(){
       ADMIN_PWD=nw;saveDB();msg.textContent='✓ 변경 완료';msg.style.color='#00897B';
     });
     // 새 학기 시작
+    document.getElementById('btn-migrate-avg')?.addEventListener('click',()=>{
+      const sc2=curSch();
+      const weekCnt=[...new Set(sc2.records.map(r=>r.month+'_'+r.week))].length;
+      if(!confirm(`[${sc2.name}] 전체 반평균을 재계산합니다.\n\n• ${sc2.records.length}건의 성적 레코드 (${weekCnt}주차) 재계산\n• RT, WT 중 하나라도 비어있는 학생은 전체 반평균에서 제외\n\n계속하시겠습니까?`))return;
+      migrateAvgs(sc2);
+      const msg=document.getElementById('migrate-avg-msg');
+      if(msg){msg.textContent=`✓ ${weekCnt}주차 반평균 재계산 완료.`;msg.style.color='#00897B';}
+    });
     document.getElementById('btn-new-semester')?.addEventListener('click',()=>{
       const sc2=curSch();
       const recCnt=sc2.records.length;
@@ -2407,8 +2445,9 @@ function bAdmin(){
       const rsk=r.dataset.rtskip==='1';const wsk=r.dataset.wtskip==='1';
       const rtv=rsk?0:(parseFloat(r.querySelector('.inp-rt').value)||0);
       const wtv=wsk?0:(parseFloat(r.querySelector('.inp-wt').value)||0);
-      const hasAny=(!rsk&&r.querySelector('.inp-rt').value!=='')||(!wsk&&r.querySelector('.inp-wt').value!=='');
-      return{sid:r.dataset.sid,v:hasAny?rtv+wtv:null};
+      const rtVal=r.querySelector('.inp-rt').value;const wtVal=r.querySelector('.inp-wt').value;
+      const hasValid=(rsk||rtVal!=='')&&(wsk||wtVal!=='')&&((!rsk&&rtVal!=='')||(!wsk&&wtVal!==''));
+      return{sid:r.dataset.sid,v:hasValid?rtv+wtv:null};
     });
     const totSorted=[...totItems].filter(x=>x.v!==null).sort((a,b)=>b.v-a.v);let trk=1;totSorted.forEach((s,i)=>{if(i>0&&totSorted[i-1].v===s.v)s.rank=totSorted[i-1].rank;else{s.rank=trk;}trk++;});
     const totRankMap=Object.fromEntries(totSorted.map(s=>[s.sid,s.rank]));
@@ -2494,9 +2533,10 @@ function recalc(){
     const rsk=r.dataset.rtskip==='1';const wsk=r.dataset.wtskip==='1';
     const rtv=rsk?0:(parseFloat(r.querySelector('.inp-rt').value)||0);
     const wtv=wsk?0:(parseFloat(r.querySelector('.inp-wt').value)||0);
-    // 둘 다 비어있으면 0이 아닌 null 처리
-    const hasAny=(!rsk&&r.querySelector('.inp-rt').value!=='')||(!wsk&&r.querySelector('.inp-wt').value!=='');
-    return{sid:r.dataset.sid,v:hasAny?rtv+wtv:null};
+    const rtVal=r.querySelector('.inp-rt').value;const wtVal=r.querySelector('.inp-wt').value;
+    // 비어있지 않은 모든 항목이 채워져야 포함 (하나라도 비면 null)
+    const hasValid=(rsk||rtVal!=='')&&(wsk||wtVal!=='')&&((!rsk&&rtVal!=='')||(!wsk&&wtVal!==''));
+    return{sid:r.dataset.sid,v:hasValid?rtv+wtv:null};
   });
   const totSorted=[...totItems].filter(x=>x.v!==null).sort((a,b)=>b.v-a.v);let trk=1;
   totSorted.forEach((s,i)=>{if(i>0&&totSorted[i-1].v===s.v)s.rank=totSorted[i-1].rank;else{s.rank=trk;}trk++;});

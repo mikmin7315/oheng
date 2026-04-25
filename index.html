@@ -2863,12 +2863,12 @@ async function retrySendFails(sc){
       if(!rec){ fail++; continue; }
       vars = {
         '#{학생명}':s.name,'#{월}':l.month,'#{주차}':l.week,
-        '#{RT점수}':rec.rtSkip?'생략':(rec.rtScore??'-')+'점',
+        '#{RT점수}':rec.rtSkip?'생략':String(rec.rtScore??'-'),
         '#{RT합격여부}':rec.rtSkip?'생략':(rec.rtPass?'합격':'불합격'),
-        '#{WT점수}':rec.wtSkip?'생략':(rec.wtScore??'-')+'점',
+        '#{WT점수}':rec.wtSkip?'생략':String(rec.wtScore??'-'),
         '#{WT합격여부}':rec.wtSkip?'생략':(rec.wtPass?'합격':'불합격'),
-        '#{전체점수}':(rec.totalScore??'-')+'점',
-        '#{전체등수}':(rec.totalRank??'-')+'등',
+        '#{전체점수}':String(rec.totalScore??'-'),
+        '#{전체등수}':String(rec.totalRank??'-'),
         '#{공지사항}':sc.notices?.[l.month+'_'+l.week]||'없음'
       };
     } else {
@@ -3069,12 +3069,12 @@ function showPpurioAllPopup(sc, type, mon, wk){
     const rec=isScore?recs.find(r=>r.sid===s.id):null;
     const vars=isScore?{
       '#{학생명}':s.name,'#{월}':mon,'#{주차}':wk,
-      '#{RT점수}':rec?.rtSkip?'생략':(rec?.rtScore??'-')+'점',
+      '#{RT점수}':rec?.rtSkip?'생략':String(rec?.rtScore??'-'),
       '#{RT합격여부}':rec?.rtSkip?'생략':(rec?.rtPass?'합격':'불합격'),
-      '#{WT점수}':rec?.wtSkip?'생략':(rec?.wtScore??'-')+'점',
+      '#{WT점수}':rec?.wtSkip?'생략':String(rec?.wtScore??'-'),
       '#{WT합격여부}':rec?.wtSkip?'생략':(rec?.wtPass?'합격':'불합격'),
-      '#{전체점수}':(rec?.totalScore??'-')+'점',
-      '#{전체등수}':(rec?.totalRank??'-')+'등',
+      '#{전체점수}':String(rec?.totalScore??'-'),
+      '#{전체등수}':String(rec?.totalRank??'-'),
       '#{공지사항}':sc.notices?.[mon+'_'+wk]||'없음'
     }:{
       '#{학생명}':s.name,'#{학교명}':sc.name,'#{아이디}':s.id,'#{비밀번호}':s.pwd

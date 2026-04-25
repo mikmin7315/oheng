@@ -555,6 +555,16 @@ function saveDB(){
 }
 function resetDB(){localStorage.removeItem(SKEY);DB={schools:INIT_SCHOOLS.map(s=>({...s,students:[...s.students],records:[...s.records],notices:{...s.notices}}))};ADMIN_PWD='oheng2024';}
 
+function calcTotalAvg(sc,month,week){
+  if(!sc)return null;
+  const valid=sc.records.filter(r=>r.month===month&&r.week===week&&
+    (r.rtSkip||r.rtScore!=null)&&(r.wtSkip||r.wtScore!=null)&&
+    ((!r.rtSkip&&r.rtScore!=null)||(!r.wtSkip&&r.wtScore!=null)));
+  if(!valid.length)return null;
+  const tots=valid.map(r=>(r.rtSkip?0:(r.rtScore||0))+(r.wtSkip?0:(r.wtScore||0)));
+  return Math.round(tots.reduce((a,b)=>a+b,0)/tots.length*10)/10;
+}
+
 function migrateAvgs(sc){
   sc.records.forEach(rec=>{
     const rtOk=rec.rtSkip||rec.rtScore!=null;
@@ -1116,6 +1126,7 @@ function rReport(recs){
   // RT 생략 여부
   const rtSkip = rec.rtSkip;
   const wtSkip = rec.wtSkip;
+  const totAvg = calcTotalAvg(sc, rec.month, rec.week);
 
   return`
   <!-- 공지사항 - 최상단 -->
@@ -1240,7 +1251,7 @@ function rReport(recs){
   <!-- 전체 성적 -->
   <div style="background:linear-gradient(135deg,#1A237E,#283593);border-radius:18px;padding:18px;margin-bottom:12px;box-shadow:0 4px 16px rgba(26,35,126,0.2)">
     <div style="font-size:10px;font-weight:700;color:rgba(255,255,255,0.5);letter-spacing:1px;margin-bottom:12px">전체 성적</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:${rec.totalScore!=null&&rec.totalAvg!=null?'14px':'0'}">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:${rec.totalScore!=null&&totAvg!=null?'14px':'0'}">
       <div style="text-align:center">
         <div style="font-size:10px;color:rgba(255,255,255,0.45);margin-bottom:4px">총점</div>
         <div style="font-size:26px;font-weight:900;color:#FFB300">${rec.totalScore??'-'}<span style="font-size:12px;color:rgba(255,255,255,0.4)">점</span></div>
@@ -1252,21 +1263,21 @@ function rReport(recs){
       </div>
       <div style="text-align:center">
         <div style="font-size:10px;color:rgba(255,255,255,0.45);margin-bottom:4px">반평균</div>
-        <div style="font-size:26px;font-weight:900;color:#fff">${rec.totalAvg??'-'}<span style="font-size:12px;color:rgba(255,255,255,0.4)">점</span></div>
+        <div style="font-size:26px;font-weight:900;color:#fff">${totAvg??'-'}<span style="font-size:12px;color:rgba(255,255,255,0.4)">점</span></div>
       </div>
     </div>
     <!-- 전체 반평균 대비 바 -->
-    ${rec.totalScore!=null&&rec.totalAvg!=null?`
+    ${rec.totalScore!=null&&totAvg!=null?`
     <div style="padding-top:14px;border-top:1px solid rgba(255,255,255,0.1)">
       <div style="display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,0.5);margin-bottom:6px">
         <span style="font-weight:600;color:rgba(255,255,255,0.7)">전체 반평균 대비</span>
-        <span>내 점수 <strong style="color:#FFB300">${rec.totalScore}점</strong> · 반평균 ${rec.totalAvg}점</span>
+        <span>내 점수 <strong style="color:#FFB300">${rec.totalScore}점</strong> · 반평균 ${totAvg}점</span>
       </div>
       <div style="background:rgba(255,255,255,0.1);border-radius:6px;height:8px;overflow:hidden">
-        <div style="height:100%;background:linear-gradient(90deg,#FFB300,#FFD54F);border-radius:6px;width:${Math.min(100,Math.round(rec.totalScore/rec.totalAvg*100))}%"></div>
+        <div style="height:100%;background:linear-gradient(90deg,#FFB300,#FFD54F);border-radius:6px;width:${Math.min(100,Math.round(rec.totalScore/totAvg*100))}%"></div>
       </div>
       <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:5px;text-align:right">
-        반평균의 ${Math.round(rec.totalScore/rec.totalAvg*100)}%
+        반평균의 ${Math.round(rec.totalScore/totAvg*100)}%
       </div>
     </div>`:''}
   </div>
@@ -1344,10 +1355,12 @@ function rHistory(recs){
   const ht=ST.histTab||'wt';
   const tabs=[{id:'wt',l:'WT',c:'#1A237E'},{id:'rt',l:'RT',c:'#3949AB'},{id:'tot',l:'전체',c:'#283593'}];
   const col=tabs.find(t=>t.id===ht)?.c||'#1A237E';
+  const _sc=ST.userSchool;
   const cards=[...recs].reverse().map(r=>{
     const hw0=r.homework==='완료';
     const hasRT=!r.rtSkip&&r.rtScore!=null;
     const hasWT=!r.wtSkip&&r.wtScore!=null;
+    const rTotAvg=calcTotalAvg(_sc,r.month,r.week);
     return`<div style="background:#fff;border-radius:16px;padding:16px;margin-bottom:10px;box-shadow:0 2px 10px rgba(0,0,0,0.06)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <div style="font-size:15px;font-weight:700;color:#1A237E">${r.month} ${r.week}</div>
@@ -1369,7 +1382,7 @@ function rHistory(recs){
       </div>
       <div style="background:linear-gradient(135deg,#1A237E,#283593);border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
         <div><div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:2px">전체</div><div style="font-size:18px;font-weight:900;color:#FFB300">${r.totalScore??'-'}<span style="font-size:11px;color:rgba(255,255,255,0.4)">점</span></div></div>
-        <div style="text-align:right"><div style="font-size:14px;font-weight:700;color:#fff">${r.totalRank??'-'}등</div><div style="font-size:11px;color:rgba(255,255,255,0.4)">반평균 ${r.totalAvg??'-'}점</div></div>
+        <div style="text-align:right"><div style="font-size:14px;font-weight:700;color:#fff">${r.totalRank??'-'}등</div><div style="font-size:11px;color:rgba(255,255,255,0.4)">반평균 ${rTotAvg??'-'}점</div></div>
       </div>
     </div>`;}).join('');
 

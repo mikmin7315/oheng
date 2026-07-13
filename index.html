@@ -522,6 +522,12 @@ const INIT_SCHOOLS=[
     {id:'s053',name:'안시우',pwd:'1234',phone:'010-2970-3981',parentPhone:'010-9880-3981'},
     {id:'s054',name:'조석영',pwd:'1234',phone:'',parentPhone:'010-4149-6993'},
     {id:'s055',name:'이민서',pwd:'1234',phone:'010-7127-6763',parentPhone:'010-2009-6763'},
+   ],records:[],notices:{}},
+  {id:'sch2',name:'일산',grade:'1학년',
+   students:[
+    {id:'s056',name:'김민성',pwd:'1234',phone:'010-7374-7315',parentPhone:'010-9008-0851'},
+    {id:'s057',name:'오은실',pwd:'1234',phone:'010-9008-0851',parentPhone:'010-7374-7315'},
+    {id:'s058',name:'김동은',pwd:'1234',phone:'010-2848-9002',parentPhone:'010-2848-9002'},
    ],records:[],notices:{}}
 ];
 
@@ -546,7 +552,12 @@ let ST={loggedIn:false,role:null,user:null,userSchool:null,school:null,
 function loadDB(){
   try{
     const d=localStorage.getItem(SKEY);
-    if(d){const p=JSON.parse(d);if(p&&p.schools&&p.schools.length){DB=p;if(p.adminPwd)ADMIN_PWD=p.adminPwd;}}
+    if(d){const p=JSON.parse(d);if(p&&p.schools&&p.schools.length){
+      const haveIds=new Set(p.schools.map(s=>s.id));
+      const missing=INIT_SCHOOLS.filter(s=>!haveIds.has(s.id)).map(s=>({...s,students:[...s.students],records:[...s.records],notices:{...s.notices}}));
+      p.schools=[...p.schools,...missing];
+      DB=p;if(p.adminPwd)ADMIN_PWD=p.adminPwd;
+    }}
   }catch(e){console.warn('loadDB 오류(무시):', e);}
 }
 function saveDB(){
@@ -936,7 +947,7 @@ function bLogin(){
       else document.getElementById('li-err').textContent='ID 또는 비밀번호 오류';
     } else {
       let found=null,foundSch=null;
-      for(const sc of DB.schools){const st=sc.students.find(s=>s.id===id&&s.pwd===pw);if(st){found=st;foundSch=sc;break;}}
+      for(const sc of DB.schools){const st=sc.students.find(s=>s.id.toLowerCase()===id&&s.pwd===pw);if(st){found=st;foundSch=sc;break;}}
       if(found){
           const rem=document.getElementById('remember-me');
           if(rem?.checked)localStorage.setItem('oheng_remember',JSON.stringify({id,pw}));
@@ -2202,7 +2213,7 @@ function bAdmin(){
       const pw=document.getElementById('ns-pw').value.trim();
       const msg=document.getElementById('ns-msg');
       if(!name||!id||!pw){msg.textContent='필수 항목을 입력하세요';msg.style.color='#E53935';return;}
-      if(DB.schools.some(s=>s.students.some(st=>st.id===id))){msg.textContent='이미 사용 중인 ID입니다';msg.style.color='#E53935';return;}
+      if(DB.schools.some(s=>s.students.some(st=>st.id.toLowerCase()===id.toLowerCase()))){msg.textContent='이미 사용 중인 ID입니다';msg.style.color='#E53935';return;}
       const sType=document.getElementById('ns-type')?.value||'regular';
       const today=new Date().toISOString().slice(0,10);
       const newSt={id,name,pwd:pw,phone:document.getElementById('ns-ph').value,parentPhone:document.getElementById('ns-pph').value,type:sType,createdAt:today};

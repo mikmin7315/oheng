@@ -4,6 +4,7 @@ const STATIC_ASSETS = [
   '/index.html',
   'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js',
   'https://t1.kakaocdn.net/kakao_js_sdk/2.7.4/kakao.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
   'https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css'
 ];
 

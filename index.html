@@ -13,6 +13,7 @@
 <link rel="apple-touch-icon" href="/icons/icon.svg">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.4/kakao.min.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
 
@@ -577,6 +578,12 @@ function calcTotalAvg(sc,month,week){
   const tots=valid.map(r=>(r.rtSkip?0:(r.rtScore||0))+(r.wtSkip?0:(r.wtScore||0)));
   return Math.round(tots.reduce((a,b)=>a+b,0)/tots.length*10)/10;
 }
+function classCount(sc,month,week){
+  if(!sc)return 0;
+  return sc.records.filter(r=>r.month===month&&r.week===week&&
+    (r.rtSkip||r.rtScore!=null)&&(r.wtSkip||r.wtScore!=null)&&
+    ((!r.rtSkip&&r.rtScore!=null)||(!r.wtSkip&&r.wtScore!=null))).length;
+}
 
 function migrateAvgs(sc){
   sc.records.forEach(rec=>{
@@ -719,6 +726,13 @@ function init(){
     if(!sc.suggestions)sc.suggestions=[];
     if(!sc.kakaoChannel)sc.kakaoChannel='';
   });
+  // 로그인 유지 체크 시 저장된 정보로 자동 로그인 시도 (앱 시작 시 1회만)
+  try{
+    const saved=JSON.parse(localStorage.getItem('oheng_remember')||'null');
+    if(saved&&saved.id&&saved.pw&&saved.role){
+      if(!attemptLogin(saved.id,saved.pw,saved.role))localStorage.removeItem('oheng_remember');
+    }
+  }catch(e){}
   try{render();}catch(e){
     console.error('render 오류:',e);
     const errDiv=document.createElement('div');
@@ -922,8 +936,27 @@ function showFindIdPwModal(){
   };
 }
 
+// role('admin'|'student')+id+pw로 로그인을 시도해 ST를 갱신. localStorage/DOM은 건드리지 않아
+// 앱 시작 시 자동 로그인과 로그인 버튼 클릭 양쪽에서 재사용한다.
+function attemptLogin(id,pw,role){
+  if(role==='admin'){
+    if(id==='admin'&&pw===ADMIN_PWD){
+      ST.loggedIn=true;ST.role='admin';ST.school=null;
+      return true;
+    }
+    return false;
+  }
+  let found=null,foundSch=null;
+  for(const sc of DB.schools){const st=sc.students.find(s=>s.id.toLowerCase()===id&&s.pwd===pw);if(st){found=st;foundSch=sc;break;}}
+  if(found){
+    ST.loggedIn=true;ST.role='student';ST.user=found;ST.userSchool=foundSch;
+    const recs=sRecs(found.id,foundSch);if(recs.length){const l=recs[recs.length-1];ST.vMon=l.month;ST.vWk=l.week;}
+    return true;
+  }
+  return false;
+}
 function bLogin(){
-  // 기억된 로그인 정보 복원
+  // 기억된 로그인 정보 복원 (자동 로그인은 init()에서 이미 시도했고 실패한 경우에만 여기로 옴)
   try{
     const saved=JSON.parse(localStorage.getItem('oheng_remember')||'null');
     if(saved){
@@ -941,23 +974,14 @@ function bLogin(){
   document.getElementById('btn-li').onclick=()=>{
     const id=document.getElementById('li-id').value.trim().toLowerCase();
     const pw=document.getElementById('li-pw').value.trim();
-    if(ST.lmode==='admin'){
-      if(id==='admin'&&pw===ADMIN_PWD){
-          const rem=document.getElementById('remember-me');
-          if(rem?.checked)localStorage.setItem('oheng_remember',JSON.stringify({id,pw}));
-          else localStorage.removeItem('oheng_remember');
-          ST.loggedIn=true;ST.role='admin';ST.school=null;render();}
-      else document.getElementById('li-err').textContent='ID 또는 비밀번호 오류';
+    const role=ST.lmode;
+    if(attemptLogin(id,pw,role)){
+      const rem=document.getElementById('remember-me');
+      if(rem?.checked)localStorage.setItem('oheng_remember',JSON.stringify({id,pw,role}));
+      else localStorage.removeItem('oheng_remember');
+      render();
     } else {
-      let found=null,foundSch=null;
-      for(const sc of DB.schools){const st=sc.students.find(s=>s.id.toLowerCase()===id&&s.pwd===pw);if(st){found=st;foundSch=sc;break;}}
-      if(found){
-          const rem=document.getElementById('remember-me');
-          if(rem?.checked)localStorage.setItem('oheng_remember',JSON.stringify({id,pw}));
-          else localStorage.removeItem('oheng_remember');
-          ST.loggedIn=true;ST.role='student';ST.user=found;ST.userSchool=foundSch;
-        const recs=sRecs(found.id,foundSch);if(recs.length){const l=recs[recs.length-1];ST.vMon=l.month;ST.vWk=l.week;}render();}
-      else document.getElementById('li-err').textContent='ID 또는 비밀번호를 확인해주세요';
+      document.getElementById('li-err').textContent=role==='admin'?'ID 또는 비밀번호 오류':'ID 또는 비밀번호를 확인해주세요';
     }
   };
 }
@@ -1141,8 +1165,17 @@ function rReport(recs){
   const rtSkip = rec.rtSkip;
   const wtSkip = rec.wtSkip;
   const totAvg = calcTotalAvg(sc, rec.month, rec.week);
+  const clsCount = classCount(sc, rec.month, rec.week);
+
+  // 지난 주 대비 변화
+  const recIdx = recs.findIndex(r=>r===rec);
+  const prevRec = recIdx>0 ? recs[recIdx-1] : null;
+  const delta = (prevRec&&prevRec.totalScore!=null&&rec.totalScore!=null) ? rec.totalScore-prevRec.totalScore : null;
+  const deltaHtml = delta==null ? '' :
+    `<span style="margin-left:6px;font-weight:700;color:${delta>0?'#69F0AE':delta<0?'#FF8A80':'rgba(255,255,255,0.5)'}">${delta>0?'▲':delta<0?'▼':'–'}${delta!==0?Math.abs(delta):''}</span>`;
 
   return`
+  <div id="report-capture" style="background:#F7F8FA">
   <!-- 공지사항 - 최상단 -->
   <div style="border-radius:14px;padding:14px 16px;margin-bottom:14px;background:${notice?'#FFF8E1':'#F7F8FA'};border-left:4px solid ${notice?'#FFB300':'#E8ECF0'}">
     <div style="font-size:11px;font-weight:700;letter-spacing:0.5px;color:${notice?'#E65100':'#9BA3AF'};margin-bottom:${notice?'8px':'0'}">📢 공지사항</div>
@@ -1165,13 +1198,15 @@ function rReport(recs){
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
       <div style="background:rgba(255,255,255,0.12);border-radius:12px;padding:12px;text-align:center">
         <div style="font-size:10px;color:rgba(255,255,255,0.5);font-weight:600;letter-spacing:0.5px;margin-bottom:4px">총점</div>
-        <div style="font-size:24px;font-weight:900;color:#FFB300;line-height:1">${rec.totalScore??'-'}</div>
-        <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:2px">점</div>
+        ${rec.totalScore!=null
+          ? `<div style="font-size:24px;font-weight:900;color:#FFB300;line-height:1">${rec.totalScore}</div><div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:2px">점${deltaHtml}</div>`
+          : `<div style="font-size:14px;font-weight:800;color:rgba(255,255,255,0.55);line-height:1;padding-top:6px">${rtSkip&&wtSkip?'시험 없음':'채점중'}</div>`
+        }
       </div>
       <div style="background:rgba(255,255,255,0.12);border-radius:12px;padding:12px;text-align:center">
         <div style="font-size:10px;color:rgba(255,255,255,0.5);font-weight:600;letter-spacing:0.5px;margin-bottom:4px">전체등수</div>
         <div style="font-size:24px;font-weight:900;color:#fff;line-height:1">${rec.totalRank??'-'}</div>
-        <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:2px">등</div>
+        <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:2px">${rec.totalRank!=null&&clsCount?`/ ${clsCount}명`:'등'}</div>
       </div>
       <div style="background:rgba(255,255,255,0.12);border-radius:12px;padding:12px;text-align:center">
         <div style="font-size:10px;color:rgba(255,255,255,0.5);font-weight:600;letter-spacing:0.5px;margin-bottom:4px">합격현황</div>
@@ -1268,12 +1303,15 @@ function rReport(recs){
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:${rec.totalScore!=null&&totAvg!=null?'14px':'0'}">
       <div style="text-align:center">
         <div style="font-size:10px;color:rgba(255,255,255,0.45);margin-bottom:4px">총점</div>
-        <div style="font-size:26px;font-weight:900;color:#FFB300">${rec.totalScore??'-'}<span style="font-size:12px;color:rgba(255,255,255,0.4)">점</span></div>
+        ${rec.totalScore!=null
+          ? `<div style="font-size:26px;font-weight:900;color:#FFB300">${rec.totalScore}<span style="font-size:12px;color:rgba(255,255,255,0.4)">점</span></div>`
+          : `<div style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.55);padding-top:6px">${rtSkip&&wtSkip?'시험 없음':'채점중'}</div>`
+        }
         <div style="font-size:10px;color:rgba(255,255,255,0.35);margin-top:2px">${!rec.rtSkip?'RT+WT':'WT'}</div>
       </div>
       <div style="text-align:center;border-left:1px solid rgba(255,255,255,0.1);border-right:1px solid rgba(255,255,255,0.1)">
         <div style="font-size:10px;color:rgba(255,255,255,0.45);margin-bottom:4px">등수</div>
-        <div style="font-size:26px;font-weight:900;color:#fff">${rec.totalRank??'-'}<span style="font-size:12px;color:rgba(255,255,255,0.4)">등</span></div>
+        <div style="font-size:26px;font-weight:900;color:#fff">${rec.totalRank??'-'}<span style="font-size:12px;color:rgba(255,255,255,0.4)">${rec.totalRank!=null&&clsCount?`/${clsCount}`:'등'}</span></div>
       </div>
       <div style="text-align:center">
         <div style="font-size:10px;color:rgba(255,255,255,0.45);margin-bottom:4px">반평균</div>
@@ -1312,6 +1350,8 @@ function rReport(recs){
       <span style="font-size:14px;font-weight:600;color:${rec.retestTime?'#E53935':'#9BA3AF'}">${rec.retestTime||'없음'}</span>
     </div>
   </div>
+  </div>
+  <button id="btn-save-report-img" class="no-print" style="width:100%;padding:12px;background:#fff;border:1.5px solid #E8ECF0;border-radius:12px;font-size:13px;font-weight:700;color:#1A237E;cursor:pointer;margin-bottom:16px;display:flex;align-items:center;justify-content:center;gap:6px">📸 성적표 이미지 저장</button>
 
     <!-- 성적 추이 차트 3종 (전체 주차 반영) -->
   <div class="no-print" style="margin-bottom:4px">
@@ -1375,6 +1415,7 @@ function rHistory(recs){
     const hasRT=!r.rtSkip&&r.rtScore!=null;
     const hasWT=!r.wtSkip&&r.wtScore!=null;
     const rTotAvg=calcTotalAvg(_sc,r.month,r.week);
+    const rClsCount=classCount(_sc,r.month,r.week);
     return`<div style="background:#fff;border-radius:16px;padding:16px;margin-bottom:10px;box-shadow:0 2px 10px rgba(0,0,0,0.06)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <div style="font-size:15px;font-weight:700;color:#1A237E">${r.month} ${r.week}</div>
@@ -1396,7 +1437,7 @@ function rHistory(recs){
       </div>
       <div style="background:linear-gradient(135deg,#1A237E,#283593);border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
         <div><div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:2px">전체</div><div style="font-size:18px;font-weight:900;color:#FFB300">${r.totalScore??'-'}<span style="font-size:11px;color:rgba(255,255,255,0.4)">점</span></div></div>
-        <div style="text-align:right"><div style="font-size:14px;font-weight:700;color:#fff">${r.totalRank??'-'}등</div><div style="font-size:11px;color:rgba(255,255,255,0.4)">반평균 ${rTotAvg??'-'}점</div></div>
+        <div style="text-align:right"><div style="font-size:14px;font-weight:700;color:#fff">${r.totalRank??'-'}${r.totalRank!=null&&rClsCount?`/${rClsCount}`:'등'}</div><div style="font-size:11px;color:rgba(255,255,255,0.4)">반평균 ${rTotAvg??'-'}점</div></div>
       </div>
     </div>`;}).join('');
 
@@ -1488,6 +1529,8 @@ function bStudent(){
   document.getElementById('btn-lo').onclick=()=>{ST.loggedIn=false;render()};
   document.querySelectorAll('.tab[data-tab]').forEach(t=>{t.onclick=()=>{ST.tab=t.dataset.tab;render()}});
   document.querySelectorAll('[data-hist]').forEach(t=>{t.onclick=()=>{ST.histTab=t.dataset.hist;render()}});
+  const saveImgBtn=document.getElementById('btn-save-report-img');
+  if(saveImgBtn)saveImgBtn.onclick=()=>saveReportImage(saveImgBtn);
   const wp=document.getElementById('wk-pick');
   if(wp){
     wp.onchange=()=>{const[m,w]=wp.value.split(' ');ST.vMon=m;ST.vWk=w;render();};
@@ -3517,6 +3560,25 @@ function printStudentList(){
   w.document.close();
 }
 
+async function saveReportImage(btn){
+  const el=document.getElementById('report-capture');
+  if(!el||typeof html2canvas==='undefined')return;
+  const origText=btn?btn.textContent:'';
+  if(btn){btn.disabled=true;btn.textContent='이미지 생성 중...';}
+  try{
+    const canvas=await html2canvas(el,{backgroundColor:'#F7F8FA',scale:2,useCORS:true,
+      ignoreElements:node=>node.classList&&node.classList.contains('no-print')});
+    const link=document.createElement('a');
+    const label=`${ST.user?.name||'성적표'}_${ST.vMon||''}${ST.vWk||''}`.replace(/\s+/g,'');
+    link.download=`${label}.png`;
+    link.href=canvas.toDataURL('image/png');
+    link.click();
+  }catch(e){
+    alert('이미지 생성에 실패했습니다: '+e.message);
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent=origText;}
+  }
+}
 function parseCSV(text){
   const lines=text.trim().split(/\r?\n/).filter(l=>l.trim());
   const results=[];

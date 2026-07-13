@@ -16,7 +16,7 @@ export default async function handler(req, res) {
     return res.status(401).json({ success: false, message: 'Unauthorized' });
   }
   try {
-    const { templateCode, to, variables } = req.body;
+    const { templateCode, to, variables, pfId } = req.body;
     const phone = to.replace(/[^0-9]/g, '');
 
     // 변수 키를 #{변수명} 형식으로 변환
@@ -35,7 +35,7 @@ export default async function handler(req, res) {
       to: phone,
       from: SENDER,
       kakaoOptions: {
-        pfId: PFID,
+        pfId: pfId || PFID,
         templateId: templateCode,
         variables: params
       }

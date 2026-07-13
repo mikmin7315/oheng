@@ -540,6 +540,8 @@ let ADMIN_PWD='oheng2024';
 /* ── 솔라피 알림톡 템플릿 설정 ── */
 const PPURIO_TPL_ACCOUNT='KA01TP260409125633090lno3yq4uYk5';  // ID/비번 안내 템플릿
 const PPURIO_TPL_SCORE='KA01TP2605170134106889piS247JOsm';     // 성적 알림 템플릿
+const PPURIO_PFID_ACCOUNT='KA01PF260409120809915UFtRoM8Y2O1';  // ID/비번 안내 채널
+const PPURIO_PFID_SCORE='KA01PF260429143509476hbHHzKaiSNS';    // 성적 알림 채널
 const APP_URL='https://oheng.vercel.app';
 const KAKAO_APP_KEY='';  // TODO: Kakao Developers → 앱 키 → JavaScript 키 입력
 const KAKAO_CHANNEL_ID='_QXNZX';
@@ -2867,22 +2869,14 @@ async function retrySendFails(sc){
     const phone = (s.parentPhone||s.phone||'').replace(/[^0-9]/g,'');
     if(!phone){ fail++; continue; }
     const tpl = l.type==='score' ? PPURIO_TPL_SCORE : PPURIO_TPL_ACCOUNT;
+    const pfId = l.type==='score' ? PPURIO_PFID_SCORE : PPURIO_PFID_ACCOUNT;
 
     // score 타입은 해당 주차 성적 데이터로 변수 재구성
     let vars = {};
     if(l.type==='score'){
       const rec = sc.records.find(r=>r.sid===l.studentId&&r.month===l.month&&r.week===l.week);
       if(!rec){ fail++; continue; }
-      vars = {
-        '#{학생명}':s.name,'#{월}':l.month,'#{주차}':l.week,
-        '#{RT점수}':rec.rtSkip?'생략':String(rec.rtScore??'-'),
-        '#{RT합격여부}':rec.rtSkip?'생략':(rec.rtPass?'합격':'불합격'),
-        '#{WT점수}':rec.wtSkip?'생략':String(rec.wtScore??'-'),
-        '#{WT합격여부}':rec.wtSkip?'생략':(rec.wtPass?'합격':'불합격'),
-        '#{전체점수}':String(rec.totalScore??'-'),
-        '#{전체등수}':String(rec.totalRank??'-'),
-        '#{공지사항}':sc.notices?.[l.month+'_'+l.week]||'없음'
-      };
+      vars = {'#{학생명}':s.name,'#{월}':l.month,'#{주차}':l.week};
     } else {
       vars = {'#{학생명}':s.name,'#{학교명}':sc.name,'#{아이디}':s.id,'#{비밀번호}':s.pwd};
     }
@@ -2890,7 +2884,7 @@ async function retrySendFails(sc){
     try{
       const res = await fetch('/api/send', {
         method:'POST', headers:{'Content-Type':'application/json','x-admin-pwd':ADMIN_PWD},
-        body: JSON.stringify({templateCode: tpl, to: phone, variables: vars})
+        body: JSON.stringify({templateCode: tpl, to: phone, variables: vars, pfId})
       });
       if(res.ok){
         ok++;
@@ -3029,11 +3023,12 @@ function showPpurioPopup(title, name, phone, tplCode, vars, previewMsg){
     // 발송 대상 학교 식별 (개별 발송은 curSch 기준)
     const _sc = curSch();
     const _type = tplCode === PPURIO_TPL_SCORE ? 'score' : 'account';
+    const _pfId = tplCode === PPURIO_TPL_SCORE ? PPURIO_PFID_SCORE : PPURIO_PFID_ACCOUNT;
     try{
       const res = await fetch('/api/send', {
         method: 'POST',
         headers: {'Content-Type': 'application/json','x-admin-pwd':ADMIN_PWD},
-        body: JSON.stringify({templateCode: tplCode, to: phone, variables: vars})
+        body: JSON.stringify({templateCode: tplCode, to: phone, variables: vars, pfId: _pfId})
       });
       if(res.ok){
         msg.textContent = '✓ 발송 완료!'; msg.style.color = '#00897B';
@@ -3080,19 +3075,13 @@ function showPpurioAllPopup(sc, type, mon, wk){
     const phone=(s.parentPhone||s.phone||'').replace(/[^0-9]/g,'');
     const rec=isScore?recs.find(r=>r.sid===s.id):null;
     const vars=isScore?{
-      '#{학생명}':s.name,'#{월}':mon,'#{주차}':wk,
-      '#{RT점수}':rec?.rtSkip?'생략':String(rec?.rtScore??'-'),
-      '#{RT합격여부}':rec?.rtSkip?'생략':(rec?.rtPass?'합격':'불합격'),
-      '#{WT점수}':rec?.wtSkip?'생략':String(rec?.wtScore??'-'),
-      '#{WT합격여부}':rec?.wtSkip?'생략':(rec?.wtPass?'합격':'불합격'),
-      '#{전체점수}':String(rec?.totalScore??'-'),
-      '#{전체등수}':String(rec?.totalRank??'-'),
-      '#{공지사항}':sc.notices?.[mon+'_'+wk]||'없음'
+      '#{학생명}':s.name,'#{월}':mon,'#{주차}':wk
     }:{
       '#{학생명}':s.name,'#{학교명}':sc.name,'#{아이디}':s.id,'#{비밀번호}':s.pwd
     };
     const tpl=isScore?PPURIO_TPL_SCORE:PPURIO_TPL_ACCOUNT;
-    return {s, phone, vars, tpl};
+    const pfId=isScore?PPURIO_PFID_SCORE:PPURIO_PFID_ACCOUNT;
+    return {s, phone, vars, tpl, pfId};
   });
 
   const rowsHtml = rows.map(({s, phone, vars, tpl})=>`
@@ -3149,12 +3138,12 @@ function showPpurioAllPopup(sc, type, mon, wk){
     btn.style.color = '#9BA3AF';
 
     let success = 0, fail = 0;
-    for(const {s, phone, vars, tpl} of rows){
+    for(const {s, phone, vars, tpl, pfId} of rows){
       const statusEl = popup.querySelector(`.send-status-${s.id}`);
       if(statusEl) statusEl.textContent = '발송 중...';
       const sentAt = nowStr();
       try{
-        const ppBody = { templateCode: tpl, to: phone, variables: vars };
+        const ppBody = { templateCode: tpl, to: phone, variables: vars, pfId };
         const res = await fetch('/api/send', {
           method: 'POST',
           headers: {'Content-Type':'application/json','x-admin-pwd':ADMIN_PWD},
@@ -3232,7 +3221,7 @@ function showPpurioAllPopup(sc, type, mon, wk){
 
       const statusEl = popup.querySelector(`.send-status-${sid}`);
       btn.disabled = true; btn.textContent = '발송 중...';
-      const ppBody = { templateCode: row.tpl, to: row.phone, variables: row.vars };
+      const ppBody = { templateCode: row.tpl, to: row.phone, variables: row.vars, pfId: row.pfId };
       const sentAt = nowStr();
       fetch('/api/send', {
         method: 'POST',

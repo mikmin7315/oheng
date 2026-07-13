@@ -1151,15 +1151,7 @@ function rReport(recs){
   const cur=ST.vWk?`${ST.vMon} ${ST.vWk}`:opts[opts.length-1];
   const rec=recs.find(r=>`${r.month} ${r.week}`===cur)||recs[recs.length-1];
   const sc=ST.userSchool;
-  const notice=sc?.notices[`${rec.month}_${rec.week}`]||rec.notice||'';
-
-  // 합격 인디케이터
-  function passTag(v,sk){
-    if(sk||v===null||v===undefined) return '';
-    return v
-      ? '<span style="display:inline-flex;align-items:center;gap:3px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;background:#E0F7F4;color:#00897B;margin-top:6px">✓ 합격</span>'
-      : '<span style="display:inline-flex;align-items:center;gap:3px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;background:#FFEBEE;color:#E53935;margin-top:6px">✗ 불합격</span>';
-  }
+  const notice=sc?.notices[`${rec.month}_${rec.week}`]||'';
 
   // RT 생략 여부
   const rtSkip = rec.rtSkip;
@@ -1174,47 +1166,36 @@ function rReport(recs){
   const deltaHtml = delta==null ? '' :
     `<span style="margin-left:6px;font-weight:700;color:${delta>0?'#69F0AE':delta<0?'#FF8A80':'rgba(255,255,255,0.5)'}">${delta>0?'▲':delta<0?'▼':'–'}${delta!==0?Math.abs(delta):''}</span>`;
 
+  const rtPct = (!rtSkip&&rec.rtScore!=null&&rec.rvAvg)?Math.round(rec.rtScore/rec.rvAvg*100):null;
+  const wtPct = (!wtSkip&&rec.wtScore!=null&&rec.wtAvg)?Math.round(rec.wtScore/rec.wtAvg*100):null;
+  const totPct = (rec.totalScore!=null&&totAvg)?Math.round(rec.totalScore/totAvg*100):null;
+  const rankSub = rec.totalRank!=null ? `${rec.totalRank}등${clsCount?` / ${clsCount}명`:''}` : '';
+
   return`
-  <div id="report-capture" style="background:#F7F8FA">
+  <div id="report-capture" style="background:#FCFCFD">
   <!-- 공지사항 - 최상단 -->
-  <div style="border-radius:14px;padding:14px 16px;margin-bottom:14px;background:${notice?'#FFF8E1':'#F7F8FA'};border-left:4px solid ${notice?'#FFB300':'#E8ECF0'}">
-    <div style="font-size:11px;font-weight:700;letter-spacing:0.5px;color:${notice?'#E65100':'#9BA3AF'};margin-bottom:${notice?'8px':'0'}">📢 공지사항</div>
-    ${notice?`<div style="font-size:13px;color:#5C6470;line-height:1.7;font-weight:700">${notice}</div>`:`<div style="font-size:12px;color:#C4C9D4">이번 주 공지사항이 없습니다</div>`}
+  ${notice?`<div style="border-radius:12px;padding:11px 14px;margin-bottom:12px;background:#FFF8E1;border-left:3px solid #FFB300">
+    <div style="font-size:10.5px;font-weight:700;letter-spacing:0.5px;color:#E65100;margin-bottom:5px">📢 공지사항</div>
+    <div style="font-size:12.5px;color:#5C6470;line-height:1.6;font-weight:600">${notice}</div>
+  </div>`:''}
+
+  <!-- 브랜드 헤더 -->
+  <div style="display:flex;align-items:center;gap:8px;padding:2px 2px 18px">
+    <div style="font-size:13px;font-weight:800;letter-spacing:-0.3px;color:#181B27"><span style="color:#FFB300">OH</span>ENG</div>
+    <div style="color:#D3D6DE">·</div>
+    <div style="font-size:11px;color:#828693">${sc?.name} · ${rec.month} ${rec.week}</div>
   </div>
 
-  <!-- 헤더 -->
-  <div style="background:linear-gradient(135deg,#1A237E,#3949AB);border-radius:18px;padding:22px 20px;margin-bottom:16px;color:#fff;box-shadow:0 6px 20px rgba(26,35,126,0.2)">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
-      <div>
-        <div style="font-size:11px;color:rgba(255,255,255,0.55);font-weight:600;letter-spacing:1px;margin-bottom:4px">WEEKLY REPORT CARD</div>
-        <div style="font-size:13px;color:rgba(255,255,255,0.7)">${rec.month} ${rec.week} · ${sc?.name}</div>
-      </div>
-      <div style="text-align:right">
-        <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-bottom:2px">수강생</div>
-        <div style="font-size:18px;font-weight:800;letter-spacing:-0.5px">${ST.user.name}</div>
-      </div>
-    </div>
-    <!-- KPI 3개 -->
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
-      <div style="background:rgba(255,255,255,0.12);border-radius:12px;padding:12px;text-align:center">
-        <div style="font-size:10px;color:rgba(255,255,255,0.5);font-weight:600;letter-spacing:0.5px;margin-bottom:4px">총점</div>
-        ${rec.totalScore!=null
-          ? `<div style="font-size:24px;font-weight:900;color:#FFB300;line-height:1">${rec.totalScore}</div><div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:2px">점${deltaHtml}</div>`
-          : `<div style="font-size:14px;font-weight:800;color:rgba(255,255,255,0.55);line-height:1;padding-top:6px">${rtSkip&&wtSkip?'시험 없음':'채점중'}</div>`
-        }
-      </div>
-      <div style="background:rgba(255,255,255,0.12);border-radius:12px;padding:12px;text-align:center">
-        <div style="font-size:10px;color:rgba(255,255,255,0.5);font-weight:600;letter-spacing:0.5px;margin-bottom:4px">전체등수</div>
-        <div style="font-size:24px;font-weight:900;color:#fff;line-height:1">${rec.totalRank??'-'}</div>
-        <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:2px">${rec.totalRank!=null&&clsCount?`/ ${clsCount}명`:'등'}</div>
-      </div>
-      <div style="background:rgba(255,255,255,0.12);border-radius:12px;padding:12px;text-align:center">
-        <div style="font-size:10px;color:rgba(255,255,255,0.5);font-weight:600;letter-spacing:0.5px;margin-bottom:4px">합격현황</div>
-        <div style="font-size:16px;font-weight:800;color:#fff;line-height:1.2;margin-top:2px">
-          ${!rtSkip&&rec.rtPass?'RT ✓':!rtSkip&&rec.rtPass===false?'RT ✗':''} ${!wtSkip&&rec.wtPass?'WT ✓':!wtSkip&&rec.wtPass===false?'WT ✗':''}
-          ${rtSkip&&wtSkip?'-':''}
-        </div>
-      </div>
+  <!-- 히어로: 총점 -->
+  <div style="margin-bottom:20px">
+    <div style="font-size:10.5px;letter-spacing:1.5px;text-transform:uppercase;color:#8B8FA0;margin-bottom:6px">${ST.user.name} · Total Score</div>
+    ${rec.totalScore!=null
+      ? `<div style="font-size:52px;font-weight:800;line-height:1;letter-spacing:-1.5px;color:#1A237E">${rec.totalScore}<span style="font-size:18px;font-weight:600;color:#8B8FA0;margin-left:4px">점${rankSub?` · ${rankSub}`:''}</span></div>`
+      : `<div style="font-size:15px;font-weight:800;color:#8B8FA0;padding:10px 0">${rtSkip&&wtSkip?'시험 없음':'채점중'}</div>`
+    }
+    <div style="display:flex;gap:8px;margin-top:9px;flex-wrap:wrap">
+      ${delta!=null?`<span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;color:${delta>0?'#8A6D00':delta<0?'#B23B2E':'#6B6350'};background:${delta>0?'#FFF6DC':delta<0?'#FDECEA':'#F1F2ED'};padding:3px 10px;border-radius:20px">${delta>0?'▲':delta<0?'▼':'–'} 지난 주 대비 ${delta!==0?Math.abs(delta)+'점':'동일'}</span>`:''}
+      ${totPct!=null?`<span style="font-size:12px;color:#8B8FA0;padding:3px 2px">반평균 ${totAvg}점 대비 ${totPct}%</span>`:''}
     </div>
   </div>
 
@@ -1229,125 +1210,51 @@ function rReport(recs){
     <span style="font-size:12px;color:#C4C9D4">${opts.indexOf(cur)+1} / ${opts.length}주차</span>
   </div>
 
-  <!-- RT + WT 나란히 -->
-  <div style="background:#fff;border-radius:18px;padding:18px;margin-bottom:12px;box-shadow:0 2px 12px rgba(0,0,0,0.06)">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-
-      <!-- RT -->
-      <div>
-        <div style="font-size:10px;font-weight:700;color:#9BA3AF;letter-spacing:1px;margin-bottom:10px">REVIEW TEST</div>
-        ${rtSkip
-          ? `<div style="background:#F7F8FA;border-radius:12px;padding:20px;text-align:center;color:#C4C9D4;font-size:12px">생략</div>`
-          : `<div style="background:#F7F8FA;border-radius:12px;padding:16px">
-              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px">
-                <span style="font-size:11px;color:#9BA3AF;font-weight:500">점수</span>
-                <span style="font-size:26px;font-weight:900;color:#1A237E">${rec.rtScore??'-'}<span style="font-size:13px;color:#9BA3AF;font-weight:400">점</span></span>
-              </div>
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
-                <span style="font-size:11px;color:#9BA3AF">등수</span>
-                <span style="font-size:16px;font-weight:700;color:#3949AB">${rec.rvRank??'-'}등</span>
-              </div>
-              <div style="margin-top:8px;text-align:right">${passTag(rec.rtPass,false)}</div>
-            </div>`
-        }
-      </div>
-
-      <!-- WT -->
-      <div>
-        <div style="font-size:10px;font-weight:700;color:#9BA3AF;letter-spacing:1px;margin-bottom:10px">WORD TEST</div>
-        ${wtSkip
-          ? `<div style="background:#F7F8FA;border-radius:12px;padding:20px;text-align:center;color:#C4C9D4;font-size:12px">생략</div>`
-          : `<div style="background:#F7F8FA;border-radius:12px;padding:16px">
-              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px">
-                <span style="font-size:11px;color:#9BA3AF;font-weight:500">점수</span>
-                <span style="font-size:26px;font-weight:900;color:#1A237E">${rec.wtScore??'-'}<span style="font-size:13px;color:#9BA3AF;font-weight:400">점</span></span>
-              </div>
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
-                <span style="font-size:11px;color:#9BA3AF">등수</span>
-                <span style="font-size:16px;font-weight:700;color:#3949AB">${rec.wtRank??'-'}등</span>
-              </div>
-              <div style="margin-top:8px;text-align:right">${passTag(rec.wtPass,false)}</div>
-            </div>`
-        }
-      </div>
+  <!-- RT + WT 나란히 (미니멀형) -->
+  <div style="display:flex;gap:20px;margin-bottom:4px">
+    <!-- RT -->
+    <div style="flex:1">
+      <div style="font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:#8B8FA0;margin-bottom:6px">Review Test</div>
+      ${rtSkip
+        ? `<div style="font-size:14px;color:#C4C9D4;padding:6px 0">생략</div>`
+        : `<div style="font-size:22px;font-weight:800;color:#1A237E;letter-spacing:-.5px">${rec.rtScore??'-'}점</div>
+           <div style="font-size:11.5px;color:#8B8FA0;margin-top:3px">${rec.rtPass===true?'합격':rec.rtPass===false?'불합격':'-'} · ${rec.rvRank??'-'}등${rec.rvAvg!=null?` · 반평균 ${rec.rvAvg}점`:''}</div>
+           ${rtPct!=null?`<div style="height:4px;border-radius:4px;background:#EBECF1;margin-top:8px;overflow:hidden"><div style="height:100%;background:#1A237E;border-radius:4px;width:${Math.min(100,rtPct)}%"></div></div>`:''}`
+      }
     </div>
-
-    <!-- RT + WT 반평균 대비 바 -->
-    <div style="margin-top:14px;padding-top:14px;border-top:1px solid #F1F3F5;display:flex;flex-direction:column;gap:10px">
-      ${!rtSkip&&rec.rtScore!=null&&rec.rvAvg!=null?`
-      <div>
-        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px">
-          <span style="font-weight:700;color:#7B1FA2">RT 반평균 대비</span>
-          <span style="color:#9BA3AF">내 점수 <strong style="color:#7B1FA2">${rec.rtScore}점</strong> · 반평균 ${rec.rvAvg}점 (${Math.round(rec.rtScore/rec.rvAvg*100)}%)</span>
-        </div>
-        <div style="background:#F3E5F5;border-radius:20px;height:8px;overflow:hidden">
-          <div style="height:100%;background:linear-gradient(90deg,#7B1FA2,#AB47BC);border-radius:20px;width:${Math.min(100,Math.round(rec.rtScore/rec.rvAvg*100))}%"></div>
-        </div>
-      </div>`:''}
-      ${!wtSkip&&rec.wtScore!=null&&rec.wtAvg!=null?`
-      <div>
-        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px">
-          <span style="font-weight:700;color:#1A237E">WT 반평균 대비</span>
-          <span style="color:#9BA3AF">내 점수 <strong style="color:#1A237E">${rec.wtScore}점</strong> · 반평균 ${rec.wtAvg}점 (${Math.round(rec.wtScore/rec.wtAvg*100)}%)</span>
-        </div>
-        <div style="background:#E8EAF6;border-radius:20px;height:8px;overflow:hidden">
-          <div style="height:100%;background:linear-gradient(90deg,#1A237E,#3949AB);border-radius:20px;width:${Math.min(100,Math.round(rec.wtScore/rec.wtAvg*100))}%"></div>
-        </div>
-      </div>`:''}
+    <!-- WT -->
+    <div style="flex:1">
+      <div style="font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:#8B8FA0;margin-bottom:6px">Word Test</div>
+      ${wtSkip
+        ? `<div style="font-size:14px;color:#C4C9D4;padding:6px 0">생략</div>`
+        : `<div style="font-size:22px;font-weight:800;color:#1A237E;letter-spacing:-.5px">${rec.wtScore??'-'}점</div>
+           <div style="font-size:11.5px;color:#8B8FA0;margin-top:3px">${rec.wtPass===true?'합격':rec.wtPass===false?'불합격':'-'} · ${rec.wtRank??'-'}등${rec.wtAvg!=null?` · 반평균 ${rec.wtAvg}점`:''}</div>
+           ${wtPct!=null?`<div style="height:4px;border-radius:4px;background:#EBECF1;margin-top:8px;overflow:hidden"><div style="height:100%;background:#1A237E;border-radius:4px;width:${Math.min(100,wtPct)}%"></div></div>`:''}`
+      }
     </div>
   </div>
 
-  <!-- 전체 성적 -->
-  <div style="background:linear-gradient(135deg,#1A237E,#283593);border-radius:18px;padding:18px;margin-bottom:12px;box-shadow:0 4px 16px rgba(26,35,126,0.2)">
-    <div style="font-size:10px;font-weight:700;color:rgba(255,255,255,0.5);letter-spacing:1px;margin-bottom:12px">전체 성적</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:${rec.totalScore!=null&&totAvg!=null?'14px':'0'}">
-      <div style="text-align:center">
-        <div style="font-size:10px;color:rgba(255,255,255,0.45);margin-bottom:4px">총점</div>
-        ${rec.totalScore!=null
-          ? `<div style="font-size:26px;font-weight:900;color:#FFB300">${rec.totalScore}<span style="font-size:12px;color:rgba(255,255,255,0.4)">점</span></div>`
-          : `<div style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.55);padding-top:6px">${rtSkip&&wtSkip?'시험 없음':'채점중'}</div>`
-        }
-        <div style="font-size:10px;color:rgba(255,255,255,0.35);margin-top:2px">${!rec.rtSkip?'RT+WT':'WT'}</div>
-      </div>
-      <div style="text-align:center;border-left:1px solid rgba(255,255,255,0.1);border-right:1px solid rgba(255,255,255,0.1)">
-        <div style="font-size:10px;color:rgba(255,255,255,0.45);margin-bottom:4px">등수</div>
-        <div style="font-size:26px;font-weight:900;color:#fff">${rec.totalRank??'-'}<span style="font-size:12px;color:rgba(255,255,255,0.4)">${rec.totalRank!=null&&clsCount?`/${clsCount}`:'등'}</span></div>
-      </div>
-      <div style="text-align:center">
-        <div style="font-size:10px;color:rgba(255,255,255,0.45);margin-bottom:4px">반평균</div>
-        <div style="font-size:26px;font-weight:900;color:#fff">${totAvg??'-'}<span style="font-size:12px;color:rgba(255,255,255,0.4)">점</span></div>
-      </div>
-    </div>
-    <!-- 전체 반평균 대비 바 -->
-    ${rec.totalScore!=null&&totAvg!=null?`
-    <div style="padding-top:14px;border-top:1px solid rgba(255,255,255,0.1)">
-      <div style="display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,0.5);margin-bottom:6px">
-        <span style="font-weight:600;color:rgba(255,255,255,0.7)">전체 반평균 대비</span>
-        <span>내 점수 <strong style="color:#FFB300">${rec.totalScore}점</strong> · 반평균 ${totAvg}점</span>
-      </div>
-      <div style="background:rgba(255,255,255,0.1);border-radius:6px;height:8px;overflow:hidden">
-        <div style="height:100%;background:linear-gradient(90deg,#FFB300,#FFD54F);border-radius:6px;width:${Math.min(100,Math.round(rec.totalScore/totAvg*100))}%"></div>
-      </div>
-      <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:5px;text-align:right">
-        반평균의 ${Math.round(rec.totalScore/totAvg*100)}%
-      </div>
-    </div>`:''}
-  </div>
+  <hr style="border:0;border-top:1px solid #EBECF1;margin:20px 0">
+
+  <!-- 선생님 코멘트 -->
+  ${rec.comment?`<div style="background:#F6F7FB;border-radius:14px;padding:13px 14px;margin-bottom:16px">
+    <div style="font-size:10.5px;letter-spacing:.5px;color:#8B8FA0;font-weight:700;margin-bottom:5px">💬 선생님 코멘트</div>
+    <div style="font-size:12.5px;line-height:1.6;color:#3C4050">${esc(rec.comment)}</div>
+  </div>`:''}
 
   <!-- 과제 현황 -->
-  <div style="background:#fff;border-radius:18px;padding:18px;margin-bottom:12px;box-shadow:0 2px 12px rgba(0,0,0,0.06)">
-    <div style="font-size:10px;font-weight:700;color:#9BA3AF;letter-spacing:1px;margin-bottom:12px">과제 현황</div>
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #F7F8FA">
-      <span style="font-size:13px;color:#5C6470;font-weight:500">📚 ${rec.hwName1||sc?.hw1||'숙제1'}</span>
-      <span style="font-size:14px;font-weight:700;color:${(rec.hw1||rec.homework)==='완료'?'#00897B':(rec.hw1||rec.homework)?'#E53935':'#9BA3AF'}">${rec.hw1||rec.homework||'-'}</span>
+  <div style="display:flex;flex-direction:column;margin-bottom:6px">
+    <div style="display:flex;justify-content:space-between;padding:9px 0;border-top:1px solid #EBECF1;font-size:12.5px;color:#585C6B">
+      <span>📚 ${rec.hwName1||sc?.hw1||'숙제1'}</span>
+      <span style="font-weight:700;color:${(rec.hw1||rec.homework)==='완료'?'#1A237E':(rec.hw1||rec.homework)?'#B23B2E':'#8B8FA0'}">${rec.hw1||rec.homework||'-'}</span>
     </div>
-    ${!(sc?.hwNames&&sc.hwNames[rec.month+'_'+rec.week]?sc.hwNames[rec.month+'_'+rec.week].hw2Skip:sc?.hw2Skip)?`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #F7F8FA">
-      <span style="font-size:13px;color:#5C6470;font-weight:500">📚 ${rec.hwName2||sc?.hw2||'숙제2'}</span>
-      <span style="font-size:14px;font-weight:700;color:${rec.hw2==='완료'?'#00897B':rec.hw2?'#E53935':'#9BA3AF'}">${rec.hw2||'-'}</span>
+    ${!(sc?.hwNames&&sc.hwNames[rec.month+'_'+rec.week]?sc.hwNames[rec.month+'_'+rec.week].hw2Skip:sc?.hw2Skip)?`<div style="display:flex;justify-content:space-between;padding:9px 0;border-top:1px solid #EBECF1;font-size:12.5px;color:#585C6B">
+      <span>📚 ${rec.hwName2||sc?.hw2||'숙제2'}</span>
+      <span style="font-weight:700;color:${rec.hw2==='완료'?'#1A237E':rec.hw2?'#B23B2E':'#8B8FA0'}">${rec.hw2||'-'}</span>
     </div>`:''}
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0">
-      <span style="font-size:13px;color:#5C6470;font-weight:500">⏰ 재시험</span>
-      <span style="font-size:14px;font-weight:600;color:${rec.retestTime?'#E53935':'#9BA3AF'}">${rec.retestTime||'없음'}</span>
+    <div style="display:flex;justify-content:space-between;padding:9px 0;border-top:1px solid #EBECF1;font-size:12.5px;color:#585C6B">
+      <span>⏰ 재시험</span>
+      <span style="font-weight:700;color:${rec.retestTime?'#B23B2E':'#8B8FA0'}">${rec.retestTime||'없음'}</span>
     </div>
   </div>
   </div>
@@ -2525,6 +2432,8 @@ function bAdmin(){
     let saved=0;const savedSids=[];
     rows.forEach(r=>{
       const sid=r.dataset.sid;if(!sid)return;
+      const existingIdx=sc.records.findIndex(x=>x.sid===sid&&x.month===mon&&x.week===wk);
+      const existingComment=existingIdx>=0?(sc.records[existingIdx].comment||''):'';
       const rsk=r.dataset.rtskip==='1';const wsk=r.dataset.wtskip==='1';
       const rtv=parseFloat(r.querySelector('.inp-rt').value);const wtv=parseFloat(r.querySelector('.inp-wt').value);
       const rec={sid,month:mon,week:wk,thrRt,thrWt,
@@ -2539,13 +2448,12 @@ function bAdmin(){
         homework:r.querySelector('.inp-hw1')?.value||'',
         hwName1:(()=>{const _k=mon+'_'+wk;return sc.hwNames&&sc.hwNames[_k]?sc.hwNames[_k].hw1:sc.hw1||'숙제1';})(),
         hwName2:(()=>{const _k=mon+'_'+wk;return sc.hwNames&&sc.hwNames[_k]?sc.hwNames[_k].hw2:sc.hw2||'숙제2';})(),
-        retestTime:r.querySelector('.inp-rt2').value,notice:''};
-      const idx=sc.records.findIndex(x=>x.sid===sid&&x.month===mon&&x.week===wk);
-      if(idx>=0)sc.records[idx]=rec;else sc.records.push(rec);saved++;savedSids.push(sid);
+        retestTime:r.querySelector('.inp-rt2').value,comment:existingComment};
+      if(existingIdx>=0)sc.records[existingIdx]=rec;else sc.records.push(rec);saved++;savedSids.push(sid);
     });
     addLog(sc,mon,wk,saved,thrRt,thrWt);saveDB();ST._dirty=false;
     const srEl=document.getElementById('saved-result-table');
-    if(srEl){srEl.innerHTML=renderSavedTable(sc,mon,wk);srEl.querySelectorAll('[data-dr]').forEach(function(b){b.onclick=function(){sc.records.splice(parseInt(b.dataset.dr),1);saveDB();srEl.innerHTML=renderSavedTable(sc,ST.bMon,ST.bWk);};});}
+    if(srEl){srEl.innerHTML=renderSavedTable(sc,mon,wk);srEl.querySelectorAll('[data-dr]').forEach(function(b){b.onclick=function(){sc.records.splice(parseInt(b.dataset.dr),1);saveDB();srEl.innerHTML=renderSavedTable(sc,ST.bMon,ST.bWk);wireCommentBtns(srEl,sc);};});wireCommentBtns(srEl,sc);}
     renderScoreDropAlert(sc, mon, wk);
     const msg=document.getElementById('save-msg');
     msg.innerHTML=`✓ ${saved}명 저장 완료 &nbsp;<span style="color:#E65100;font-weight:700;cursor:pointer;text-decoration:underline" onclick="const b=document.getElementById('btn-ppurio-notify');if(b){b.scrollIntoView({behavior:'smooth',block:'center'});b.style.outline='3px solid #FFB300';setTimeout(()=>b.style.outline='',2000);}">💬 알림톡 발송 →</span>`;
@@ -2553,7 +2461,9 @@ function bAdmin(){
     pushStudents(sc,savedSids,'📊 성적이 등록됐어요',`${mon} ${wk} 성적을 확인해보세요`,'/');
     recalc();
   };
-  document.querySelectorAll('[data-dr]').forEach(b=>{b.onclick=()=>{sc.records.splice(parseInt(b.dataset.dr),1);saveDB();const se=document.getElementById('saved-result-table');if(se)se.innerHTML=renderSavedTable(sc,ST.bMon,ST.bWk);};});
+  document.querySelectorAll('[data-dr]').forEach(b=>{b.onclick=()=>{sc.records.splice(parseInt(b.dataset.dr),1);saveDB();const se=document.getElementById('saved-result-table');if(se){se.innerHTML=renderSavedTable(sc,ST.bMon,ST.bWk);wireCommentBtns(se,sc);}};});
+  const savedTblEl=document.getElementById('saved-result-table');
+  if(savedTblEl)wireCommentBtns(savedTblEl,sc);
   const ppurioNotifyBtn=document.getElementById('btn-ppurio-notify');
   if(ppurioNotifyBtn)ppurioNotifyBtn.onclick=()=>sendPpurioScoreNotify(sc,ST.bMon,ST.bWk);
 }
@@ -2680,7 +2590,9 @@ function renderSavedTable(sc,mon,wk){
       +'<td>'+(r.totalRank!=null?r.totalRank+'등':'-')+'</td>'
       +'<td style="font-size:12px">'+hw1Val+'</td>'
       +'<td style="font-size:12px">'+hw2Val+'</td>'
-      +'<td><button class="abtn abtn-red" data-dr="'+gi+'">삭제</button></td>'
+      +'<td style="white-space:nowrap;display:flex;gap:4px">'
+      +'<button class="abtn" data-cm="'+gi+'" style="'+(r.comment?'background:#1A237E;color:#fff;border-color:#1A237E':'')+'" title="선생님 코멘트">💬</button>'
+      +'<button class="abtn abtn-red" data-dr="'+gi+'">삭제</button></td>'
       +'</tr>';
   });
   return '<div style="overflow-x:auto"><table class="rec-tbl">'
@@ -2691,6 +2603,22 @@ function renderSavedTable(sc,mon,wk){
     +'</tr></thead>'
     +'<tbody>'+rows+'</tbody>'
     +'</table></div>';
+}
+function wireCommentBtns(root,sc){
+  root.querySelectorAll('[data-cm]').forEach(b=>{
+    b.onclick=()=>{
+      const gi=parseInt(b.dataset.cm);
+      const rec=sc.records[gi];
+      if(!rec)return;
+      const val=prompt('선생님 코멘트 (성적표에 표시됩니다, 비워두면 숨김)',rec.comment||'');
+      if(val===null)return;
+      rec.comment=val.trim();
+      saveDB();
+      root.innerHTML=renderSavedTable(sc,rec.month,rec.week);
+      wireCommentBtns(root,sc);
+      root.querySelectorAll('[data-dr]').forEach(db=>{db.onclick=()=>{sc.records.splice(parseInt(db.dataset.dr),1);saveDB();root.innerHTML=renderSavedTable(sc,ST.bMon,ST.bWk);wireCommentBtns(root,sc);};});
+    };
+  });
 }
 
 function renderScoreDropAlert(sc, mon, wk){

@@ -599,6 +599,7 @@ function migrateAvgs(sc){
 
 function moI(m){return MONTHS.indexOf(m)}
 function wkI(w){return WEEKS.indexOf(w)}
+function esc(str){return String(str??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function curSch(){return DB.schools.find(s=>s.id===ST.school)||DB.schools[0]}
 function sRecs(sid,sc){const s=sc||(ST.role==='admin'?curSch():ST.userSchool);if(!s)return[];return s.records.filter(r=>r.sid===sid).sort((a,b)=>moI(a.month)-moI(b.month)||wkI(a.week)-wkI(b.week));}
 function lastThr(sc,mon,wk){
@@ -1072,10 +1073,10 @@ function rSuggest(){
         </div>
         <span style="font-size:11px;color:#C4C9D4">${s.date}</span>
       </div>
-      <div style="font-size:13px;color:#5C6470;line-height:1.6">${s.txt}</div>
+      <div style="font-size:13px;color:#5C6470;line-height:1.6">${esc(s.txt)}</div>
       ${hasReply?`<div style="margin-top:10px;padding:10px 14px;background:#F0FDF9;border-radius:10px;border-left:3px solid #00897B">
         <div style="font-size:10px;font-weight:700;color:#00695C;margin-bottom:4px">선생님 답변 · ${s.reply.date}</div>
-        <div style="font-size:13px;color:#047857;line-height:1.6">${s.reply.txt}</div>
+        <div style="font-size:13px;color:#047857;line-height:1.6">${esc(s.reply.txt)}</div>
       </div>`:''}
     </div>`;}).join('')}
   </div>`:''}`;
@@ -1809,7 +1810,7 @@ function rBulk(sc){
     const ex=sc.records.find(r=>r.sid===s.id&&r.month===mon&&r.week===wk)||{};
     const rtSkipped=!!ex.rtSkip;const wtSkipped=!!ex.wtSkip;
     return`<tr data-sid="${s.id}" data-rtskip="${rtSkipped?'1':'0'}" data-wtskip="${wtSkipped?'1':'0'}">
-      <td class="sn">${s.name}</td>
+      <td class="sn">${esc(s.name)}</td>
       <td><input class="ci inp-rt" type="number" min="0" max="100" value="${rtSkipped||ex.rtScore==null?'':ex.rtScore}"${rtSkipped?' disabled':''}></td>
       <td><input class="ci-auto auto-rt-rank" readonly value="${rtSkipped?'생략':ex.rvRank??''}"></td>
       <td class="auto-rt-pass">${cpH(ex.rtPass,rtSkipped)}</td>
@@ -2002,11 +2003,11 @@ function rStudentMgmt(sc){
         const typeMap={new:'🆕 신규',transfer:'🔄 전입',regular:'재학'};
         const typeColor={new:'background:#FFF7ED;color:#C2410C',transfer:'background:#EFF6FF;color:#1D4ED8',regular:'background:#F1F3F5;color:#6B7280'};
         return`<tr>
-          <td style="font-family:monospace;font-size:11px;color:#6B7280">${s.id}</td>
-          <td style="font-weight:700;color:#1A237E">${s.name}</td>
+          <td style="font-family:monospace;font-size:11px;color:#6B7280">${esc(s.id)}</td>
+          <td style="font-weight:700;color:#1A237E">${esc(s.name)}</td>
           <td><span style="padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;${typeColor[s.type||'regular']||typeColor.regular}">${typeMap[s.type||'regular']}</span></td>
-          <td>${s.phone||'-'}</td><td>${s.parentPhone||'-'}</td>
-          <td style="font-family:monospace;font-size:11px">${s.pwd}</td>
+          <td>${esc(s.phone)||'-'}</td><td>${esc(s.parentPhone)||'-'}</td>
+          <td style="font-family:monospace;font-size:11px">${esc(s.pwd)}</td>
           <td style="font-size:11px;color:#9BA3AF">${s.createdAt||'-'}</td>
           <td style="white-space:nowrap;display:flex;gap:4px">
             <button class="abtn" data-ppurio-id="${s.id}" style="background:#FEE500;color:#000;border-color:#FEE500;font-size:11px;padding:4px 8px;font-weight:700">💬 ID/비번</button>
@@ -2276,7 +2277,7 @@ function bAdmin(){
               if(perm!=='granted')throw new Error('denied');
               sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlB64ToUint8(VAPID_PUBLIC_KEY)});
             }
-            await fetch('/api/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},
+            await fetch('/api/subscribe',{method:'POST',headers:{'Content-Type':'application/json','x-admin-pwd':ADMIN_PWD},
               body:JSON.stringify({studentId:'admin',schoolId:sc.id,subscription:sub.toJSON()})});
             adminPushBtn.textContent='✓ 알림 허용됨';adminPushBtn.style.background='#00897B';
             if(adminPushMsg){adminPushMsg.textContent='완료! 학생 제안 시 알림이 옵니다.';adminPushMsg.style.color='#00897B';}
@@ -2821,12 +2822,12 @@ function rAdminSuggestions(sc){
             ${!s.read?'<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:#1A237E;color:#fff">NEW</span>':''}
             ${hasReply?'<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:#E0F7F4;color:#00695C">답변완료</span>':'<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:#FFF3E0;color:#E65100">미답변</span>'}
           </div>
-          <span style="font-size:11px;color:#9BA3AF">${st?st.name:'(탈퇴)'} · ${s.date}</span>
+          <span style="font-size:11px;color:#9BA3AF">${st?esc(st.name):'(탈퇴)'} · ${s.date}</span>
         </div>
-        <div style="font-size:13px;color:#5C6470;line-height:1.7">${s.txt}</div>
+        <div style="font-size:13px;color:#5C6470;line-height:1.7">${esc(s.txt)}</div>
         ${hasReply?`<div style="margin-top:10px;padding:10px 14px;background:#F0FDF9;border-radius:10px;border-left:3px solid #00897B">
           <div style="font-size:10px;font-weight:700;color:#00695C;margin-bottom:4px">선생님 답변 · ${s.reply.date}</div>
-          <div style="font-size:13px;color:#047857;line-height:1.6">${s.reply.txt}</div>
+          <div style="font-size:13px;color:#047857;line-height:1.6">${esc(s.reply.txt)}</div>
         </div>`:''}
       </div>
       ${expanded?`<div style="padding:0 18px 16px;border-top:1px solid #F0F2F5">
@@ -2888,7 +2889,7 @@ async function retrySendFails(sc){
     const sentAt = nowStr();
     try{
       const res = await fetch('/api/send', {
-        method:'POST', headers:{'Content-Type':'application/json'},
+        method:'POST', headers:{'Content-Type':'application/json','x-admin-pwd':ADMIN_PWD},
         body: JSON.stringify({templateCode: tpl, to: phone, variables: vars})
       });
       if(res.ok){
@@ -3006,7 +3007,7 @@ function showPpurioPopup(title, name, phone, tplCode, vars, previewMsg){
         <div style="font-size:16px;font-weight:800;color:#1A237E">💬 알림톡 발송 - ${title}</div>
         <button onclick="this.closest('.ppurio-popup').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9BA3AF">✕</button>
       </div>
-      <div style="background:#F7F8FA;border-radius:10px;padding:14px;font-size:12px;line-height:1.9;color:#5C6470;white-space:pre-wrap;margin-bottom:14px;max-height:180px;overflow-y:auto">${previewMsg}</div>
+      <div style="background:#F7F8FA;border-radius:10px;padding:14px;font-size:12px;line-height:1.9;color:#5C6470;white-space:pre-wrap;margin-bottom:14px;max-height:180px;overflow-y:auto">${esc(previewMsg)}</div>
       <div style="font-size:12px;color:#5C6470;margin-bottom:6px">📱 수신번호: <strong>${phone.replace(/(\d{3})(\d{4})(\d{4})/,'$1-$2-$3')}</strong></div>
       <div style="font-size:12px;color:#5C6470;margin-bottom:16px">📋 템플릿: <span style="font-family:monospace;font-size:11px;color:#9BA3AF">${tplCode}</span></div>
       <div id="ppurio-msg" style="font-size:12px;min-height:18px;margin-bottom:12px"></div>
@@ -3031,7 +3032,7 @@ function showPpurioPopup(title, name, phone, tplCode, vars, previewMsg){
     try{
       const res = await fetch('/api/send', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json','x-admin-pwd':ADMIN_PWD},
         body: JSON.stringify({templateCode: tplCode, to: phone, variables: vars})
       });
       if(res.ok){
@@ -3097,8 +3098,8 @@ function showPpurioAllPopup(sc, type, mon, wk){
   const rowsHtml = rows.map(({s, phone, vars, tpl})=>`
     <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #F7F8FA">
       <div>
-        <span style="font-weight:700;font-size:13px;color:#1A237E">${s.name}</span>
-        <span style="font-size:11px;color:#9BA3AF;margin-left:8px">${(s.parentPhone||s.phone||'').replace(/(\d{3})(\d{4})(\d{4})/,'$1-$2-$3')}</span>
+        <span style="font-weight:700;font-size:13px;color:#1A237E">${esc(s.name)}</span>
+        <span style="font-size:11px;color:#9BA3AF;margin-left:8px">${esc((s.parentPhone||s.phone||'').replace(/(\d{3})(\d{4})(\d{4})/,'$1-$2-$3'))}</span>
         ${isScore&&rows.find(r=>r.s.id===s.id)?.vars?.['전체점수']?`<span style="font-size:11px;color:#5C6470;margin-left:6px">${rows.find(r=>r.s.id===s.id).vars['전체점수']}</span>`:''}
       </div>
       <div style="display:flex;align-items:center;gap:6px">
@@ -3156,7 +3157,7 @@ function showPpurioAllPopup(sc, type, mon, wk){
         const ppBody = { templateCode: tpl, to: phone, variables: vars };
         const res = await fetch('/api/send', {
           method: 'POST',
-          headers: {'Content-Type':'application/json'},
+          headers: {'Content-Type':'application/json','x-admin-pwd':ADMIN_PWD},
           body: JSON.stringify(ppBody)
         });
         if(res.ok){
@@ -3235,7 +3236,7 @@ function showPpurioAllPopup(sc, type, mon, wk){
       const sentAt = nowStr();
       fetch('/api/send', {
         method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        headers: {'Content-Type':'application/json','x-admin-pwd':ADMIN_PWD},
         body: JSON.stringify(ppBody)
       }).then(res=>{
         if(res.ok){
@@ -3276,26 +3277,26 @@ function openEditStudent(sc, sid){
       <div style="display:flex;flex-direction:column;gap:12px">
         <div>
           <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">이름</label>
-          <input id="edit-name" value="${s.name}" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit"
+          <input id="edit-name" value="${esc(s.name)}" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit"
             onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">
         </div>
         <div>
           <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">학생 ID <span style="color:#C4C9D4;font-weight:400;text-transform:none">(변경 불가)</span></label>
-          <input value="${s.id}" disabled style="width:100%;padding:10px 14px;border:1.5px solid #F0F2F5;border-radius:9px;font-size:14px;background:#F7F8FA;color:#9BA3AF;font-family:monospace">
+          <input value="${esc(s.id)}" disabled style="width:100%;padding:10px 14px;border:1.5px solid #F0F2F5;border-radius:9px;font-size:14px;background:#F7F8FA;color:#9BA3AF;font-family:monospace">
         </div>
         <div>
           <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">비밀번호</label>
-          <input id="edit-pwd" value="${s.pwd}" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit"
+          <input id="edit-pwd" value="${esc(s.pwd)}" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit"
             onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">
         </div>
         <div>
           <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">학생 전화번호</label>
-          <input id="edit-phone" value="${s.phone||''}" placeholder="010-0000-0000" maxlength="13" oninput="autoHyphen(this)" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit"
+          <input id="edit-phone" value="${esc(s.phone)}" placeholder="010-0000-0000" maxlength="13" oninput="autoHyphen(this)" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit"
             onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">
         </div>
         <div>
           <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">학부모 전화번호</label>
-          <input id="edit-pphone" value="${s.parentPhone||''}" placeholder="010-0000-0000" maxlength="13" oninput="autoHyphen(this)" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit"
+          <input id="edit-pphone" value="${esc(s.parentPhone)}" placeholder="010-0000-0000" maxlength="13" oninput="autoHyphen(this)" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit"
             onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">
         </div>
         <div>
@@ -3372,8 +3373,8 @@ function sendKakaoAllIdPw(sc){
 
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #F7F8FA">
       <div>
-        <span style="font-weight:700;font-size:13px;color:#1A237E">${s.name}</span>
-        <span style="font-size:11px;color:#9BA3AF;margin-left:8px">${s.parentPhone||s.phone||'번호 없음'}</span>
+        <span style="font-weight:700;font-size:13px;color:#1A237E">${esc(s.name)}</span>
+        <span style="font-size:11px;color:#9BA3AF;margin-left:8px">${esc(s.parentPhone||s.phone||'번호 없음')}</span>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
         ${hasPhone ? `
@@ -3432,9 +3433,9 @@ function sendKakaoIdPw(sc, student){
   popup.innerHTML = `
     <div style="background:#fff;border-radius:16px;padding:24px;max-width:380px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
       <div style="font-size:16px;font-weight:800;margin-bottom:4px;color:#1A237E">💬 카카오톡 발송</div>
-      <div style="font-size:12px;color:#9BA3AF;margin-bottom:16px">${student.name} 학생 ID/비번 안내</div>
-      <div style="background:#F7F8FA;border-radius:10px;padding:14px;font-size:12px;line-height:1.8;color:#5C6470;white-space:pre-wrap;margin-bottom:16px;max-height:200px;overflow-y:auto">${msg}</div>
-      <div style="font-size:12px;color:#9BA3AF;margin-bottom:14px">📱 학부모 번호: ${student.parentPhone||student.phone||'번호 없음'}</div>
+      <div style="font-size:12px;color:#9BA3AF;margin-bottom:16px">${esc(student.name)} 학생 ID/비번 안내</div>
+      <div style="background:#F7F8FA;border-radius:10px;padding:14px;font-size:12px;line-height:1.8;color:#5C6470;white-space:pre-wrap;margin-bottom:16px;max-height:200px;overflow-y:auto">${esc(msg)}</div>
+      <div style="font-size:12px;color:#9BA3AF;margin-bottom:14px">📱 학부모 번호: ${esc(student.parentPhone||student.phone||'번호 없음')}</div>
       <div style="display:flex;gap:8px">
         <button onclick="window.location.href='${kakaoUrl}'" style="flex:1;padding:12px;background:#FEE500;color:#000;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer">카카오톡으로 전송</button>
         <button onclick="navigator.clipboard&&navigator.clipboard.writeText(${JSON.stringify(msg)}).then(()=>alert('복사되었습니다'))" style="padding:12px 14px;background:#F7F8FA;border:none;border-radius:10px;font-size:13px;cursor:pointer">📋 복사</button>
@@ -3479,8 +3480,8 @@ function sendKakaoScoreNotify(sc, mon, wk){
     const kakaoUrl = 'kakaotalk://msg?to=' + phone + '&text=' + encoded;
     return `<div style="border:1px solid #F0F2F5;border-radius:10px;padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
       <div>
-        <div style="font-weight:700;font-size:13px;color:#1A237E">${s.name}</div>
-        <div style="font-size:11px;color:#9BA3AF">${s.parentPhone||s.phone||'번호 없음'} · ${r.totalScore??'-'}점 ${r.totalRank??'-'}등</div>
+        <div style="font-weight:700;font-size:13px;color:#1A237E">${esc(s.name)}</div>
+        <div style="font-size:11px;color:#9BA3AF">${esc(s.parentPhone||s.phone||'번호 없음')} · ${r.totalScore??'-'}점 ${r.totalRank??'-'}등</div>
       </div>
       <div style="display:flex;gap:6px">
         <button onclick="navigator.clipboard&&navigator.clipboard.writeText(${JSON.stringify(msg)}).then(()=>this.textContent='✓복사')" style="padding:6px 10px;background:#F7F8FA;border:1px solid #E8ECF0;border-radius:7px;font-size:11px;cursor:pointer">📋 복사</button>

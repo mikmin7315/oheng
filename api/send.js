@@ -1,16 +1,19 @@
 const { SolapiMessageService } = require('solapi');
 
 const messageService = new SolapiMessageService(
-  'NCSIVKDMSKTDCSKV',
-  'SGSN3EMLV0HWYGM81ORPUPHHUDFZSWMG'
+  process.env.SOLAPI_API_KEY,
+  process.env.SOLAPI_API_SECRET
 );
 
-const SENDER = '01090080851';
-const PFID = 'KA01PF260409120809915UFtRoM8Y2O1';
+const SENDER = process.env.SOLAPI_SENDER || '01090080851';
+const PFID = process.env.SOLAPI_PFID || 'KA01PF260409120809915UFtRoM8Y2O1';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
+  }
+  if (!process.env.ADMIN_PWD || req.headers['x-admin-pwd'] !== process.env.ADMIN_PWD) {
+    return res.status(401).json({ success: false, message: 'Unauthorized' });
   }
   try {
     const { templateCode, to, variables } = req.body;

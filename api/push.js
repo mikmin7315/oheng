@@ -16,9 +16,14 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'VAPID keys not configured' });
   }
 
-  const { studentId, schoolId, title, body, url = '/' } = req.body;
+  const { studentId, schoolId, title, body } = req.body;
+  let { url = '/' } = req.body;
   if (!studentId || !schoolId) {
     return res.status(400).json({ error: 'Missing studentId or schoolId' });
+  }
+  // 알림 클릭 시 열리는 주소를 앱 내부 경로로 제한 (피싱 리다이렉트 방지)
+  if (typeof url !== 'string' || !url.startsWith('/') || url.startsWith('//')) {
+    url = '/';
   }
 
   const subscription = await redis.get(`sub:${schoolId}:${studentId}`);

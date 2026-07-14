@@ -71,7 +71,7 @@ export default async function handler(req, res) {
       }, { ex: 60 * 60 * 24 * 90 }); // 백업은 90일 보관 후 자동 삭제
     }
   } catch (e) {
-    return res.status(500).json({ success: false, message: '기존 데이터 백업 중 오류: ' + e.message });
+    return res.status(500).json({ success: false, message: '기존 데이터 백업 중 오류: ' + e.message, stack: e.stack, cause: e.cause ? String(e.cause) : null });
   }
 
   // 관리자 자격 증명 해싱 적재

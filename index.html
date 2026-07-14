@@ -1173,24 +1173,19 @@ function rReport(recs){
 
   return`
   <div id="report-capture" style="background:#FCFCFD">
-  <!-- 공지사항 - 최상단 -->
-  ${notice?`<div style="border-radius:12px;padding:11px 14px;margin-bottom:12px;background:#FFF8E1;border-left:3px solid #FFB300">
-    <div style="font-size:10.5px;font-weight:700;letter-spacing:0.5px;color:#E65100;margin-bottom:5px">📢 공지사항</div>
-    <div style="font-size:12.5px;color:#5C6470;line-height:1.6;font-weight:600">${notice}</div>
-  </div>`:''}
-
   <!-- 브랜드 헤더 -->
-  <div style="display:flex;align-items:center;gap:8px;padding:2px 2px 18px">
+  <div style="display:flex;align-items:center;gap:8px;padding:2px 2px 14px">
     <div style="font-size:13px;font-weight:800;letter-spacing:-0.3px;color:#181B27"><span style="color:#FFB300">OH</span>ENG</div>
     <div style="color:#D3D6DE">·</div>
     <div style="font-size:11px;color:#828693">${sc?.name} · ${rec.month} ${rec.week}</div>
   </div>
 
-  <!-- 히어로: 총점 -->
-  <div style="margin-bottom:20px">
-    <div style="font-size:10.5px;letter-spacing:1.5px;text-transform:uppercase;color:#8B8FA0;margin-bottom:6px">${ST.user.name} · Total Score</div>
+  <!-- 히어로: 이름 + 총점 -->
+  <div style="margin-bottom:18px">
+    <div style="font-size:19px;font-weight:800;color:#181B27;letter-spacing:-.3px;margin-bottom:8px">${esc(ST.user.name)}</div>
+    <div style="font-size:10.5px;letter-spacing:1.5px;text-transform:uppercase;color:#8B8FA0;margin-bottom:6px">Total Score</div>
     ${rec.totalScore!=null
-      ? `<div style="font-size:52px;font-weight:800;line-height:1;letter-spacing:-1.5px;color:#1A237E">${rec.totalScore}<span style="font-size:18px;font-weight:600;color:#8B8FA0;margin-left:4px">점${rankSub?` · ${rankSub}`:''}</span></div>`
+      ? `<div style="font-size:48px;font-weight:800;line-height:1;letter-spacing:-1.5px;color:#1A237E">${rec.totalScore}<span style="font-size:17px;font-weight:600;color:#8B8FA0;margin-left:4px">점${rankSub?` · ${rankSub}`:''}</span></div>`
       : `<div style="font-size:15px;font-weight:800;color:#8B8FA0;padding:10px 0">${rtSkip&&wtSkip?'시험 없음':'채점중'}</div>`
     }
     <div style="display:flex;gap:8px;margin-top:9px;flex-wrap:wrap">
@@ -1199,15 +1194,14 @@ function rReport(recs){
     </div>
   </div>
 
-  <!-- 주차 선택 -->
-  <div class="no-print" style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
-    <span style="font-size:12px;color:#9BA3AF;font-weight:600">주차 선택</span>
-    <button id="wk-prev" ${opts.indexOf(cur)<=0?'disabled':''} style="width:32px;height:32px;border-radius:8px;border:1.5px solid #E8ECF0;background:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:${opts.indexOf(cur)<=0?'#C4C9D4':'#1A237E'};transition:all 0.15s">‹</button>
-    <select id="wk-pick" style="padding:7px 14px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px;font-weight:600;color:#1A237E;background:#fff;cursor:pointer;outline:none;box-shadow:0 1px 4px rgba(0,0,0,0.06)">
+  <!-- 주차 선택 (보조 컨트롤: 작고 가볍게) -->
+  <div class="no-print" style="display:flex;align-items:center;gap:6px;margin-bottom:18px">
+    <button id="wk-prev" ${opts.indexOf(cur)<=0?'disabled':''} style="width:24px;height:24px;border-radius:6px;border:1px solid #EBECF1;background:#fff;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:${opts.indexOf(cur)<=0?'#D3D6DE':'#828693'}">‹</button>
+    <select id="wk-pick" style="padding:3px 8px;border:1px solid #EBECF1;border-radius:6px;font-size:11.5px;font-weight:600;color:#585C6B;background:#fff;cursor:pointer;outline:none">
       ${opts.map(w=>`<option ${w===cur?'selected':''}>${w}</option>`).join('')}
     </select>
-    <button id="wk-next" ${opts.indexOf(cur)>=opts.length-1?'disabled':''} style="width:32px;height:32px;border-radius:8px;border:1.5px solid #E8ECF0;background:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:${opts.indexOf(cur)>=opts.length-1?'#C4C9D4':'#1A237E'};transition:all 0.15s">›</button>
-    <span style="font-size:12px;color:#C4C9D4">${opts.indexOf(cur)+1} / ${opts.length}주차</span>
+    <button id="wk-next" ${opts.indexOf(cur)>=opts.length-1?'disabled':''} style="width:24px;height:24px;border-radius:6px;border:1px solid #EBECF1;background:#fff;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:${opts.indexOf(cur)>=opts.length-1?'#D3D6DE':'#828693'}">›</button>
+    <span style="font-size:10.5px;color:#B0B3BF">${opts.indexOf(cur)+1}/${opts.length}주차</span>
   </div>
 
   <!-- RT + WT 나란히 (미니멀형) -->
@@ -1236,10 +1230,17 @@ function rReport(recs){
 
   <hr style="border:0;border-top:1px solid #EBECF1;margin:20px 0">
 
-  <!-- 선생님 코멘트 -->
-  ${rec.comment?`<div style="background:#F6F7FB;border-radius:14px;padding:13px 14px;margin-bottom:16px">
-    <div style="font-size:10.5px;letter-spacing:.5px;color:#8B8FA0;font-weight:700;margin-bottom:5px">💬 선생님 코멘트</div>
-    <div style="font-size:12.5px;line-height:1.6;color:#3C4050">${esc(rec.comment)}</div>
+  <!-- 선생님 메시지: 반 전체 공지 + 학생 개인 코멘트를 한 카드에, 라벨로 구분 -->
+  ${(notice||rec.comment)?`<div style="background:#F6F7FB;border-radius:14px;padding:13px 14px;margin-bottom:16px;display:flex;flex-direction:column;gap:12px">
+    ${notice?`<div>
+      <div style="font-size:10.5px;letter-spacing:.5px;color:#8A6D00;font-weight:700;margin-bottom:5px">📢 우리 반 공지</div>
+      <div style="font-size:12.5px;line-height:1.6;color:#3C4050">${esc(notice)}</div>
+    </div>`:''}
+    ${notice&&rec.comment?'<hr style="border:0;border-top:1px solid #E4E6EE">':''}
+    ${rec.comment?`<div>
+      <div style="font-size:10.5px;letter-spacing:.5px;color:#1A237E;font-weight:700;margin-bottom:5px">💬 ${esc(ST.user.name)} 학생에게</div>
+      <div style="font-size:12.5px;line-height:1.6;color:#3C4050">${esc(rec.comment)}</div>
+    </div>`:''}
   </div>`:''}
 
   <!-- 과제 현황 -->

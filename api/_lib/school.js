@@ -26,6 +26,34 @@ export async function getSchool(id) {
   return await redis.get(SCHOOL_PREFIX + id);
 }
 
+export async function removeFromSchoolIndex(id) {
+  const redis = getRedis();
+  const idx = await getSchoolIndex();
+  const next = idx.filter(x => x !== id);
+  await redis.set(INDEX_KEY, next);
+}
+
+export async function deleteSchool(id) {
+  const redis = getRedis();
+  await redis.del(SCHOOL_PREFIX + id);
+  await removeFromSchoolIndex(id);
+}
+
+export async function createSchool(name, grade) {
+  const id = 'sch' + Date.now();
+  const school = {
+    id, name, grade: grade || '1학년',
+    students: [], records: [], notices: {}, suggestions: [],
+    hw1: '숙제1', hw2: '숙제2', hw2Skip: false, hwNames: {}, kakaoChannel: '',
+    version: 1,
+  };
+  school._aggregates = computeAggregates(school);
+  const redis = getRedis();
+  await redis.set(SCHOOL_PREFIX + id, school);
+  await addToSchoolIndex(id);
+  return school;
+}
+
 // index.html의 calcTotalAvg()+classCount() 로직을 서버에서 그대로 재현.
 // 두 클라이언트 함수를 고칠 때는 여기도 같이 맞춰야 한다 (공유 모듈 시스템이 없어 부득이 복제됨).
 export function computeAggregates(school) {

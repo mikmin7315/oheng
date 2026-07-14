@@ -101,6 +101,25 @@ export async function checkLoginRateLimit(key) {
   return checkRateLimit('login', key, 10, 60); // 1분에 10회 초과 시 차단
 }
 
+// 요청 쿠키의 세션이 유효한 관리자 세션인지 확인 — 아니면 null
+export async function requireAdminSession(req) {
+  const token = getSessionToken(req);
+  const session = await getSession(token);
+  if (!session || session.role !== 'admin') return null;
+  return session;
+}
+
+// 관리자 세션 또는 기존 API_AUTH_TOKEN(운영/스크립트용) 중 하나라도 유효하면 통과.
+// 세션이 없을 땐 {role:'admin', viaApiToken:true}를 반환해 호출부가 동일하게 다룰 수 있게 함.
+export async function requireAdminSessionOrApiToken(req) {
+  const session = await requireAdminSession(req);
+  if (session) return session;
+  if (process.env.API_AUTH_TOKEN && req.headers['x-api-token'] === process.env.API_AUTH_TOKEN) {
+    return { role: 'admin', viaApiToken: true };
+  }
+  return null;
+}
+
 export function getClientIp(req) {
   const fwd = req.headers['x-forwarded-for'];
   if (typeof fwd === 'string' && fwd.length) return fwd.split(',')[0].trim();

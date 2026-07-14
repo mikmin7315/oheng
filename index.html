@@ -2043,6 +2043,16 @@ function rAdminSettings(sc){
     <div id="backup-msg" style="font-size:12px;min-height:18px"></div>
   </div>
   <div class="section-card">
+    <div class="section-ttl">서버 동기화 (베타)</div>
+    <div style="font-size:12px;color:#5C6470;margin-bottom:14px;line-height:1.7">
+      지금까지는 이 브라우저에만 데이터가 저장돼서 다른 기기(학부모 폰 등)에서는 성적이 안 보였습니다.<br>
+      아래 버튼으로 현재 데이터를 서버에 업로드하면, 서버 동기화 기능이 켜졌을 때 다른 기기에서도 정상적으로 보이게 됩니다.<br>
+      <span style="color:#E65100;font-weight:600">비밀번호는 서버에 안전하게 암호화(해시)되어 저장되며, 평문으로는 저장되지 않습니다.</span>
+    </div>
+    <button class="abtn abtn-blue" id="btn-server-migrate" style="padding:10px 20px">서버로 업로드</button>
+    <div id="server-migrate-msg" style="font-size:12px;margin-top:8px;min-height:18px"></div>
+  </div>
+  <div class="section-card">
     <div class="section-ttl">전체 반평균 재계산</div>
     <div style="font-size:12px;color:#5C6470;margin-bottom:14px;line-height:1.7">
       이전에 저장된 성적 데이터 중 RT 또는 WT 중 하나만 입력된 학생이 전체 반평균에 포함된 경우, 이 버튼을 눌러 전체 기간의 반평균을 올바르게 재계산합니다.<br>
@@ -2303,6 +2313,37 @@ function bAdmin(){
       a.download = `oheng_backup_${new Date().toISOString().slice(0,10)}.json`;
       a.click(); URL.revokeObjectURL(a.href);
       localStorage.setItem('oheng_last_backup', new Date().toISOString().slice(0,16).replace('T',' '));
+    });
+    // 서버로 업로드 (마이그레이션)
+    document.getElementById('btn-server-migrate')?.addEventListener('click', async ()=>{
+      const btn = document.getElementById('btn-server-migrate');
+      const msg = document.getElementById('server-migrate-msg');
+      const payload = {...DB, adminPwd:ADMIN_PWD, adminId:ADMIN_ID, exportedAt: nowStr()};
+      btn.disabled = true; msg.style.color = '#5C6470'; msg.textContent = '확인 중...';
+      try{
+        const dryRes = await fetch('/api/admin/migrate?dryRun=1', {
+          method:'POST', headers:{'Content-Type':'application/json','x-api-token':API_AUTH_TOKEN},
+          body: JSON.stringify(payload)
+        });
+        const dry = await dryRes.json();
+        if(!dryRes.ok||!dry.success) throw new Error(dry.message||'확인 실패');
+        if(!confirm(`학교 ${dry.schoolsFound}개, 학생 ${dry.studentsFound}명을 서버에 업로드합니다.\n비밀번호는 암호화되어 저장됩니다.\n계속하시겠습니까?`)){
+          msg.textContent=''; btn.disabled=false; return;
+        }
+        msg.textContent = '업로드 중...';
+        const res = await fetch('/api/admin/migrate', {
+          method:'POST', headers:{'Content-Type':'application/json','x-api-token':API_AUTH_TOKEN},
+          body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+        if(!res.ok||!result.success) throw new Error(result.message||'업로드 실패');
+        msg.textContent = `✓ 학교 ${result.schoolsImported}개, 학생 ${result.studentsHashed}명 업로드 완료`;
+        msg.style.color = '#00897B';
+      } catch(err){
+        msg.textContent = '오류: ' + err.message; msg.style.color = '#E53935';
+      } finally {
+        btn.disabled = false;
+      }
     });
     // 백업 불러오기
     document.getElementById('backup-import-file')?.addEventListener('change', e=>{

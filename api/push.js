@@ -1,7 +1,6 @@
 import webpush from 'web-push';
-import { Redis } from '@upstash/redis';
-
-const redis = Redis.fromEnv();
+import { getRedis } from './_lib/redis.js';
+import { checkRateLimit, getClientIp } from './_lib/auth.js';
 
 const {
   VAPID_PUBLIC_KEY,
@@ -26,6 +25,13 @@ export default async function handler(req, res) {
     url = '/';
   }
 
+  // 임시 완화책: 아직 세션이 없어 studentId/schoolId를 그대로 신뢰함.
+  // IP당 발송 빈도를 제한해 무차별 알림 스팸을 막음 — 실제 신원 검증은 세션 도입(4~5단계) 이후 추가 예정.
+  const ip = getClientIp(req);
+  const ok = await checkRateLimit('push', ip, 20, 60);
+  if (!ok) return res.status(429).json({ error: 'Too many requests' });
+
+  const redis = getRedis();
   const subscription = await redis.get(`sub:${schoolId}:${studentId}`);
   if (!subscription) {
     return res.status(404).json({ error: 'No subscription for this user' });

@@ -109,6 +109,14 @@ export async function requireAdminSession(req) {
   return session;
 }
 
+// 요청 쿠키의 세션이 유효한 학생 세션인지 확인 — 아니면 null
+export async function requireStudentSession(req) {
+  const token = getSessionToken(req);
+  const session = await getSession(token);
+  if (!session || session.role !== 'student' || !session.studentId || !session.schoolId) return null;
+  return session;
+}
+
 // 관리자 세션 또는 기존 API_AUTH_TOKEN(운영/스크립트용) 중 하나라도 유효하면 통과.
 // 세션이 없을 땐 {role:'admin', viaApiToken:true}를 반환해 호출부가 동일하게 다룰 수 있게 함.
 export async function requireAdminSessionOrApiToken(req) {

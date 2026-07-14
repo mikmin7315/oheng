@@ -594,8 +594,11 @@ function saveDB(){
 }
 function resetDB(){localStorage.removeItem(SKEY);DB={schools:INIT_SCHOOLS.map(s=>({...s,students:[...s.students],records:[...s.records],notices:{...s.notices}}))};ADMIN_PWD='oheng2024';ADMIN_ID='admin';}
 
+// 서버가 저장 시 계산해둔 _aggregates가 있으면 그걸 우선 사용 (학생 세션은 본인 기록만 갖고 있어
+// 반 전체를 직접 스캔할 수 없음 — 관리자/로컬 데이터는 _aggregates가 없을 때만 기존처럼 직접 계산).
 function calcTotalAvg(sc,month,week){
   if(!sc)return null;
+  if(sc._aggregates)return sc._aggregates[`${month}_${week}`]?.avg??null;
   const valid=sc.records.filter(r=>r.month===month&&r.week===week&&
     (r.rtSkip||r.rtScore!=null)&&(r.wtSkip||r.wtScore!=null)&&
     ((!r.rtSkip&&r.rtScore!=null)||(!r.wtSkip&&r.wtScore!=null)));
@@ -605,6 +608,7 @@ function calcTotalAvg(sc,month,week){
 }
 function classCount(sc,month,week){
   if(!sc)return 0;
+  if(sc._aggregates)return sc._aggregates[`${month}_${week}`]?.count??0;
   return sc.records.filter(r=>r.month===month&&r.week===week&&
     (r.rtSkip||r.rtScore!=null)&&(r.wtSkip||r.wtScore!=null)&&
     ((!r.rtSkip&&r.rtScore!=null)||(!r.wtSkip&&r.wtScore!=null))).length;
@@ -751,24 +755,20 @@ async function init(){
     if(!sc.suggestions)sc.suggestions=[];
     if(!sc.kakaoChannel)sc.kakaoChannel='';
   });
-  // 관리자는 서버 세션(쿠키) 우선 확인 — 유효하면 자동 로그인
-  let adminAuto=false;
+  // 로그인 유지: 서버 세션(쿠키)만으로 자동 로그인 — 관리자/학생 공통, 평문 비밀번호는 어디에도 저장하지 않음
   try{
     const res=await fetch('/api/auth/session',{credentials:'include'});
     if(res.ok){
       const data=await res.json();
-      if(data.role==='admin'){ST.loggedIn=true;ST.role='admin';ST.school=null;ST.serverAdminSession=true;adminAuto=true;await loadServerSchoolsList();}
+      if(data.role==='admin'){
+        ST.loggedIn=true;ST.role='admin';ST.school=null;ST.serverAdminSession=true;
+        await loadServerSchoolsList();
+      } else if(data.role==='student'){
+        const ok=await loadServerStudentData();
+        if(ok){ST.loggedIn=true;ST.role='student';ST.serverStudentSession=true;}
+      }
     }
   }catch(e){}
-  // 학생은 기존처럼 로컬 "로그인 유지" 정보로 자동 로그인 시도 (서버 전환 전 단계)
-  if(!adminAuto){
-    try{
-      const saved=JSON.parse(localStorage.getItem('oheng_remember')||'null');
-      if(saved&&saved.id&&saved.pw&&saved.role==='student'){
-        if(!attemptLogin(saved.id,saved.pw,saved.role))localStorage.removeItem('oheng_remember');
-      }
-    }catch(e){}
-  }
   try{render();}catch(e){
     console.error('render 오류:',e);
     const errDiv=document.createElement('div');
@@ -824,12 +824,6 @@ function rLogin(){return`
         style="width:100%;padding:12px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;color:#0D1117;font-family:inherit;transition:border-color 0.15s"
         onfocus="this.style.borderColor='#1A237E';this.style.boxShadow='0 0 0 3px rgba(26,35,126,0.08)'"
         onblur="this.style.borderColor='#E8ECF0';this.style.boxShadow='none'">
-    </div>
-
-    <!-- 기억하기 -->
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-      <input type="checkbox" id="remember-me" style="width:15px;height:15px;accent-color:#1A237E;cursor:pointer">
-      <label for="remember-me" style="font-size:13px;color:#5C6470;cursor:pointer">로그인 정보 기억하기</label>
     </div>
 
     <!-- 오류 -->
@@ -972,25 +966,50 @@ function showFindIdPwModal(){
   };
 }
 
-// 학생 id+pw로 로그인을 시도해 ST를 갱신 (로컬 DB 기준, 서버 전환 전 단계).
-// 앱 시작 시 자동 로그인과 로그인 버튼 클릭 양쪽에서 재사용한다.
-function attemptLogin(id,pw,role){
-  if(role!=='student')return false;
-  let found=null,foundSch=null;
-  for(const sc of DB.schools){const st=sc.students.find(s=>s.id.toLowerCase()===id&&s.pwd===pw);if(st){found=st;foundSch=sc;break;}}
-  if(found){
-    ST.loggedIn=true;ST.role='student';ST.user=found;ST.userSchool=foundSch;
-    const recs=sRecs(found.id,foundSch);if(recs.length){const l=recs[recs.length-1];ST.vMon=l.month;ST.vWk=l.week;}
-    return true;
-  }
-  return false;
+// /api/student/me 응답을 ST.user/ST.userSchool로 반영 (본인 기록+집계만 포함된 축소된 학교 객체)
+function applyServerStudentData(data){
+  ST.user=data.student;
+  ST.userSchool={
+    id:data.school.id,name:data.school.name,grade:data.school.grade,
+    hw1:data.school.hw1,hw2:data.school.hw2,hw2Skip:data.school.hw2Skip,hwNames:data.school.hwNames,
+    notices:data.school.notices,kakaoChannel:data.school.kakaoChannel,
+    records:data.records,suggestions:data.suggestions,_aggregates:data.aggregates,
+  };
+  const recs=sRecs(ST.user.id,ST.userSchool);
+  if(recs.length){const l=recs[recs.length-1];ST.vMon=l.month;ST.vWk=l.week;}
 }
-// 로그아웃: 관리자는 서버 세션도 함께 무효화 (fire-and-forget — 실패해도 클라이언트 로그아웃은 진행)
+async function loadServerStudentData(){
+  try{
+    const res=await fetch('/api/student/me',{credentials:'include'});
+    if(!res.ok)return false;
+    const data=await res.json();
+    if(!data.success)return false;
+    applyServerStudentData(data);
+    return true;
+  }catch(e){return false;}
+}
+// 학생 로그인도 관리자와 동일하게 서버 세션(HttpOnly 쿠키) 기반 — 평문 비밀번호를 클라이언트에 남기지 않는다.
+async function attemptStudentLogin(id,pw){
+  try{
+    const res=await fetch('/api/auth/login',{
+      method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({role:'student',id,pw})
+    });
+    if(!res.ok)return false;
+    const data=await res.json();
+    if(!data.success)return false;
+    const ok=await loadServerStudentData();
+    if(!ok)return false;
+    ST.loggedIn=true;ST.role='student';ST.serverStudentSession=true;
+    return true;
+  }catch(e){return false;}
+}
+// 로그아웃: 서버 세션도 함께 무효화 (fire-and-forget — 실패해도 클라이언트 로그아웃은 진행)
 function doLogout(){
-  if(ST.role==='admin'&&ST.serverAdminSession){
+  if((ST.role==='admin'&&ST.serverAdminSession)||(ST.role==='student'&&ST.serverStudentSession)){
     fetch('/api/auth/logout',{method:'POST',credentials:'include'}).catch(()=>{});
   }
-  ST.loggedIn=false;ST.serverAdminSession=false;
+  ST.loggedIn=false;ST.serverAdminSession=false;ST.serverStudentSession=false;
   render();
 }
 // 관리자 학교 목록/개별 학교 데이터를 서버에서 불러오는 헬퍼 (서버 세션 확립 후 사용)
@@ -1030,18 +1049,7 @@ async function attemptAdminLogin(id,pw){
   }catch(e){return false;}
 }
 function bLogin(){
-  // 기억된 로그인 정보 복원 (자동 로그인은 init()에서 이미 시도했고 실패한 경우에만 여기로 옴)
-  try{
-    const saved=JSON.parse(localStorage.getItem('oheng_remember')||'null');
-    if(saved){
-      const idEl=document.getElementById('li-id');
-      const pwEl=document.getElementById('li-pw');
-      const remEl=document.getElementById('remember-me');
-      if(idEl)idEl.value=saved.id||'';
-      if(pwEl)pwEl.value=saved.pw||'';
-      if(remEl)remEl.checked=true;
-    }
-  }catch(e){}
+  // 로그인 유지는 이제 서버 쿠키가 전담 — 평문 아이디/비번을 브라우저에 남기지 않음
   document.getElementById('ls-s').onclick=()=>{ST.lmode='student';render()};
   document.getElementById('ls-a').onclick=()=>{ST.lmode='admin';render()};
   document.getElementById('btn-find-idpw')?.addEventListener('click',showFindIdPwModal);
@@ -1050,25 +1058,13 @@ function bLogin(){
     const pw=document.getElementById('li-pw').value.trim();
     const role=ST.lmode;
     const btn=document.getElementById('btn-li');
-    if(role==='admin'){
-      btn.disabled=true;
-      const ok=await attemptAdminLogin(id,pw);
-      btn.disabled=false;
-      if(ok){
-        localStorage.removeItem('oheng_remember'); // 관리자는 더 이상 평문 저장 안 함 — 서버 쿠키가 로그인 유지를 담당
-        render();
-      } else {
-        document.getElementById('li-err').textContent='ID 또는 비밀번호 오류';
-      }
-      return;
-    }
-    if(attemptLogin(id,pw,role)){
-      const rem=document.getElementById('remember-me');
-      if(rem?.checked)localStorage.setItem('oheng_remember',JSON.stringify({id,pw,role}));
-      else localStorage.removeItem('oheng_remember');
+    btn.disabled=true;
+    const ok=role==='admin'?await attemptAdminLogin(id,pw):await attemptStudentLogin(id,pw);
+    btn.disabled=false;
+    if(ok){
       render();
     } else {
-      document.getElementById('li-err').textContent='ID 또는 비밀번호를 확인해주세요';
+      document.getElementById('li-err').textContent=role==='admin'?'ID 또는 비밀번호 오류':'ID 또는 비밀번호를 확인해주세요';
     }
   };
 }
@@ -1566,8 +1562,16 @@ function bStudent(){
   // 답변 읽음 처리
   document.querySelectorAll('[data-sug-reply-read]').forEach(card=>{
     card.onclick=()=>{
+      const id=card.dataset.sugReplyRead;
+      if(ST.serverStudentSession){
+        const sug=(ST.userSchool.suggestions||[]).find(s=>s.id===id);
+        if(!sug||sug.replyRead)return;
+        sug.replyRead=true;render();
+        fetch('/api/student/suggestion-read',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})}).catch(()=>{});
+        return;
+      }
       const sc=DB.schools.find(s=>s.id===ST.userSchool.id);
-      const sug=(sc?.suggestions||[]).find(s=>s.id===card.dataset.sugReplyRead);
+      const sug=(sc?.suggestions||[]).find(s=>s.id===id);
       if(sug&&!sug.replyRead){sug.replyRead=true;ST.userSchool=sc;saveDB();render();}
     };
   });
@@ -1629,38 +1633,59 @@ function bStudent(){
     });
   }
   const sugBtn=document.getElementById('btn-sug-send');
-  if(sugBtn)sugBtn.onclick=()=>{
+  if(sugBtn)sugBtn.onclick=async()=>{
     const txt=document.getElementById('sug-txt').value.trim();
     const cat=document.getElementById('sug-cat').value;
     const msg=document.getElementById('sug-msg');
     if(!txt){msg.textContent='내용을 입력해 주세요.';msg.style.color='#E53935';return;}
-    const sc=DB.schools.find(s=>s.id===ST.userSchool.id);
-    if(!sc.suggestions)sc.suggestions=[];
-    const now=new Date();
-    const date=`${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')}`;
-    sc.suggestions.push({id:'sug'+Date.now(),sid:ST.user.id,cat,txt,date,read:false});
-    ST.userSchool=sc;
-    saveDB();
+    sugBtn.disabled=true;
+    const schoolIdForPush=ST.userSchool.id;
+    if(ST.serverStudentSession){
+      try{
+        const res=await fetch('/api/student/suggestions',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({cat,txt})});
+        const data=await res.json();
+        if(!res.ok||!data.success){msg.textContent=data.message||'전송 실패';msg.style.color='#E53935';sugBtn.disabled=false;return;}
+        ST.userSchool.suggestions=[...(ST.userSchool.suggestions||[]),data.suggestion];
+      }catch(e){msg.textContent='오류: '+e.message;msg.style.color='#E53935';sugBtn.disabled=false;return;}
+    } else {
+      const sc=DB.schools.find(s=>s.id===ST.userSchool.id);
+      if(!sc.suggestions)sc.suggestions=[];
+      const now=new Date();
+      const date=`${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')}`;
+      sc.suggestions.push({id:'sug'+Date.now(),sid:ST.user.id,cat,txt,date,read:false});
+      ST.userSchool=sc;
+      saveDB();
+    }
+    sugBtn.disabled=false;
     msg.textContent='✓ 제안이 전달되었습니다. 감사합니다!';msg.style.color='#00897B';
     document.getElementById('sug-txt').value='';
     // 선생님에게 푸시 알림
     fetch('/api/push',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({studentId:'admin',schoolId:sc.id,
+      body:JSON.stringify({studentId:'admin',schoolId:schoolIdForPush,
         title:'OHENG — 새 제안이 도착했습니다',
         body:`[${cat}] ${ST.user.name}: ${txt.slice(0,40)}${txt.length>40?'…':''}`,
         url:'/'})}).catch(()=>{});
     setTimeout(()=>render(),1200);
   };
   const pwBtn=document.getElementById('btn-pw-save');
-  if(pwBtn)pwBtn.onclick=()=>{
+  if(pwBtn)pwBtn.onclick=async()=>{
     const cur=document.getElementById('pw-cur').value,nw=document.getElementById('pw-new').value,con=document.getElementById('pw-con').value;
     const msg=document.getElementById('pw-msg');
-    if(cur!==ST.user.pwd){msg.textContent='현재 비밀번호가 틀렸습니다.';msg.style.color='#c62828';return;}
     if(!nw||nw.length<4){msg.textContent='4자 이상 입력하세요.';msg.style.color='#c62828';return;}
     if(nw!==con){msg.textContent='새 비밀번호가 일치하지 않습니다.';msg.style.color='#c62828';return;}
-    const sc=DB.schools.find(s=>s.id===ST.userSchool.id);const idx=sc.students.findIndex(s=>s.id===ST.user.id);
-    if(idx>=0){sc.students[idx].pwd=nw;ST.user=sc.students[idx];}
-    saveDB();msg.textContent='변경 완료!';msg.style.color='#1b5e20';
+    if(ST.serverStudentSession){
+      try{
+        const res=await fetch('/api/student/password',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({currentPw:cur,newPw:nw})});
+        const data=await res.json();
+        if(!res.ok||!data.success){msg.textContent=data.message||'변경 실패';msg.style.color='#c62828';return;}
+      }catch(e){msg.textContent='오류: '+e.message;msg.style.color='#c62828';return;}
+    } else {
+      if(cur!==ST.user.pwd){msg.textContent='현재 비밀번호가 틀렸습니다.';msg.style.color='#c62828';return;}
+      const sc=DB.schools.find(s=>s.id===ST.userSchool.id);const idx=sc.students.findIndex(s=>s.id===ST.user.id);
+      if(idx>=0){sc.students[idx].pwd=nw;ST.user=sc.students[idx];}
+      saveDB();
+    }
+    msg.textContent='변경 완료!';msg.style.color='#1b5e20';
     ['pw-cur','pw-new','pw-con'].forEach(id=>document.getElementById(id).value='');
   };
   const recs=sRecs(ST.user.id,ST.userSchool);const d=bD(recs);

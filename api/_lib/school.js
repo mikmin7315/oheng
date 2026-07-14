@@ -1,5 +1,5 @@
 import { getRedis } from './redis.js';
-import { hashPassword } from './auth.js';
+import { hashPassword, verifyPassword } from './auth.js';
 
 const SCHOOL_PREFIX = 'school:';
 const INDEX_KEY = 'school:index';
@@ -148,6 +148,21 @@ export async function putSchoolRaw(school) {
   await redis.set(SCHOOL_PREFIX + school.id, normalized);
   await addToSchoolIndex(school.id);
   return normalized;
+}
+
+// 학생 id+pw로 전체 학교를 훑어 일치하는 학생을 찾는다 (로그인용). 아이디는 전역 유니크 가정.
+export async function findStudentByCredentials(id, pw) {
+  const normId = String(id).trim().toLowerCase();
+  const index = await getSchoolIndex();
+  for (const schoolId of index) {
+    const sc = await getSchool(schoolId);
+    if (!sc) continue;
+    const student = (sc.students || []).find(s => String(s.id).toLowerCase() === normId);
+    if (student && verifyPassword(pw, student.pwdHash)) {
+      return { schoolId, studentId: student.id };
+    }
+  }
+  return null;
 }
 
 // 관리자용 응답에서도 pwdHash는 절대 내려보내지 않음 (관리자 화면은 "재설정"만 가능, "보기" 불가)

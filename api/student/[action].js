@@ -1,0 +1,92 @@
+import { requireStudentSession, isSameOrigin, verifyPassword, hashPassword } from '../_lib/auth.js';
+import { getSchool } from '../_lib/school.js';
+import { getRedis } from '../_lib/redis.js';
+
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Vercel 함수 개수 제한(Hobby 12개)에 맞추기 위해 me/password/suggestions/suggestion-read를 한 파일로 통합.
+// /api/student/me 등 경로는 그대로 유지됨(동적 라우트).
+export default async function handler(req, res) {
+  const { action } = req.query;
+  const session = await requireStudentSession(req);
+  if (!session) return res.status(401).json({ success: false, message: 'Unauthorized' });
+
+  if (action === 'me') {
+    if (req.method !== 'GET') return res.status(405).end();
+    const sc = await getSchool(session.schoolId);
+    if (!sc) return res.status(404).json({ success: false, message: '학교를 찾을 수 없습니다' });
+    const student = (sc.students || []).find(s => s.id === session.studentId);
+    if (!student) return res.status(404).json({ success: false, message: '학생 정보를 찾을 수 없습니다' });
+
+    return res.status(200).json({
+      success: true,
+      student: { id: student.id, name: student.name, phone: student.phone || '', parentPhone: student.parentPhone || '', type: student.type || 'regular' },
+      school: {
+        id: sc.id, name: sc.name, grade: sc.grade,
+        hw1: sc.hw1, hw2: sc.hw2, hw2Skip: sc.hw2Skip, hwNames: sc.hwNames || {},
+        notices: sc.notices || {}, kakaoChannel: sc.kakaoChannel || '',
+      },
+      records: (sc.records || []).filter(r => r.sid === session.studentId),
+      aggregates: sc._aggregates || {},
+      suggestions: (sc.suggestions || []).filter(s => s.sid === session.studentId),
+    });
+  }
+
+  if (action === 'password') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    const { currentPw, newPw } = req.body || {};
+    if (!currentPw || !newPw) return res.status(400).json({ success: false, message: '현재/새 비밀번호를 입력하세요' });
+    if (String(newPw).length < 4) return res.status(400).json({ success: false, message: '4자 이상 입력하세요' });
+
+    const sc = await getSchool(session.schoolId);
+    if (!sc) return res.status(404).json({ success: false, message: '학교를 찾을 수 없습니다' });
+    const idx = (sc.students || []).findIndex(s => s.id === session.studentId);
+    if (idx < 0) return res.status(404).json({ success: false, message: '학생 정보를 찾을 수 없습니다' });
+    if (!verifyPassword(currentPw, sc.students[idx].pwdHash)) {
+      return res.status(400).json({ success: false, message: '현재 비밀번호가 틀렸습니다' });
+    }
+    sc.students[idx].pwdHash = hashPassword(newPw);
+    sc.version = (sc.version || 0) + 1;
+    await getRedis().set('school:' + session.schoolId, sc);
+    return res.status(200).json({ success: true });
+  }
+
+  if (action === 'suggestions') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    const { cat, txt } = req.body || {};
+    const text = String(txt || '').trim();
+    if (!text) return res.status(400).json({ success: false, message: '내용을 입력하세요' });
+
+    const sc = await getSchool(session.schoolId);
+    if (!sc) return res.status(404).json({ success: false, message: '학교를 찾을 수 없습니다' });
+    const suggestion = { id: 'sug' + Date.now(), sid: session.studentId, cat: cat || '기타', txt: text, date: todayStr(), read: false };
+    sc.suggestions = Array.isArray(sc.suggestions) ? sc.suggestions : [];
+    sc.suggestions.push(suggestion);
+    sc.version = (sc.version || 0) + 1;
+    await getRedis().set('school:' + session.schoolId, sc);
+    return res.status(200).json({ success: true, suggestion });
+  }
+
+  if (action === 'suggestion-read') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    const { id } = req.body || {};
+    if (!id) return res.status(400).json({ success: false, message: 'Missing id' });
+
+    const sc = await getSchool(session.schoolId);
+    if (!sc) return res.status(404).json({ success: false, message: '학교를 찾을 수 없습니다' });
+    const sug = (sc.suggestions || []).find(s => s.id === id && s.sid === session.studentId);
+    if (!sug) return res.status(404).json({ success: false, message: '제안을 찾을 수 없습니다' });
+    sug.replyRead = true;
+    sc.version = (sc.version || 0) + 1;
+    await getRedis().set('school:' + session.schoolId, sc);
+    return res.status(200).json({ success: true });
+  }
+
+  return res.status(404).json({ success: false, message: 'Not found' });
+}

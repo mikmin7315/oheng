@@ -1,0 +1,152 @@
+import { requireAdminSessionOrApiToken, isSameOrigin, verifyPassword, hashPassword } from '../_lib/auth.js';
+import { getRedis } from '../_lib/redis.js';
+import {
+  getSchoolIndex, getSchool, createSchool, putSchoolRaw,
+} from '../_lib/school.js';
+
+const MAX_BODY_CHARS = 5_000_000; // 5MB — 마이그레이션 업로드용 상한
+
+function maxStudentIdSuffix(schools) {
+  let max = 0;
+  schools.forEach(sc => {
+    (sc.students || []).forEach(s => {
+      const m = /^s(\d+)$/.exec(s.id || '');
+      if (m) max = Math.max(max, parseInt(m[1], 10));
+    });
+  });
+  return max;
+}
+
+function validateMigrateShape(body) {
+  if (!body || typeof body !== 'object') return '요청 본문이 올바르지 않습니다';
+  if (!Array.isArray(body.schools)) return 'schools 배열이 없습니다';
+  for (const sc of body.schools) {
+    if (!sc.id || !sc.name || !Array.isArray(sc.students) || !Array.isArray(sc.records)) {
+      return `학교 데이터 형식 오류: ${sc?.id || '(id 없음)'}`;
+    }
+  }
+  return null;
+}
+
+// Vercel 함수 개수 제한(Hobby 12개)에 맞추기 위해 schools/next-student-id/credentials/migrate/school-summary를
+// 한 파일로 통합. /api/admin/schools 등 경로는 그대로 유지됨(동적 라우트).
+export default async function handler(req, res) {
+  const { action } = req.query;
+  const session = await requireAdminSessionOrApiToken(req);
+  if (!session) return res.status(401).json({ success: false, message: 'Unauthorized' });
+
+  if (action === 'schools') {
+    if (req.method === 'GET') {
+      const index = await getSchoolIndex();
+      const schools = await Promise.all(index.map(async id => {
+        const sc = await getSchool(id);
+        if (!sc) return null;
+        return { id: sc.id, name: sc.name, grade: sc.grade, studentCount: (sc.students || []).length, recordCount: (sc.records || []).length };
+      }));
+      return res.status(200).json({ success: true, schools: schools.filter(Boolean) });
+    }
+    if (req.method === 'POST') {
+      if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+      const { name, grade } = req.body || {};
+      if (!name) return res.status(400).json({ success: false, message: '학교 이름을 입력하세요' });
+      const school = await createSchool(name, grade);
+      return res.status(200).json({ success: true, school: { id: school.id, name: school.name, grade: school.grade, studentCount: 0, recordCount: 0 } });
+    }
+    return res.status(405).end();
+  }
+
+  if (action === 'next-student-id') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    const count = Math.min(Math.max(parseInt(req.body?.count, 10) || 1, 1), 500);
+    const redis = getRedis();
+    const ids = [];
+    for (let i = 0; i < count; i++) {
+      const n = await redis.incr('cnt:studentId');
+      ids.push('s' + String(n).padStart(3, '0'));
+    }
+    return res.status(200).json({ success: true, ids, id: ids[0] });
+  }
+
+  if (action === 'credentials') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    const { currentPw, newId, newPw } = req.body || {};
+    if (!currentPw) return res.status(400).json({ success: false, message: '현재 비밀번호를 입력하세요' });
+
+    const redis = getRedis();
+    const admin = await redis.get('admin:auth');
+    if (!admin || !verifyPassword(currentPw, admin.pwdHash)) {
+      return res.status(400).json({ success: false, message: '현재 비밀번호가 틀렸습니다' });
+    }
+    const next = { ...admin };
+    if (newId) {
+      const id = String(newId).trim().toLowerCase();
+      if (id.length < 4 || /\s/.test(id)) return res.status(400).json({ success: false, message: '아이디는 공백 없이 4자 이상이어야 합니다' });
+      next.id = id;
+    }
+    if (newPw) {
+      if (String(newPw).length < 4) return res.status(400).json({ success: false, message: '비밀번호는 4자 이상이어야 합니다' });
+      next.pwdHash = hashPassword(newPw);
+    }
+    await redis.set('admin:auth', next);
+    return res.status(200).json({ success: true, id: next.id });
+  }
+
+  if (action === 'school-summary') {
+    if (req.method !== 'GET') return res.status(405).end();
+    const index = await getSchoolIndex();
+    const summaries = await Promise.all(index.map(async id => {
+      const sc = await getSchool(id);
+      if (!sc) return { id, missing: true };
+      return {
+        id: sc.id, name: sc.name, grade: sc.grade,
+        studentCount: (sc.students || []).length, recordCount: (sc.records || []).length,
+        version: sc.version,
+        hasHashedPasswords: (sc.students || []).every(s => typeof s.pwdHash === 'string' && s.pwdHash.startsWith('scrypt:')),
+      };
+    }));
+    return res.status(200).json({ success: true, schoolIndex: index, schools: summaries });
+  }
+
+  if (action === 'migrate') {
+    if (req.method !== 'POST') return res.status(405).end();
+
+    const raw = JSON.stringify(req.body || {});
+    if (raw.length > MAX_BODY_CHARS) return res.status(413).json({ success: false, message: '업로드 데이터가 너무 큽니다' });
+
+    const shapeError = validateMigrateShape(req.body);
+    if (shapeError) return res.status(400).json({ success: false, message: shapeError });
+
+    const { schools, adminId, adminPwd } = req.body;
+    const dryRun = req.query?.dryRun === '1' || req.query?.dryRun === 'true';
+    const studentCount = schools.reduce((sum, sc) => sum + (sc.students?.length || 0), 0);
+
+    if (dryRun) {
+      return res.status(200).json({ success: true, dryRun: true, schoolsFound: schools.length, studentsFound: studentCount, willSetAdminId: adminId || 'admin' });
+    }
+
+    const redis = getRedis();
+    try {
+      const existingIndex = await getSchoolIndex();
+      if (existingIndex.length) {
+        const existingSchools = await Promise.all(existingIndex.map(id => getSchool(id)));
+        const existingAdmin = await redis.get('admin:auth');
+        await redis.set(`backup:migrate:${Date.now()}`, { schools: existingSchools.filter(Boolean), admin: existingAdmin || null }, { ex: 60 * 60 * 24 * 90 });
+      }
+    } catch (e) {
+      return res.status(500).json({ success: false, message: '기존 데이터 백업 중 오류: ' + e.message });
+    }
+
+    await redis.set('admin:auth', { id: (adminId || 'admin').toLowerCase(), pwdHash: hashPassword(adminPwd || 'oheng2024') });
+    for (const sc of schools) {
+      await putSchoolRaw(sc);
+    }
+    await redis.set('school:index', schools.map(sc => sc.id));
+    await redis.set('cnt:studentId', maxStudentIdSuffix(schools));
+
+    return res.status(200).json({ success: true, dryRun: false, schoolsImported: schools.length, studentsHashed: studentCount });
+  }
+
+  return res.status(404).json({ success: false, message: 'Not found' });
+}

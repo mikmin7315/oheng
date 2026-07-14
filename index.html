@@ -13,7 +13,6 @@
 <link rel="apple-touch-icon" href="/icons/icon.svg">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.4/kakao.min.js" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
 
@@ -3513,12 +3512,25 @@ function printStudentList(){
   w.document.close();
 }
 
+function loadHtml2Canvas(){
+  if(typeof html2canvas!=='undefined')return Promise.resolve(true);
+  return new Promise(resolve=>{
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    s.onload=()=>resolve(true);
+    s.onerror=()=>resolve(false);
+    document.head.appendChild(s);
+  });
+}
 async function saveReportImage(btn){
   const el=document.getElementById('report-capture');
-  if(!el||typeof html2canvas==='undefined')return;
+  if(!el)return;
   const origText=btn?btn.textContent:'';
-  if(btn){btn.disabled=true;btn.textContent='이미지 생성 중...';}
+  if(btn){btn.disabled=true;btn.textContent='이미지 준비 중...';}
   try{
+    const ready=await loadHtml2Canvas();
+    if(!ready||typeof html2canvas==='undefined')throw new Error('이미지 기능을 불러오지 못했습니다. 네트워크 상태를 확인해주세요.');
+    if(btn)btn.textContent='이미지 생성 중...';
     const canvas=await html2canvas(el,{backgroundColor:'#F7F8FA',scale:2,useCORS:true,
       ignoreElements:node=>node.classList&&node.classList.contains('no-print')});
     const link=document.createElement('a');

@@ -537,6 +537,7 @@ const MONTHS=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10
 const WEEKS=['1주','2주','3주','4주','5주','6주'];
 const HW=['완료','미완료','동영상','미제출','미제출(동영상)','신규'];
 let ADMIN_PWD='oheng2024';
+let ADMIN_ID='admin';
 
 /* ── 솔라피 알림톡 템플릿 설정 ── */
 const PPURIO_TPL_ACCOUNT='KA01TP260409125633090lno3yq4uYk5';  // ID/비번 안내 템플릿
@@ -559,15 +560,15 @@ function loadDB(){
       const haveIds=new Set(p.schools.map(s=>s.id));
       const missing=INIT_SCHOOLS.filter(s=>!haveIds.has(s.id)).map(s=>({...s,students:[...s.students],records:[...s.records],notices:{...s.notices}}));
       p.schools=[...p.schools,...missing];
-      DB=p;if(p.adminPwd)ADMIN_PWD=p.adminPwd;
+      DB=p;if(p.adminPwd)ADMIN_PWD=p.adminPwd;if(p.adminId)ADMIN_ID=p.adminId;
     }}
   }catch(e){console.warn('loadDB 오류(무시):', e);}
 }
 function saveDB(){
-  try{localStorage.setItem(SKEY,JSON.stringify({...DB,adminPwd:ADMIN_PWD}));}
+  try{localStorage.setItem(SKEY,JSON.stringify({...DB,adminPwd:ADMIN_PWD,adminId:ADMIN_ID}));}
   catch(e){console.warn('saveDB 오류(무시):', e);}
 }
-function resetDB(){localStorage.removeItem(SKEY);DB={schools:INIT_SCHOOLS.map(s=>({...s,students:[...s.students],records:[...s.records],notices:{...s.notices}}))};ADMIN_PWD='oheng2024';}
+function resetDB(){localStorage.removeItem(SKEY);DB={schools:INIT_SCHOOLS.map(s=>({...s,students:[...s.students],records:[...s.records],notices:{...s.notices}}))};ADMIN_PWD='oheng2024';ADMIN_ID='admin';}
 
 function calcTotalAvg(sc,month,week){
   if(!sc)return null;
@@ -775,7 +776,7 @@ function rLogin(){return`
     <!-- ID -->
     <div style="margin-bottom:12px">
       <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">${ST.lmode==='admin'?'관리자':'학생'} ID</label>
-      <input id="li-id" placeholder="${ST.lmode==='admin'?'admin':'학생 ID 입력'}"
+      <input id="li-id" placeholder="${ST.lmode==='admin'?'관리자 아이디 입력':'학생 ID 입력'}"
         style="width:100%;padding:12px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;color:#0D1117;font-family:inherit;transition:border-color 0.15s"
         onfocus="this.style.borderColor='#1A237E';this.style.boxShadow='0 0 0 3px rgba(26,35,126,0.08)'"
         onblur="this.style.borderColor='#E8ECF0';this.style.boxShadow='none'">
@@ -940,7 +941,7 @@ function showFindIdPwModal(){
 // 앱 시작 시 자동 로그인과 로그인 버튼 클릭 양쪽에서 재사용한다.
 function attemptLogin(id,pw,role){
   if(role==='admin'){
-    if(id==='admin'&&pw===ADMIN_PWD){
+    if(id===ADMIN_ID&&pw===ADMIN_PWD){
       ST.loggedIn=true;ST.role='admin';ST.school=null;
       return true;
     }
@@ -2007,12 +2008,21 @@ function rAdminSettings(sc){
     <div id="admin-push-msg" style="font-size:12px;margin-top:8px;min-height:18px"></div>
   </div>
   <div class="section-card">
+    <div class="section-ttl">관리자 아이디 변경</div>
+    <div style="font-size:12px;color:#9BA3AF;margin-bottom:12px">현재 아이디: <strong style="color:#1A237E;font-family:monospace">${ADMIN_ID}</strong></div>
+    <div style="margin-bottom:12px"><label class="flbl">현재 비밀번호</label><input class="finp" type="password" id="aid-cur"></div>
+    <div style="margin-bottom:14px"><label class="flbl">새 아이디</label><input class="finp" type="text" id="aid-new" placeholder="영문/숫자 4자 이상"></div>
+    <button class="abtn abtn-blue" id="btn-aid-save">변경</button>
+    <div id="aid-msg" style="font-size:12px;margin-top:8px"></div>
+  </div>
+  <div class="section-card">
     <div class="section-ttl">관리자 비밀번호 변경</div>
     <div style="margin-bottom:12px"><label class="flbl">현재 비밀번호</label><input class="finp" type="password" id="apw-cur"></div>
     <div style="margin-bottom:12px"><label class="flbl">새 비밀번호</label><input class="finp" type="password" id="apw-new" placeholder="4자 이상"></div>
     <div style="margin-bottom:14px"><label class="flbl">새 비밀번호 확인</label><input class="finp" type="password" id="apw-con"></div>
     <button class="abtn abtn-blue" id="btn-apw-save">변경</button>
     <div id="apw-msg" style="font-size:12px;margin-top:8px"></div>
+    <div style="font-size:11px;color:#B0B3BF;margin-top:10px;line-height:1.6">⚠️ 아이디나 비밀번호를 바꾸면 Vercel 환경변수 ADMIN_PWD도 같이 바꿔야 알림톡 발송이 계속 동작합니다.</div>
   </div>
   <div class="section-card">
     <div class="section-ttl">데이터 백업 / 복원</div>
@@ -2241,6 +2251,17 @@ function bAdmin(){
         };
       }
     }
+    document.getElementById('btn-aid-save')?.addEventListener('click',()=>{
+      const cur=document.getElementById('aid-cur')?.value;const nwRaw=document.getElementById('aid-new')?.value||'';
+      const nw=nwRaw.trim().toLowerCase();
+      const msg=document.getElementById('aid-msg');
+      if(cur!==ADMIN_PWD){msg.textContent='현재 비밀번호가 틀렸습니다';msg.style.color='#E53935';return;}
+      if(!nw||nw.length<4){msg.textContent='4자 이상 입력하세요';msg.style.color='#E53935';return;}
+      if(/\s/.test(nw)){msg.textContent='공백 없이 입력하세요';msg.style.color='#E53935';return;}
+      ADMIN_ID=nw;saveDB();
+      msg.textContent='✓ 변경 완료';msg.style.color='#00897B';
+      setTimeout(()=>render(),600);
+    });
     document.getElementById('btn-apw-save')?.addEventListener('click',()=>{
       const cur=document.getElementById('apw-cur')?.value;const nw=document.getElementById('apw-new')?.value;const con=document.getElementById('apw-con')?.value;
       const msg=document.getElementById('apw-msg');
@@ -2274,7 +2295,7 @@ function bAdmin(){
     });
     // 백업 내보내기
     document.getElementById('btn-backup-export')?.addEventListener('click',()=>{
-      const payload = JSON.stringify({...DB, adminPwd:ADMIN_PWD, exportedAt: nowStr()}, null, 2);
+      const payload = JSON.stringify({...DB, adminPwd:ADMIN_PWD, adminId:ADMIN_ID, exportedAt: nowStr()}, null, 2);
       const blob = new Blob([payload], {type:'application/json'});
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
@@ -2294,6 +2315,7 @@ function bAdmin(){
           if(!confirm(`백업 파일(${f.name})을 복원합니다.\n현재 모든 데이터가 덮어씌워집니다.\n계속하시겠습니까?`)) return;
           DB = {schools: parsed.schools};
           if(parsed.adminPwd) ADMIN_PWD = parsed.adminPwd;
+          if(parsed.adminId) ADMIN_ID = parsed.adminId;
           saveDB();
           msg.textContent = '✓ 복원 완료. 새로고침합니다...'; msg.style.color = '#00897B';
           setTimeout(()=>render(), 1200);

@@ -538,6 +538,8 @@ const WEEKS=['1주','2주','3주','4주','5주','6주'];
 const HW=['완료','미완료','동영상','미제출','미제출(동영상)','신규'];
 let ADMIN_PWD='oheng2024';
 let ADMIN_ID='admin';
+// 알림톡 발송 API 전용 고정 토큰 — 로그인 아이디/비밀번호와 무관, Vercel의 API_AUTH_TOKEN 환경변수와 값이 같아야 함
+const API_AUTH_TOKEN='quW6Q0uKkyb_uvS1IZz5MuHX0y7a4QMr';
 
 /* ── 솔라피 알림톡 템플릿 설정 ── */
 const PPURIO_TPL_ACCOUNT='KA01TP260409125633090lno3yq4uYk5';  // ID/비번 안내 템플릿
@@ -2022,7 +2024,7 @@ function rAdminSettings(sc){
     <div style="margin-bottom:14px"><label class="flbl">새 비밀번호 확인</label><input class="finp" type="password" id="apw-con"></div>
     <button class="abtn abtn-blue" id="btn-apw-save">변경</button>
     <div id="apw-msg" style="font-size:12px;margin-top:8px"></div>
-    <div style="font-size:11px;color:#B0B3BF;margin-top:10px;line-height:1.6">⚠️ 아이디나 비밀번호를 바꾸면 Vercel 환경변수 ADMIN_PWD도 같이 바꿔야 알림톡 발송이 계속 동작합니다.</div>
+    <div style="font-size:11px;color:#B0B3BF;margin-top:10px;line-height:1.6">아이디·비밀번호는 알림톡 발송과는 별개로 동작해서, 자유롭게 바꾸셔도 알림톡 발송에는 영향이 없습니다.</div>
   </div>
   <div class="section-card">
     <div class="section-ttl">데이터 백업 / 복원</div>
@@ -2240,7 +2242,7 @@ function bAdmin(){
               if(perm!=='granted')throw new Error('denied');
               sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlB64ToUint8(VAPID_PUBLIC_KEY)});
             }
-            await fetch('/api/subscribe',{method:'POST',headers:{'Content-Type':'application/json','x-admin-pwd':ADMIN_PWD},
+            await fetch('/api/subscribe',{method:'POST',headers:{'Content-Type':'application/json','x-api-token':API_AUTH_TOKEN},
               body:JSON.stringify({studentId:'admin',schoolId:sc.id,subscription:sub.toJSON()})});
             adminPushBtn.textContent='✓ 알림 허용됨';adminPushBtn.style.background='#00897B';
             if(adminPushMsg){adminPushMsg.textContent='완료! 학생 제안 시 알림이 옵니다.';adminPushMsg.style.color='#00897B';}
@@ -2877,7 +2879,7 @@ async function retrySendFails(sc){
     const sentAt = nowStr();
     try{
       const res = await fetch('/api/send', {
-        method:'POST', headers:{'Content-Type':'application/json','x-admin-pwd':ADMIN_PWD},
+        method:'POST', headers:{'Content-Type':'application/json','x-api-token':API_AUTH_TOKEN},
         body: JSON.stringify({templateCode: tpl, to: phone, variables: vars, pfId})
       });
       if(res.ok){
@@ -3021,7 +3023,7 @@ function showPpurioPopup(title, name, phone, tplCode, vars, previewMsg){
     try{
       const res = await fetch('/api/send', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json','x-admin-pwd':ADMIN_PWD},
+        headers: {'Content-Type': 'application/json','x-api-token':API_AUTH_TOKEN},
         body: JSON.stringify({templateCode: tplCode, to: phone, variables: vars, pfId: _pfId})
       });
       if(res.ok){
@@ -3140,7 +3142,7 @@ function showPpurioAllPopup(sc, type, mon, wk){
         const ppBody = { templateCode: tpl, to: phone, variables: vars, pfId };
         const res = await fetch('/api/send', {
           method: 'POST',
-          headers: {'Content-Type':'application/json','x-admin-pwd':ADMIN_PWD},
+          headers: {'Content-Type':'application/json','x-api-token':API_AUTH_TOKEN},
           body: JSON.stringify(ppBody)
         });
         if(res.ok){
@@ -3219,7 +3221,7 @@ function showPpurioAllPopup(sc, type, mon, wk){
       const sentAt = nowStr();
       fetch('/api/send', {
         method: 'POST',
-        headers: {'Content-Type':'application/json','x-admin-pwd':ADMIN_PWD},
+        headers: {'Content-Type':'application/json','x-api-token':API_AUTH_TOKEN},
         body: JSON.stringify(ppBody)
       }).then(res=>{
         if(res.ok){

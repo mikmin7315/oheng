@@ -12,7 +12,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
-  if (!process.env.ADMIN_PWD || req.headers['x-admin-pwd'] !== process.env.ADMIN_PWD) {
+  if (!process.env.API_AUTH_TOKEN || req.headers['x-api-token'] !== process.env.API_AUTH_TOKEN) {
     return res.status(401).json({ success: false, message: 'Unauthorized' });
   }
   try {

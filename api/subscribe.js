@@ -9,7 +9,7 @@ export default async function handler(req, res) {
   if (!studentId || !schoolId || !subscription) {
     return res.status(400).json({ error: 'Missing fields' });
   }
-  if (studentId === 'admin' && (!process.env.ADMIN_PWD || req.headers['x-admin-pwd'] !== process.env.ADMIN_PWD)) {
+  if (studentId === 'admin' && (!process.env.API_AUTH_TOKEN || req.headers['x-api-token'] !== process.env.API_AUTH_TOKEN)) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 

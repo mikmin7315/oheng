@@ -1982,13 +1982,13 @@ function rBulk(sc){
     return`<tr data-sid="${s.id}" data-rtskip="${rtSkipped?'1':'0'}" data-wtskip="${wtSkipped?'1':'0'}">
       <td class="sn">${esc(s.name)}</td>
       <td><input class="ci inp-rt" type="number" min="0" max="100" value="${rtSkipped||ex.rtScore==null?'':ex.rtScore}"${rtSkipped?' disabled':''}></td>
-      <td><input class="ci-auto auto-rt-rank" readonly value="${rtSkipped?'생략':ex.rvRank??''}"></td>
+      <td><input class="ci-auto auto-rt-rank" readonly tabindex="-1" value="${rtSkipped?'생략':ex.rvRank??''}"></td>
       <td class="auto-rt-pass">${cpH(ex.rtPass,rtSkipped)}</td>
       <td><input class="ci inp-wt" type="number" min="0" max="100" value="${wtSkipped?'':ex.wtScore??''}"${wtSkipped?' disabled':''}></td>
-      <td><input class="ci-auto auto-wt-rank" readonly value="${wtSkipped?'생략':ex.wtRank??''}"></td>
+      <td><input class="ci-auto auto-wt-rank" readonly tabindex="-1" value="${wtSkipped?'생략':ex.wtRank??''}"></td>
       <td class="auto-wt-pass">${cpH(ex.wtPass,wtSkipped)}</td>
-      <td><input class="ci-auto auto-tot" readonly value="${ex.totalScore!=null?ex.totalScore:''}"></td>
-      <td><input class="ci-auto auto-tot-rank" readonly value="${ex.totalRank??''}"></td>
+      <td><input class="ci-auto auto-tot" readonly tabindex="-1" value="${ex.totalScore!=null?ex.totalScore:''}"></td>
+      <td><input class="ci-auto auto-tot-rank" readonly tabindex="-1" value="${ex.totalRank??''}"></td>
       <td><select class="cs inp-hw1">${HW.map(o=>`<option ${(ex.hw1||ex.homework)===o?'selected':''}>${o}</option>`).join('')}</select></td>
       <td><select class="cs inp-hw2" ${hw2Skip?'disabled style=\"opacity:0.35\"':''}>${HW.map(o=>`<option ${ex.hw2===o?'selected':''}>${o}</option>`).join('')}</select></td>
       <td><input class="ci inp-rt2" value="${ex.retestTime||''}" list="retest-list" style="min-width:70px" autocomplete="off"></td>
@@ -2025,9 +2025,9 @@ function rBulk(sc){
     <span id="hw-name-msg" style="font-size:11px;color:#00897B;font-weight:600"></span>
   </div>
   <div class="avg-row">
-    <div class="s-item"><label>REVIEW 반평균 <span style="font-size:9px;color:#689f38;font-weight:400">(자동)</span></label><input id="cmn-rva" class="ci-auto" style="background:#f1f8e9;color:#33691e;width:100%;padding:5px 7px;border:0.5px solid #c8e6c9;border-radius:5px;font-size:12px" readonly value="${dispRvAvg}"></div>
-    <div class="s-item"><label>WT 반평균 <span style="font-size:9px;color:#689f38;font-weight:400">(자동)</span></label><input id="cmn-wta" class="ci-auto" style="background:#f1f8e9;color:#33691e;width:100%;padding:5px 7px;border:0.5px solid #c8e6c9;border-radius:5px;font-size:12px" readonly value="${dispWtAvg}"></div>
-    <div class="s-item"><label>전체 반평균 <span style="font-size:9px;color:#689f38;font-weight:400">(자동)</span></label><input id="cmn-tta" class="ci-auto" style="background:#f1f8e9;color:#33691e;width:100%;padding:5px 7px;border:0.5px solid #c8e6c9;border-radius:5px;font-size:12px" readonly value="${dispTotAvg}"></div>
+    <div class="s-item"><label>REVIEW 반평균 <span style="font-size:9px;color:#689f38;font-weight:400">(자동)</span></label><input id="cmn-rva" class="ci-auto" style="background:#f1f8e9;color:#33691e;width:100%;padding:5px 7px;border:0.5px solid #c8e6c9;border-radius:5px;font-size:12px" readonly tabindex="-1" value="${dispRvAvg}"></div>
+    <div class="s-item"><label>WT 반평균 <span style="font-size:9px;color:#689f38;font-weight:400">(자동)</span></label><input id="cmn-wta" class="ci-auto" style="background:#f1f8e9;color:#33691e;width:100%;padding:5px 7px;border:0.5px solid #c8e6c9;border-radius:5px;font-size:12px" readonly tabindex="-1" value="${dispWtAvg}"></div>
+    <div class="s-item"><label>전체 반평균 <span style="font-size:9px;color:#689f38;font-weight:400">(자동)</span></label><input id="cmn-tta" class="ci-auto" style="background:#f1f8e9;color:#33691e;width:100%;padding:5px 7px;border:0.5px solid #c8e6c9;border-radius:5px;font-size:12px" readonly tabindex="-1" value="${dispTotAvg}"></div>
   </div>
   <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;font-size:11px;align-items:center">
     <span style="color:var(--tx2);font-weight:500">범례:</span>

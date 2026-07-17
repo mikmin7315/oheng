@@ -2252,7 +2252,7 @@ function rWithdrawn(sc){
       <td>${esc(s.phone)||'-'}</td>
       <td>${esc(s.parentPhone)||'-'}</td>
       <td style="font-size:11px;color:#9BA3AF;white-space:nowrap">${esc(s.withdrawnAt)||'-'}</td>
-      <td style="font-size:12px;color:#5C6470;max-width:260px">${esc(s.reason)||'-'}</td>
+      <td style="font-size:12px;color:#5C6470;max-width:260px">${esc(s.withdrawReason)||'-'}${s.reason?`<div style="font-size:10.5px;color:#B0B3BF;margin-top:2px">수강계기: ${esc(s.reason)}</div>`:''}</td>
       <td style="white-space:nowrap;display:flex;gap:4px">
         <button class="abtn abtn-blue" data-restore-id="${s.id}" style="font-size:11px;padding:4px 8px">↩️ 복구</button>
         <button class="abtn abtn-red" data-perm-del-id="${s.id}" style="font-size:11px;padding:4px 8px">영구 삭제</button>
@@ -2561,7 +2561,7 @@ function bAdmin(){
         const idx=(sc.withdrawnStudents||[]).findIndex(x=>x.id===b.dataset.restoreId);
         if(idx<0)return;
         const [s]=sc.withdrawnStudents.splice(idx,1);
-        delete s.reason;delete s.withdrawnAt;
+        delete s.withdrawReason;delete s.withdrawnAt;
         sc.students.push(s);
         saveDB();render();
       };
@@ -3738,9 +3738,9 @@ function openWithdrawStudent(sc, sid){
   popup.onclick = e => { if(e.target===popup) popup.remove(); };
 
   document.getElementById('btn-wd-confirm').onclick = () => {
-    const reason = document.getElementById('wd-reason').value.trim();
+    const withdrawReason = document.getElementById('wd-reason').value.trim();
     sc.withdrawnStudents = sc.withdrawnStudents || [];
-    sc.withdrawnStudents.push({ ...s, reason, withdrawnAt: nowStr() });
+    sc.withdrawnStudents.push({ ...s, withdrawReason, withdrawnAt: nowStr() });
     sc.students = sc.students.filter(x=>x.id!==sid);
     saveDB();
     popup.remove();
@@ -4086,7 +4086,7 @@ function exportStudentsExcel(sc){
   const rows=[['ID','이름','구분','전화번호','학부모전화','비밀번호','등록일']];
   sc.students.forEach(s=>{
     const typeMap={new:'신규',transfer:'전입',regular:'재학'};
-    rows.push([s.id,s.name,typeMap[s.type||'regular']||'재학',s.phone||'',s.parentPhone||'',s.pwd,s.createdAt||'']);
+    rows.push([s.id,s.name,typeMap[s.type||'regular']||'재학',s.phone||'',s.parentPhone||'',s.pwd||'(재설정 필요)',s.createdAt||'']);
   });
   const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});

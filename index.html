@@ -532,8 +532,15 @@ const INIT_SCHOOLS=[
 
 const SKEY='oheng_v1';
 const MONTHS=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
-const WEEKS=['1주','2주','3주','4주','5주','6주'];
+const WEEKS=['1주','2주','3주','4주','5주'];
 const HW=['완료','미완료','동영상','미제출','미제출(동영상)','신규'];
+// 오늘 날짜 기준 "이번 달 · 이번 주"를 계산 — 월/주차 선택 화면들의 기본값으로 사용 (1~7일=1주 ... 29일 이후도 5주로 고정)
+function curMonWk(){
+  const d=new Date();
+  const mon=MONTHS[d.getMonth()];
+  const wkNum=Math.min(WEEKS.length,Math.ceil(d.getDate()/7));
+  return{mon,wk:WEEKS[wkNum-1]};
+}
 let ADMIN_PWD='oheng2024';
 let ADMIN_ID='admin';
 // 알림톡 발송 API 전용 고정 토큰 — 로그인 아이디/비밀번호와 무관, Vercel의 API_AUTH_TOKEN 환경변수와 값이 같아야 함
@@ -551,7 +558,7 @@ const VAPID_PUBLIC_KEY='BClrX5_mErAwCfnxMnn7JxqUECaVChgQ8zTADG7HWfg8vCcNTGE2Xx0v
 let DB={schools:INIT_SCHOOLS.map(s=>({...s,students:[...s.students],records:[...s.records],notices:{...s.notices}}))};
 let ST={loggedIn:false,role:null,user:null,userSchool:null,school:null,
   tab:'report',atab:'dashboard',lmode:'student',
-  bMon:'2월',bWk:'1주',vMon:null,vWk:null,histTab:'wt',showAddSchool:false,_dirty:false};
+  bMon:curMonWk().mon,bWk:curMonWk().wk,attMon:curMonWk().mon,vMon:null,vWk:null,histTab:'wt',showAddSchool:false,_dirty:false};
 
 function loadDB(){
   try{
@@ -565,7 +572,11 @@ function loadDB(){
   }catch(e){console.warn('loadDB 오류(무시):', e);}
 }
 // 현재 선택된 학교 blob을 서버에 백그라운드로 저장 (버전 충돌 시 최신 데이터로 교체 후 재렌더링)
-async function syncSchoolToServer(sc){
+// 버전 충돌(409) 시 기존엔 로컬 변경사항을 통째로 버리고 서버 최신본으로 덮어써서, 방금 입력한
+// 내용(예: 성적 일괄 입력)이 조용히 사라지는 버그가 있었음. 이제는 로컬 sc.records에 있는 항목(=방금
+// 만졌던 레코드)은 그대로 유지하고, 나머지(다른 주차/다른 학생 변경분)만 서버 최신본으로 채운 뒤 재시도한다.
+async function syncSchoolToServer(sc,attempt){
+  attempt=attempt||0;
   try{
     const res=await fetch('/api/admin/school/'+encodeURIComponent(sc.id),{
       method:'PUT',credentials:'include',headers:{'Content-Type':'application/json'},
@@ -573,11 +584,26 @@ async function syncSchoolToServer(sc){
     });
     const data=await res.json();
     if(res.status===409){
+      if(data.school&&attempt<3){
+        const latest=data.school;
+        sc.version=latest.version;
+        sc.students=(latest.students||[]).map(ls=>{const local=sc.students.find(x=>x.id===ls.id);return(local&&local.pwd)?{...ls,pwd:local.pwd}:ls;});
+        sc.notices=latest.notices??sc.notices;
+        sc.withdrawnStudents=latest.withdrawnStudents??sc.withdrawnStudents;
+        sc.hw1=latest.hw1??sc.hw1;sc.hw2=latest.hw2??sc.hw2;sc.hw2Skip=latest.hw2Skip??sc.hw2Skip;sc.hwNames=latest.hwNames??sc.hwNames;
+        sc.kakaoChannel=latest.kakaoChannel??sc.kakaoChannel;
+        const key=r=>r.sid+'|'+r.month+'|'+r.week;
+        const localMap=new Map(sc.records.map(r=>[key(r),r]));
+        const mergedRecords=(latest.records||[]).map(r=>localMap.has(key(r))?localMap.get(key(r)):r);
+        const latestKeys=new Set((latest.records||[]).map(key));
+        sc.records=[...mergedRecords,...sc.records.filter(r=>!latestKeys.has(key(r)))];
+        return await syncSchoolToServer(sc,attempt+1);
+      }
       if(data.school){
         const idx=DB.schools.findIndex(s=>s.id===sc.id);
         if(idx>=0)DB.schools[idx]=data.school;
         if(ST.school===sc.id){
-          alert('다른 곳에서 먼저 저장되어 최신 데이터로 갱신합니다. 방금 하신 변경 중 일부가 반영되지 않았을 수 있으니 다시 확인해주세요.');
+          alert('저장 중 충돌이 반복되어 최신 데이터로 갱신했습니다. 방금 변경 중 일부가 반영되지 않았을 수 있으니 다시 확인해주세요.');
           render();
         }
       }
@@ -594,8 +620,9 @@ function saveDB(){
   catch(e){console.warn('saveDB 오류(무시):', e);}
   if(ST.role==='admin'&&ST.serverAdminSession&&ST.school){
     const sc=DB.schools.find(s=>s.id===ST.school);
-    if(sc)syncSchoolToServer(sc);
+    if(sc)return syncSchoolToServer(sc); // 호출부에서 await하면 서버 반영 확인 후 성공 메시지를 띄울 수 있음(선택)
   }
+  return Promise.resolve();
 }
 function resetDB(){localStorage.removeItem(SKEY);DB={schools:INIT_SCHOOLS.map(s=>({...s,students:[...s.students],records:[...s.records],notices:{...s.notices}}))};ADMIN_PWD='oheng2024';ADMIN_ID='admin';}
 
@@ -1142,7 +1169,7 @@ function bSchoolSelect(){
           if(idx>=0)DB.schools[idx]=full;else DB.schools.push(full);
         }
       }
-      ST.school=id;ST.atab='records';ST.bMon='2월';ST.bWk='1주';render();
+      ST.school=id;ST.atab='records';ST.bMon=curMonWk().mon;ST.bWk=curMonWk().wk;ST.attMon=curMonWk().mon;render();
     };
   });
   document.querySelectorAll('[data-del]').forEach(btn=>{
@@ -1760,7 +1787,6 @@ function rAdmin(){
     {id:'attendance',l:'인강/현강 체크',icon:'🖥️'},
     {id:'notices',l:'공지 입력',icon:'📢'},
     {id:'students',l:'학생 관리',icon:'👥'},
-    {id:'consultations',l:'상담 신청자',icon:'📋'},
     {id:'withdrawn',l:'탈퇴 학생',icon:'🚪'},
     {id:'school-settings',l:'학교 설정',icon:'🏫'},
     {id:'admin-settings',l:'관리자 설정',icon:'⚙️'},
@@ -1774,7 +1800,6 @@ function rAdmin(){
   else if(ST.atab==='attendance') inner=rAttendance(sc);
   else if(ST.atab==='notices') inner=rNotices(sc);
   else if(ST.atab==='students') inner=rStudentMgmt(sc);
-  else if(ST.atab==='consultations') inner=rConsultations(sc);
   else if(ST.atab==='withdrawn') inner=rWithdrawn(sc);
   else if(ST.atab==='school-settings') inner=rSchoolSettings(sc);
   else if(ST.atab==='logs') inner=rLogs(sc);
@@ -1938,7 +1963,7 @@ function rBulk(sc){
   const HW=['완료','미완료','동영상','미제출','미제출(동영상)','신규'];
   const MONTHS=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
   const WEEKS=['1주','2주','3주','4주','5주'];
-  const mon=ST.bMon||'2월',wk=ST.bWk||'1주';
+  const mon=ST.bMon||curMonWk().mon,wk=ST.bWk||curMonWk().wk;
   const prevThr=lastThr(sc,mon,wk);
   const savedRec=sc.records.find(r=>r.month===mon&&r.week===wk&&r.sid===sc.students[0]?.id)||sc.records.find(r=>r.month===mon&&r.week===wk);
   const dispRt=savedRec?.thrRt??prevThr.rt;
@@ -2058,7 +2083,7 @@ function rBulk(sc){
 
 function rNotices(sc){
   const MONTHS=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];const WEEKS=['1주','2주','3주','4주','5주'];
-  const mon=ST.bMon||'2월',wk=ST.bWk||'1주';
+  const mon=ST.bMon||curMonWk().mon,wk=ST.bWk||curMonWk().wk;
   const key=`${mon}_${wk}`;
   const existing=sc.notices[key]||'';
 
@@ -2120,17 +2145,17 @@ function rStudentMgmt(sc){
   </div>
   <div class="section-card">
     <div class="section-ttl">➕ 학생 개별 등록</div>
-    ${ST.prefillStudent?`<div style="font-size:12px;color:#00897B;background:#E0F7F4;padding:8px 12px;border-radius:8px;margin-bottom:12px">📋 상담 신청자 "${esc(ST.prefillStudent.name)}"의 정보가 채워졌습니다. 확인 후 추가해주세요.</div>`:''}
     <div class="form3" style="margin-bottom:14px">
-      <div class="fgrp"><label class="flbl">이름</label><input class="finp" id="ns-name" value="${esc(ST.prefillStudent?.name||'')}"/></div>
+      <div class="fgrp"><label class="flbl">이름</label><input class="finp" id="ns-name"/></div>
       <div class="fgrp"><label class="flbl">학생 ID</label><input class="finp" id="ns-id" value="${autoId}"/></div>
       <div class="fgrp"><label class="flbl">초기 비밀번호</label><input class="finp" id="ns-pw" value="1234"/></div>
-      <div class="fgrp"><label class="flbl">학생 전화번호</label><input class="finp" id="ns-ph" value="${esc(ST.prefillStudent?.phone||'')}" placeholder="010-0000-0000" oninput="autoHyphen(this)" maxlength="13"/></div>
-      <div class="fgrp"><label class="flbl">학부모 전화번호</label><input class="finp" id="ns-pph" value="${esc(ST.prefillStudent?.parentPhone||'')}" placeholder="010-0000-0000" oninput="autoHyphen(this)" maxlength="13"/></div>
+      <div class="fgrp"><label class="flbl">학생 전화번호</label><input class="finp" id="ns-ph" placeholder="010-0000-0000" oninput="autoHyphen(this)" maxlength="13"/></div>
+      <div class="fgrp"><label class="flbl">학부모 전화번호</label><input class="finp" id="ns-pph" placeholder="010-0000-0000" oninput="autoHyphen(this)" maxlength="13"/></div>
       <div class="fgrp"><label class="flbl">구분</label>
-        <select class="finp" id="ns-type"><option value="regular" ${!ST.prefillStudent?'selected':''}>재학생</option><option value="new" ${ST.prefillStudent?'selected':''}>신규생</option><option value="transfer">전입생</option></select>
+        <select class="finp" id="ns-type"><option value="regular">재학생</option><option value="new">신규생</option><option value="transfer">전입생</option></select>
       </div>
     </div>
+    <div class="fgrp" style="margin-bottom:14px"><label class="flbl">수강계기</label><input class="finp" id="ns-reason" placeholder="예: 블로그, 추천(선배)" style="width:100%"/></div>
     <button class="abtn abtn-green" id="btn-ns">학생 추가</button>
     <div id="ns-msg" style="font-size:12px;margin-top:8px"></div>
   </div>
@@ -2170,19 +2195,25 @@ function renderStudentTable(sc){
   }
   const typeMap={new:'🆕 신규',transfer:'🔄 전입',regular:'재학'};
   const typeColor={new:'background:#FFF7ED;color:#C2410C',transfer:'background:#EFF6FF;color:#1D4ED8',regular:'background:#F1F3F5;color:#6B7280'};
+  const cp='padding:7px 8px'; // 압축된 셀 여백 — 끝에 수강계기 입력칸을 넣기 위해 나머지 칸을 좁힘
   wrap.innerHTML = `<table class="rec-tbl">
-      <thead><tr><th>ID</th><th>이름</th><th>구분</th><th>전화번호</th><th>학부모</th><th>비번</th><th>등록일</th><th></th></tr></thead>
+      <thead><tr>
+        <th style="${cp}">ID</th><th style="${cp}">이름</th><th style="${cp}">구분</th><th style="${cp}">전화번호</th><th style="${cp}">학부모</th><th style="${cp}">비번</th><th style="${cp}">등록일</th><th style="${cp}">수강계기</th><th style="${cp}"></th>
+      </tr></thead>
       <tbody>${filtered.map(s=>`<tr>
-          <td style="font-family:monospace;font-size:11px;color:#6B7280">${esc(s.id)}</td>
-          <td style="font-weight:700;color:#1A237E">${esc(s.name)}</td>
-          <td><span style="padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;${typeColor[s.type||'regular']||typeColor.regular}">${typeMap[s.type||'regular']}</span></td>
-          <td>${esc(s.phone)||'-'}</td><td>${esc(s.parentPhone)||'-'}</td>
-          <td style="font-family:monospace;font-size:11px">${s.pwd?esc(s.pwd):`<button class="abtn" data-reset-pwd="${s.id}" style="font-size:10px;padding:3px 8px;color:#1A237E">🔑 재설정</button>`}</td>
-          <td style="font-size:11px;color:#9BA3AF">${s.createdAt||'-'}</td>
-          <td style="white-space:nowrap;display:flex;gap:4px">
-            <button class="abtn" data-ppurio-id="${s.id}" style="background:#FEE500;color:#000;border-color:#FEE500;font-size:11px;padding:4px 8px;font-weight:700">💬 ID/비번</button>
-            <button class="abtn abtn-blue" data-edit-id="${s.id}" style="font-size:11px;padding:4px 8px">✏️ 수정</button>
-            <button class="abtn abtn-red" data-ds="${s.id}">🚪 탈퇴</button>
+          <td style="${cp};font-family:monospace;font-size:10.5px;color:#6B7280">${esc(s.id)}</td>
+          <td style="${cp};font-weight:700;color:#1A237E">${esc(s.name)}</td>
+          <td style="${cp}"><span style="padding:2px 7px;border-radius:20px;font-size:10.5px;font-weight:600;${typeColor[s.type||'regular']||typeColor.regular}">${typeMap[s.type||'regular']}</span></td>
+          <td style="${cp};font-size:11.5px">${esc(s.phone)||'-'}</td><td style="${cp};font-size:11.5px">${esc(s.parentPhone)||'-'}</td>
+          <td style="${cp};font-family:monospace;font-size:10.5px">${s.pwd?esc(s.pwd):`<button class="abtn" data-reset-pwd="${s.id}" style="font-size:10px;padding:3px 7px;color:#1A237E">🔑</button>`}</td>
+          <td style="${cp};font-size:10.5px;color:#9BA3AF">${s.createdAt||'-'}</td>
+          <td style="${cp};white-space:normal">
+            <input data-reason-id="${s.id}" value="${esc(s.reason)||''}" placeholder="수강계기 입력" style="width:150px;padding:5px 8px;border:1.5px solid #E8ECF0;border-radius:7px;font-size:11.5px;outline:none;font-family:inherit">
+          </td>
+          <td style="${cp};white-space:nowrap;display:flex;gap:4px">
+            <button class="abtn" data-ppurio-id="${s.id}" style="background:#FEE500;color:#000;border-color:#FEE500;font-size:11px;padding:4px 8px;font-weight:700">💬</button>
+            <button class="abtn abtn-blue" data-edit-id="${s.id}" style="font-size:11px;padding:4px 8px">✏️</button>
+            <button class="abtn abtn-red" data-ds="${s.id}" style="font-size:11px;padding:4px 8px">🚪</button>
           </td>
         </tr>`).join('')}
       </tbody>
@@ -2202,52 +2233,14 @@ function renderStudentTable(sc){
     };
   });
   wrap.querySelectorAll('[data-ds]').forEach(b=>{b.onclick=()=>{const s=sc.students.find(x=>x.id===b.dataset.ds);if(s)openWithdrawStudent(sc,s.id);};});
+  wrap.querySelectorAll('[data-reason-id]').forEach(inp=>{
+    inp.onchange=()=>{
+      const s=sc.students.find(x=>x.id===inp.dataset.reasonId);if(!s)return;
+      s.reason=inp.value.trim();
+      saveDB();
+    };
+  });
 }
-
-function rConsultations(sc){
-  const list = sc.inquiries || [];
-  const today = (()=>{ const d=new Date(); return `${String(d.getMonth()+1).padStart(2,'0')}월 ${String(d.getDate()).padStart(2,'0')}일`; })();
-  const rows = [...list].reverse().map((q,i)=>`
-    <tr>
-      <td style="font-size:11px;color:#9BA3AF">${list.length-i}</td>
-      <td style="font-size:11px;color:#9BA3AF;white-space:nowrap">${esc(q.regDate)||'-'}</td>
-      <td style="font-weight:700;color:#1A237E">${esc(q.name)}</td>
-      <td style="font-size:12px">${esc(q.studentPhone)||'-'}</td>
-      <td style="font-size:12px">${esc(q.parentPhone)||'-'}</td>
-      <td style="font-size:12px;max-width:180px">${esc(q.mockScore)||'-'}</td>
-      <td style="font-size:12px;max-width:140px">${esc(q.lastScore)||'-'}</td>
-      <td style="font-size:12px;max-width:200px">${esc(q.reason)||'-'}</td>
-      <td style="white-space:nowrap;display:flex;gap:4px">
-        ${q.convertedStudentId
-          ?`<span style="font-size:11px;font-weight:700;color:#00897B;background:#E0F7F4;padding:4px 9px;border-radius:20px">✓ 등록됨</span>`
-          :`<button class="abtn abtn-green" data-to-student="${q.id}" style="font-size:11px;padding:4px 8px">학생으로 등록</button>`}
-        <button class="abtn abtn-red" data-del-inquiry="${q.id}" style="font-size:11px;padding:4px 8px">삭제</button>
-      </td>
-    </tr>`).join('');
-  return`
-  <div class="section-card">
-    <div class="section-ttl">📋 상담 신청 등록</div>
-    <div class="form3" style="margin-bottom:14px">
-      <div class="fgrp"><label class="flbl">등록 일자</label><input class="finp" id="iq-date" value="${today}"/></div>
-      <div class="fgrp"><label class="flbl">이름</label><input class="finp" id="iq-name"/></div>
-      <div class="fgrp"><label class="flbl">학생 번호</label><input class="finp" id="iq-ph" placeholder="010-0000-0000" oninput="autoHyphen(this)" maxlength="13"/></div>
-      <div class="fgrp"><label class="flbl">부모님 번호</label><input class="finp" id="iq-pph" placeholder="010-0000-0000" oninput="autoHyphen(this)" maxlength="13"/></div>
-      <div class="fgrp"><label class="flbl">모의고사 점수</label><input class="finp" id="iq-mock" placeholder="예: 고1 - 97점"/></div>
-      <div class="fgrp"><label class="flbl">지난 내신 점수</label><input class="finp" id="iq-last" placeholder="예: 2등급"/></div>
-    </div>
-    <div class="fgrp" style="margin-bottom:14px"><label class="flbl">수강계기</label><input class="finp" id="iq-reason" placeholder="예: 블로그, 추천(선배)" style="width:100%"/></div>
-    <button class="abtn abtn-green" id="btn-iq-add">신청자 추가</button>
-    <div id="iq-msg" style="font-size:12px;margin-top:8px"></div>
-  </div>
-  <div class="section-card">
-    <div class="section-ttl">📋 상담 신청자 목록 (${list.length}명)</div>
-    <div style="font-size:12px;color:#9BA3AF;margin-bottom:14px">"학생으로 등록"을 누르면 학생 관리의 개별 등록 폼에 이름·연락처가 채워집니다.</div>
-    ${!list.length?`<div style="text-align:center;padding:40px 0;color:#9BA3AF;font-size:13px">등록된 상담 신청자가 없습니다</div>`:`
-    <div style="overflow-x:auto"><table class="rec-tbl">
-      <thead><tr><th>순번</th><th>등록 일자</th><th>이름</th><th>학생 번호</th><th>부모님 번호</th><th>모의고사 점수</th><th>지난 내신 점수</th><th>수강계기</th><th></th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table></div>`}
-  </div>`;}
 
 function rWithdrawn(sc){
   const list = sc.withdrawnStudents || [];
@@ -2276,7 +2269,7 @@ function rWithdrawn(sc){
   </div>`;}
 
 function rAttendance(sc){
-  const mon = ST.attMon || MONTHS[1];
+  const mon = ST.attMon || curMonWk().mon;
   const monIdx = MONTHS.indexOf(mon);
   const ATT_OPTS=[{v:'',l:'-',c:'#C4C9D4'},{v:'현강',l:'현강(O)',c:'#00897B'},{v:'인강',l:'인강',c:'#1D4ED8'},{v:'결석',l:'결석',c:'#E53935'}];
   const rows = sc.students.map(s=>{
@@ -2288,7 +2281,7 @@ function rAttendance(sc){
         ${ATT_OPTS.map(o=>`<option value="${o.v}" ${o.v===val?'selected':''}>${o.l}</option>`).join('')}
       </select></td>`;
     }).join('');
-    return`<tr><td style="font-weight:700;color:#1A237E;white-space:nowrap;padding:8px 10px">${esc(s.name)}</td>${cells}</tr>`;
+    return`<tr><td style="padding:8px 10px"><button data-goto-student="${s.id}" style="background:none;border:none;padding:0;font-weight:700;color:#1A237E;white-space:nowrap;cursor:pointer;text-decoration:underline;text-underline-offset:2px;font-size:inherit;font-family:inherit">${esc(s.name)}</button></td>${cells}</tr>`;
   }).join('');
   return`
   <div class="section-card">
@@ -2528,13 +2521,8 @@ function bAdmin(){
       if(DB.schools.some(s=>s.students.some(st=>st.id.toLowerCase()===id.toLowerCase()))){msg.textContent='이미 사용 중인 ID입니다';msg.style.color='#E53935';return;}
       const sType=document.getElementById('ns-type')?.value||'regular';
       const today=new Date().toISOString().slice(0,10);
-      const newSt={id,name,pwd:pw,phone:document.getElementById('ns-ph').value,parentPhone:document.getElementById('ns-pph').value,type:sType,createdAt:today};
+      const newSt={id,name,pwd:pw,phone:document.getElementById('ns-ph').value,parentPhone:document.getElementById('ns-pph').value,type:sType,reason:document.getElementById('ns-reason')?.value.trim()||'',createdAt:today};
       sc.students.push(newSt);
-      if(ST.prefillStudent?.inquiryId){
-        const inq=(sc.inquiries||[]).find(x=>x.id===ST.prefillStudent.inquiryId);
-        if(inq)inq.convertedStudentId=id;
-        ST.prefillStudent=null;
-      }
       saveDB();msg.textContent=`✓ ${name} 추가 완료!`;msg.style.color='#00897B';render();
       // 카카오 ID/비번 자동 발송 팝업
       if(newSt.parentPhone||newSt.phone)sendPpurioIdPw(sc,newSt);
@@ -2567,48 +2555,6 @@ function bAdmin(){
     renderStudentTable(sc);
     return;
   }
-  if(ST.atab==='consultations'){
-    document.getElementById('btn-iq-add').onclick=()=>{
-      const name=document.getElementById('iq-name').value.trim();
-      const msg=document.getElementById('iq-msg');
-      if(!name){msg.textContent='이름을 입력하세요';msg.style.color='#E53935';return;}
-      const iq={
-        id:'iq'+Date.now(),
-        regDate:document.getElementById('iq-date').value.trim(),
-        name,
-        studentPhone:document.getElementById('iq-ph').value.trim(),
-        parentPhone:document.getElementById('iq-pph').value.trim(),
-        mockScore:document.getElementById('iq-mock').value.trim(),
-        lastScore:document.getElementById('iq-last').value.trim(),
-        reason:document.getElementById('iq-reason').value.trim(),
-        convertedStudentId:null,
-      };
-      sc.inquiries=sc.inquiries||[];
-      sc.inquiries.push(iq);
-      saveDB();
-      msg.textContent=`✓ ${name} 추가 완료!`;msg.style.color='#00897B';
-      render();
-    };
-    document.querySelectorAll('[data-to-student]').forEach(b=>{
-      b.onclick=()=>{
-        const q=(sc.inquiries||[]).find(x=>x.id===b.dataset.toStudent);
-        if(!q)return;
-        ST.prefillStudent={name:q.name,phone:q.studentPhone,parentPhone:q.parentPhone,inquiryId:q.id};
-        ST.atab='students';
-        render();
-      };
-    });
-    document.querySelectorAll('[data-del-inquiry]').forEach(b=>{
-      b.onclick=()=>{
-        const q=(sc.inquiries||[]).find(x=>x.id===b.dataset.delInquiry);
-        if(!q)return;
-        if(!confirm(`${q.name} 상담 신청 기록을 삭제할까요?`))return;
-        sc.inquiries=sc.inquiries.filter(x=>x.id!==q.id);
-        saveDB();render();
-      };
-    });
-    return;
-  }
   if(ST.atab==='withdrawn'){
     document.querySelectorAll('[data-restore-id]').forEach(b=>{
       b.onclick=()=>{
@@ -2634,15 +2580,22 @@ function bAdmin(){
   }
   if(ST.atab==='attendance'){
     document.getElementById('att-prev')?.addEventListener('click',()=>{
-      const i=MONTHS.indexOf(ST.attMon||MONTHS[1]);if(i>0){ST.attMon=MONTHS[i-1];render();}
+      const i=MONTHS.indexOf(ST.attMon||curMonWk().mon);if(i>0){ST.attMon=MONTHS[i-1];render();}
     });
     document.getElementById('att-next')?.addEventListener('click',()=>{
-      const i=MONTHS.indexOf(ST.attMon||MONTHS[1]);if(i<MONTHS.length-1){ST.attMon=MONTHS[i+1];render();}
+      const i=MONTHS.indexOf(ST.attMon||curMonWk().mon);if(i<MONTHS.length-1){ST.attMon=MONTHS[i+1];render();}
     });
     document.querySelectorAll('[data-att-sid]').forEach(sel=>{
       sel.onchange=()=>{
-        setAttendance(sc, sel.dataset.attSid, ST.attMon||MONTHS[1], sel.dataset.attWk, sel.value);
+        setAttendance(sc, sel.dataset.attSid, ST.attMon||curMonWk().mon, sel.dataset.attWk, sel.value);
         sel.style.color=({'':'#C4C9D4','현강':'#00897B','인강':'#1D4ED8','결석':'#E53935'})[sel.value]||'#C4C9D4';
+      };
+    });
+    document.querySelectorAll('[data-goto-student]').forEach(b=>{
+      b.onclick=()=>{
+        const s=sc.students.find(x=>x.id===b.dataset.gotoStudent);if(!s)return;
+        ST.atab='students';ST.stuSearch=s.name;ST.stuFilterType='';
+        render();
       };
     });
     return;
@@ -2906,7 +2859,11 @@ function bAdmin(){
   document.getElementById('thr-rt')?.addEventListener('input',recalc);
   document.getElementById('thr-wt')?.addEventListener('input',recalc);
   recalc();
-  document.getElementById('btn-save').onclick=()=>{
+  document.getElementById('btn-save').onclick=async()=>{
+    const saveBtn=document.getElementById('btn-save');
+    saveBtn.disabled=true;
+    const msgEl=document.getElementById('save-msg');
+    if(msgEl){msgEl.textContent='저장 중...';msgEl.style.color='#9BA3AF';}
     const mon=document.getElementById('bk-mon').value,wk=document.getElementById('bk-wk').value;
     ST.bMon=mon;ST.bWk=wk;
     const thrRtV=document.getElementById('thr-rt').value.trim();const thrWtV=document.getElementById('thr-wt').value.trim();
@@ -2951,12 +2908,15 @@ function bAdmin(){
         retestTime:r.querySelector('.inp-rt2').value,comment:existingComment};
       if(existingIdx>=0)sc.records[existingIdx]=rec;else sc.records.push(rec);saved++;savedSids.push(sid);
     });
-    addLog(sc,mon,wk,saved,thrRt,thrWt);saveDB();ST._dirty=false;
+    addLog(sc,mon,wk,saved,thrRt,thrWt);
+    await saveDB();
+    ST._dirty=false;
+    saveBtn.disabled=false;
     const srEl=document.getElementById('saved-result-table');
     if(srEl){srEl.innerHTML=renderSavedTable(sc,mon,wk);srEl.querySelectorAll('[data-dr]').forEach(function(b){b.onclick=function(){sc.records.splice(parseInt(b.dataset.dr),1);saveDB();srEl.innerHTML=renderSavedTable(sc,ST.bMon,ST.bWk);wireCommentBtns(srEl,sc);};});wireCommentBtns(srEl,sc);}
     renderScoreDropAlert(sc, mon, wk);
     const msg=document.getElementById('save-msg');
-    msg.innerHTML=`✓ ${saved}명 저장 완료 &nbsp;<span style="color:#E65100;font-weight:700;cursor:pointer;text-decoration:underline" onclick="const b=document.getElementById('btn-ppurio-notify');if(b){b.scrollIntoView({behavior:'smooth',block:'center'});b.style.outline='3px solid #FFB300';setTimeout(()=>b.style.outline='',2000);}">💬 알림톡 발송 →</span>`;
+    msg.innerHTML=`✓ ${saved}명 저장 완료${ST.serverAdminSession?'(서버 반영 확인됨)':''} &nbsp;<span style="color:#E65100;font-weight:700;cursor:pointer;text-decoration:underline" onclick="const b=document.getElementById('btn-ppurio-notify');if(b){b.scrollIntoView({behavior:'smooth',block:'center'});b.style.outline='3px solid #FFB300';setTimeout(()=>b.style.outline='',2000);}">💬 알림톡 발송 →</span>`;
     msg.style.color='#00897B';
     pushStudents(sc,savedSids,'📊 성적이 등록됐어요',`${mon} ${wk} 성적을 확인해보세요`,'/');
     recalc();
@@ -3834,6 +3794,11 @@ function openEditStudent(sc, sid){
             <option value="transfer" ${s.type==='transfer'?'selected':''}>전입생</option>
           </select>
         </div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">수강계기</label>
+          <input id="edit-reason" value="${esc(s.reason)||''}" placeholder="예: 블로그, 추천(선배)" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit"
+            onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">
+        </div>
       </div>
       <div id="edit-msg" style="font-size:12px;min-height:18px;margin-top:10px"></div>
       <div style="display:flex;gap:8px;margin-top:16px">
@@ -3852,6 +3817,7 @@ function openEditStudent(sc, sid){
     const phone = document.getElementById('edit-phone').value.trim();
     const pphone = document.getElementById('edit-pphone').value.trim();
     const type = document.getElementById('edit-type').value;
+    const reason = document.getElementById('edit-reason').value.trim();
     const msg = document.getElementById('edit-msg');
     const saveBtn = document.getElementById('btn-edit-save');
 
@@ -3867,6 +3833,7 @@ function openEditStudent(sc, sid){
     s.phone = phone;
     s.parentPhone = pphone;
     s.type = type;
+    s.reason = reason;
     saveDB();
 
     msg.textContent = '✓ 저장 완료!'; msg.style.color = '#00897B';

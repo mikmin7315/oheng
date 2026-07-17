@@ -3060,9 +3060,10 @@ function recalc(){
   const rvaEl=document.getElementById('cmn-rva');
   const wtaEl=document.getElementById('cmn-wta');
   const ttaEl=document.getElementById('cmn-tta');
-  if(rvaEl&&rvAvgCalc!==null)rvaEl.value=rvAvgCalc;
-  if(wtaEl&&wtAvgCalc!==null)wtaEl.value=wtAvgCalc;
-  if(ttaEl&&totAvgCalc!==null)ttaEl.value=totAvgCalc;
+  // 계산 결과가 null이어도(예: 현재 입력된 점수가 없음) 이전 값이 그대로 남지 않도록 항상 최신 계산값(또는 빈 값)으로 덮어씀
+  if(rvaEl)rvaEl.value=rvAvgCalc!==null?rvAvgCalc:'';
+  if(wtaEl)wtaEl.value=wtAvgCalc!==null?wtAvgCalc:'';
+  if(ttaEl)ttaEl.value=totAvgCalc!==null?totAvgCalc:'';
 
   rows.forEach(r=>{
     const sid=r.dataset.sid;const rsk=r.dataset.rtskip==='1';const wsk=r.dataset.wtskip==='1';

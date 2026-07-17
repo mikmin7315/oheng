@@ -93,6 +93,24 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true, id: next.id });
   }
 
+  if (action === 'reset-student-password') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    const { schoolId, studentId, newPwd } = req.body || {};
+    if (!schoolId || !studentId) return res.status(400).json({ success: false, message: 'Missing schoolId/studentId' });
+
+    const sc = await getSchool(schoolId);
+    if (!sc) return res.status(404).json({ success: false, message: '학교를 찾을 수 없습니다' });
+    const idx = (sc.students || []).findIndex(s => s.id === studentId);
+    if (idx < 0) return res.status(404).json({ success: false, message: '학생을 찾을 수 없습니다' });
+
+    const pwd = (newPwd && String(newPwd).trim().length >= 4) ? String(newPwd).trim() : String(Math.floor(1000 + Math.random() * 9000));
+    sc.students[idx].pwdHash = hashPassword(pwd);
+    sc.version = (sc.version || 0) + 1;
+    await getRedis().set('school:' + schoolId, sc);
+    return res.status(200).json({ success: true, password: pwd, studentId });
+  }
+
   if (action === 'school-summary') {
     if (req.method !== 'GET') return res.status(405).end();
     const index = await getSchoolIndex();

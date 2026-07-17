@@ -2137,7 +2137,7 @@ function rStudentMgmt(sc){
           <td style="font-weight:700;color:#1A237E">${esc(s.name)}</td>
           <td><span style="padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;${typeColor[s.type||'regular']||typeColor.regular}">${typeMap[s.type||'regular']}</span></td>
           <td>${esc(s.phone)||'-'}</td><td>${esc(s.parentPhone)||'-'}</td>
-          <td style="font-family:monospace;font-size:11px">${esc(s.pwd)}</td>
+          <td style="font-family:monospace;font-size:11px">${s.pwd?esc(s.pwd):`<button class="abtn" data-reset-pwd="${s.id}" style="font-size:10px;padding:3px 8px;color:#1A237E">🔑 재설정</button>`}</td>
           <td style="font-size:11px;color:#9BA3AF">${s.createdAt||'-'}</td>
           <td style="white-space:nowrap;display:flex;gap:4px">
             <button class="abtn" data-ppurio-id="${s.id}" style="background:#FEE500;color:#000;border-color:#FEE500;font-size:11px;padding:4px 8px;font-weight:700">💬 ID/비번</button>
@@ -2403,6 +2403,16 @@ function bAdmin(){
     });
     document.querySelectorAll('[data-ppurio-id]').forEach(b=>{
       b.onclick=()=>{const s=sc.students.find(x=>x.id===b.dataset.ppurioId);if(s)sendPpurioIdPw(sc,s);};
+    });
+    document.querySelectorAll('[data-reset-pwd]').forEach(b=>{
+      b.onclick=async()=>{
+        const s=sc.students.find(x=>x.id===b.dataset.resetPwd);if(!s)return;
+        if(!confirm(`${s.name} 학생의 비밀번호를 새로 발급할까요?\n기존 비밀번호는 더 이상 사용할 수 없게 됩니다.`))return;
+        b.disabled=true;b.textContent='...';
+        const pwd=await resetStudentPassword(sc,s);
+        if(pwd)alert(`${s.name} 학생 새 비밀번호: ${pwd}\n\n학생에게 꼭 전달해주세요. ("ID/비번" 버튼으로 카카오 발송도 가능합니다)`);
+        render();
+      };
     });
     document.querySelectorAll('[data-ds]').forEach(b=>{b.onclick=()=>{const s=sc.students.find(x=>x.id===b.dataset.ds);if(!confirm(`${s?.name||'이 학생'}을 삭제할까요?\n해당 학생의 성적 기록도 함께 삭제됩니다.`))return;sc.students=sc.students.filter(x=>x.id!==b.dataset.ds);sc.records=sc.records.filter(x=>x.sid!==b.dataset.ds);saveDB();render();};});
     return;
@@ -3179,9 +3189,32 @@ function nowStr(){
   return `${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())} ${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`;
 }
 
+// 서버 모드: 서버가 비밀번호를 해시로만 들고 있어 평문을 절대 보여줄 수 없다 — "재설정"으로 새 비번을 발급받아 화면에 1회 표시.
+// 로컬 모드(레거시): 평문 비번을 그대로 들고 있으므로 여기서도 값만 바꿔 saveDB().
+async function resetStudentPassword(sc, student, customPwd){
+  if(ST.serverAdminSession){
+    try{
+      const res=await fetch('/api/admin/reset-student-password',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({schoolId:sc.id,studentId:student.id,newPwd:customPwd})});
+      const data=await res.json();
+      if(!res.ok||!data.success){alert(data.message||'비밀번호 재설정 실패');return null;}
+      student.pwd=data.password;
+      return data.password;
+    }catch(e){alert('오류: '+e.message);return null;}
+  }
+  const pwd=(customPwd&&customPwd.length>=4)?customPwd:String(Math.floor(1000+Math.random()*9000));
+  student.pwd=pwd;
+  saveDB();
+  return pwd;
+}
+
 async function sendPpurioIdPw(sc, student){
   const phone = (student.parentPhone || student.phone || '').replace(/[^0-9]/g,'');
   if(!phone){ alert(student.name + ' 학생의 전화번호가 없습니다.'); return; }
+  if(!student.pwd){
+    if(!confirm(`${student.name} 학생은 아직 비밀번호가 발급되지 않았습니다.\n새 비밀번호를 발급하고 바로 발송할까요?`))return;
+    const pwd=await resetStudentPassword(sc,student);
+    if(!pwd)return;
+  }
 
   const variables = {
     '#{학생명}': student.name,
@@ -3209,6 +3242,11 @@ ${student.name} 학생의 성적 조회 계정을 안내드립니다.
 async function sendPpurioAllIdPw(sc){
   const students = sc.students.filter(s => s.parentPhone || s.phone);
   if(!students.length){ alert('전화번호가 등록된 학생이 없습니다.'); return; }
+  const missing = students.filter(s=>!s.pwd);
+  if(missing.length){
+    if(!confirm(`${missing.length}명의 학생은 아직 비밀번호가 발급되지 않았습니다.\n일괄로 새 비밀번호를 발급할까요?`))return;
+    for(const s of missing){ await resetStudentPassword(sc,s); } // 같은 학교 문서를 순차 저장 — 병렬 호출 시 서로 덮어쓸 수 있어 반드시 순서대로 await
+  }
   showPpurioAllPopup(sc, 'account');
 }
 
@@ -3505,8 +3543,8 @@ function openEditStudent(sc, sid){
           <input value="${esc(s.id)}" disabled style="width:100%;padding:10px 14px;border:1.5px solid #F0F2F5;border-radius:9px;font-size:14px;background:#F7F8FA;color:#9BA3AF;font-family:monospace">
         </div>
         <div>
-          <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">비밀번호</label>
-          <input id="edit-pwd" value="${esc(s.pwd)}" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit"
+          <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">비밀번호 ${s.pwd?'':'<span style="color:#C4C9D4;font-weight:400;text-transform:none">(서버에 암호화 저장되어 조회 불가 — 바꿀 때만 입력)</span>'}</label>
+          <input id="edit-pwd" value="${s.pwd?esc(s.pwd):''}" placeholder="변경하려면 새 비밀번호 입력 (비워두면 유지)" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit"
             onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">
         </div>
         <div>
@@ -3539,19 +3577,24 @@ function openEditStudent(sc, sid){
   document.body.appendChild(popup);
   popup.onclick = e => { if(e.target===popup) popup.remove(); };
 
-  document.getElementById('btn-edit-save').onclick = () => {
+  document.getElementById('btn-edit-save').onclick = async () => {
     const name = document.getElementById('edit-name').value.trim();
     const pwd  = document.getElementById('edit-pwd').value.trim();
     const phone = document.getElementById('edit-phone').value.trim();
     const pphone = document.getElementById('edit-pphone').value.trim();
     const type = document.getElementById('edit-type').value;
     const msg = document.getElementById('edit-msg');
+    const saveBtn = document.getElementById('btn-edit-save');
 
     if(!name){ msg.textContent='이름을 입력하세요'; msg.style.color='#E53935'; return; }
-    if(!pwd || pwd.length < 4){ msg.textContent='비밀번호는 4자 이상이어야 합니다'; msg.style.color='#E53935'; return; }
+    if(pwd && pwd.length < 4){ msg.textContent='비밀번호는 4자 이상이어야 합니다'; msg.style.color='#E53935'; return; }
 
+    saveBtn.disabled = true;
+    if(pwd){
+      const ok = await resetStudentPassword(sc, s, pwd);
+      if(!ok){ saveBtn.disabled = false; return; }
+    }
     s.name = name;
-    s.pwd = pwd;
     s.phone = phone;
     s.parentPhone = pphone;
     s.type = type;

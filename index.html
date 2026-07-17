@@ -653,6 +653,17 @@ function ic(name){
   };
   return `<svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none">${m[name]||''}</svg>`;
 }
+
+// 인강/현강/결석 체크 — 해당 주차에 기존 성적 레코드가 있으면 attendType 필드만 갱신, 없으면 빈 레코드를 새로 만들어 표시만 해둔다.
+function setAttendance(sc, sid, month, week, val){
+  let rec = sc.records.find(r=>r.sid===sid&&r.month===month&&r.week===week);
+  if(!rec){
+    rec = {sid, month, week, rtSkip:false, rtScore:null, wtSkip:false, wtScore:null, totalScore:null, comment:'', hw1:'', hw2:'', homework:'', retestTime:''};
+    sc.records.push(rec);
+  }
+  rec.attendType = val || '';
+  saveDB();
+}
 function curSch(){return DB.schools.find(s=>s.id===ST.school)||DB.schools[0]}
 function sRecs(sid,sc){const s=sc||(ST.role==='admin'?curSch():ST.userSchool);if(!s)return[];return s.records.filter(r=>r.sid===sid).sort((a,b)=>moI(a.month)-moI(b.month)||wkI(a.week)-wkI(b.week));}
 function lastThr(sc,mon,wk){
@@ -1336,7 +1347,7 @@ function rReport(recs){
     <div style="font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#57616F;margin-bottom:8px;${PF}">Total Score</div>
     ${rec.totalScore!=null
       ? `<div style="font-size:46px;font-weight:800;line-height:1;letter-spacing:-1px;color:#1E40AF;font-variant-numeric:tabular-nums;${PF}">${rec.totalScore}<span style="font-size:15px;font-weight:700;color:#57616F;margin-left:6px">점${rankSub?` · ${rankSub}`:''}</span></div>`
-      : `<div style="font-size:15px;font-weight:800;color:#57616F;padding:10px 0">${rtSkip&&wtSkip?'시험 없음':'채점중'}</div>`
+      : `<div style="font-size:15px;font-weight:800;color:#57616F;padding:10px 0">${rec.rtScore==null&&rec.wtScore==null?'시험 없음':'채점중'}</div>`
     }
     <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
       ${delta!=null?`<span style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:700;padding:5px 11px;border-radius:8px;${delta>0?'color:#146C43;background:#E8F5EC':delta<0?'color:#B3261E;background:#FCEAEA':'color:#57616F;background:#EEF1F5'}">${delta>0?'▲':delta<0?'▼':'–'} 지난주 대비 ${delta!==0?Math.abs(delta)+'점':'동일'}</span>`:''}
@@ -1354,27 +1365,23 @@ function rReport(recs){
     <span style="font-size:11.5px;color:#8C93A0;font-weight:700;white-space:nowrap">${opts.indexOf(cur)+1}/${opts.length}주차</span>
   </div>
 
-  <!-- RT + WT -->
-  <div style="display:flex;gap:16px;margin-bottom:4px">
-    <div style="flex:1;border:1.5px solid #D9E0EA;border-radius:12px;padding:14px;background:#fff">
+  <!-- RT + WT: 점수가 아예 입력되지 않은 항목(생략 체크 여부와 무관하게)은 칸 자체를 숨김 -->
+  ${(()=>{
+    const rtBox = rec.rtScore!=null ? `<div style="flex:1;border:1.5px solid #D9E0EA;border-radius:12px;padding:14px;background:#fff">
       <div style="font-size:10.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#57616F;margin-bottom:8px;${PF}">Review Test</div>
-      ${rtSkip
-        ? `<div style="font-size:14px;color:#8C93A0;padding:6px 0">생략</div>`
-        : `<div style="font-size:24px;font-weight:800;color:#1E40AF;letter-spacing:-.5px;font-variant-numeric:tabular-nums;${PF}">${rec.rtScore??'-'}점</div>
-           <div style="font-size:12px;color:#57616F;margin-top:5px;font-weight:600">${rec.rtPass===true?`<span style="color:#146C43;font-weight:800">합격</span>`:rec.rtPass===false?`<span style="color:#B3261E;font-weight:800">불합격</span>`:'-'} · ${rec.rvRank??'-'}등${rec.rvAvg!=null?` · 반평균 ${rec.rvAvg}점`:''}</div>
-           ${rtPct!=null?`<div style="height:6px;border-radius:4px;background:#D9E0EA;margin-top:10px;overflow:hidden"><div style="height:100%;background:#1E40AF;border-radius:4px;width:${Math.min(100,rtPct)}%"></div></div>`:''}`
-      }
-    </div>
-    <div style="flex:1;border:1.5px solid #D9E0EA;border-radius:12px;padding:14px;background:#fff">
+      <div style="font-size:24px;font-weight:800;color:#1E40AF;letter-spacing:-.5px;font-variant-numeric:tabular-nums;${PF}">${rec.rtScore}점</div>
+      <div style="font-size:12px;color:#57616F;margin-top:5px;font-weight:600">${rec.rtPass===true?`<span style="color:#146C43;font-weight:800">합격</span>`:rec.rtPass===false?`<span style="color:#B3261E;font-weight:800">불합격</span>`:'-'} · ${rec.rvRank??'-'}등${rec.rvAvg!=null?` · 반평균 ${rec.rvAvg}점`:''}</div>
+      ${rtPct!=null?`<div style="height:6px;border-radius:4px;background:#D9E0EA;margin-top:10px;overflow:hidden"><div style="height:100%;background:#1E40AF;border-radius:4px;width:${Math.min(100,rtPct)}%"></div></div>`:''}
+    </div>` : '';
+    const wtBox = rec.wtScore!=null ? `<div style="flex:1;border:1.5px solid #D9E0EA;border-radius:12px;padding:14px;background:#fff">
       <div style="font-size:10.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#57616F;margin-bottom:8px;${PF}">Word Test</div>
-      ${wtSkip
-        ? `<div style="font-size:14px;color:#8C93A0;padding:6px 0">생략</div>`
-        : `<div style="font-size:24px;font-weight:800;color:#1E40AF;letter-spacing:-.5px;font-variant-numeric:tabular-nums;${PF}">${rec.wtScore??'-'}점</div>
-           <div style="font-size:12px;color:#57616F;margin-top:5px;font-weight:600">${rec.wtPass===true?`<span style="color:#146C43;font-weight:800">합격</span>`:rec.wtPass===false?`<span style="color:#B3261E;font-weight:800">불합격</span>`:'-'} · ${rec.wtRank??'-'}등${rec.wtAvg!=null?` · 반평균 ${rec.wtAvg}점`:''}</div>
-           ${wtPct!=null?`<div style="height:6px;border-radius:4px;background:#D9E0EA;margin-top:10px;overflow:hidden"><div style="height:100%;background:#1E40AF;border-radius:4px;width:${Math.min(100,wtPct)}%"></div></div>`:''}`
-      }
-    </div>
-  </div>
+      <div style="font-size:24px;font-weight:800;color:#1E40AF;letter-spacing:-.5px;font-variant-numeric:tabular-nums;${PF}">${rec.wtScore}점</div>
+      <div style="font-size:12px;color:#57616F;margin-top:5px;font-weight:600">${rec.wtPass===true?`<span style="color:#146C43;font-weight:800">합격</span>`:rec.wtPass===false?`<span style="color:#B3261E;font-weight:800">불합격</span>`:'-'} · ${rec.wtRank??'-'}등${rec.wtAvg!=null?` · 반평균 ${rec.wtAvg}점`:''}</div>
+      ${wtPct!=null?`<div style="height:6px;border-radius:4px;background:#D9E0EA;margin-top:10px;overflow:hidden"><div style="height:100%;background:#1E40AF;border-radius:4px;width:${Math.min(100,wtPct)}%"></div></div>`:''}
+    </div>` : '';
+    if(!rtBox&&!wtBox)return'';
+    return `<div style="display:flex;gap:16px;margin-bottom:4px">${rtBox}${wtBox}</div>`;
+  })()}
 
   <hr style="border:0;border-top:1.5px solid #D9E0EA;margin:22px 0">
 
@@ -1748,8 +1755,10 @@ function rAdmin(){
   const menus=[
     {id:'dashboard',l:'대시보드',icon:'📊'},
     {id:'records',l:'성적 일괄 입력',icon:'📝'},
+    {id:'attendance',l:'인강/현강 체크',icon:'🖥️'},
     {id:'notices',l:'공지 입력',icon:'📢'},
     {id:'students',l:'학생 관리',icon:'👥'},
+    {id:'withdrawn',l:'탈퇴 학생',icon:'🚪'},
     {id:'school-settings',l:'학교 설정',icon:'🏫'},
     {id:'admin-settings',l:'관리자 설정',icon:'⚙️'},
     {id:'logs',l:'저장 로그',icon:'📋'},
@@ -1759,8 +1768,10 @@ function rAdmin(){
   let inner='';
   if(ST.atab==='dashboard') inner=rDashboard(sc);
   else if(ST.atab==='records') inner=rBulk(sc);
+  else if(ST.atab==='attendance') inner=rAttendance(sc);
   else if(ST.atab==='notices') inner=rNotices(sc);
   else if(ST.atab==='students') inner=rStudentMgmt(sc);
+  else if(ST.atab==='withdrawn') inner=rWithdrawn(sc);
   else if(ST.atab==='school-settings') inner=rSchoolSettings(sc);
   else if(ST.atab==='logs') inner=rLogs(sc);
   else if(ST.atab==='sendlogs') inner=rSendLogs(sc);
@@ -2142,11 +2153,70 @@ function rStudentMgmt(sc){
           <td style="white-space:nowrap;display:flex;gap:4px">
             <button class="abtn" data-ppurio-id="${s.id}" style="background:#FEE500;color:#000;border-color:#FEE500;font-size:11px;padding:4px 8px;font-weight:700">💬 ID/비번</button>
             <button class="abtn abtn-blue" data-edit-id="${s.id}" style="font-size:11px;padding:4px 8px">✏️ 수정</button>
-            <button class="abtn abtn-red" data-ds="${s.id}">삭제</button>
+            <button class="abtn abtn-red" data-ds="${s.id}">🚪 탈퇴</button>
           </td>
         </tr>`;}).join('')}
       </tbody>
     </table></div>
+  </div>`;}
+
+function rWithdrawn(sc){
+  const list = sc.withdrawnStudents || [];
+  if(!list.length) return `<div class="section-card"><div style="text-align:center;padding:50px 20px;color:#9BA3AF"><div style="font-size:32px;margin-bottom:10px">🚪</div><div style="font-size:14px;font-weight:600;color:#5C6470">탈퇴한 학생이 없습니다</div></div></div>`;
+  const rows = [...list].reverse().map(s=>`
+    <tr>
+      <td style="font-family:monospace;font-size:11px;color:#6B7280">${esc(s.id)}</td>
+      <td style="font-weight:700;color:#1A237E">${esc(s.name)}</td>
+      <td>${esc(s.phone)||'-'}</td>
+      <td>${esc(s.parentPhone)||'-'}</td>
+      <td style="font-size:11px;color:#9BA3AF;white-space:nowrap">${esc(s.withdrawnAt)||'-'}</td>
+      <td style="font-size:12px;color:#5C6470;max-width:260px">${esc(s.reason)||'-'}</td>
+      <td style="white-space:nowrap;display:flex;gap:4px">
+        <button class="abtn abtn-blue" data-restore-id="${s.id}" style="font-size:11px;padding:4px 8px">↩️ 복구</button>
+        <button class="abtn abtn-red" data-perm-del-id="${s.id}" style="font-size:11px;padding:4px 8px">영구 삭제</button>
+      </td>
+    </tr>`).join('');
+  return`
+  <div class="section-card">
+    <div class="section-ttl">🚪 탈퇴 학생 (${list.length}명)</div>
+    <div style="font-size:12px;color:#9BA3AF;margin-bottom:14px;line-height:1.6">"학생 관리"에서 탈퇴 처리된 학생 목록입니다. 성적 기록은 보존되며, 복구하면 다시 로그인할 수 있습니다.</div>
+    <div style="overflow-x:auto"><table class="rec-tbl">
+      <thead><tr><th>ID</th><th>이름</th><th>전화번호</th><th>학부모</th><th>탈퇴일</th><th>사유</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </div>`;}
+
+function rAttendance(sc){
+  const mon = ST.attMon || MONTHS[1];
+  const monIdx = MONTHS.indexOf(mon);
+  const ATT_OPTS=[{v:'',l:'-',c:'#C4C9D4'},{v:'현강',l:'현강(O)',c:'#00897B'},{v:'인강',l:'인강',c:'#1D4ED8'},{v:'결석',l:'결석',c:'#E53935'}];
+  const rows = sc.students.map(s=>{
+    const cells = WEEKS.map(wk=>{
+      const rec = sc.records.find(r=>r.sid===s.id&&r.month===mon&&r.week===wk);
+      const val = rec?.attendType || '';
+      const color = ATT_OPTS.find(o=>o.v===val)?.c || '#C4C9D4';
+      return`<td style="padding:4px"><select data-att-sid="${s.id}" data-att-wk="${wk}" style="width:100%;padding:6px 4px;border:1.5px solid #E8ECF0;border-radius:7px;font-size:11px;text-align:center;font-weight:700;color:${color};background:#fff;outline:none;cursor:pointer">
+        ${ATT_OPTS.map(o=>`<option value="${o.v}" ${o.v===val?'selected':''}>${o.l}</option>`).join('')}
+      </select></td>`;
+    }).join('');
+    return`<tr><td style="font-weight:700;color:#1A237E;white-space:nowrap;padding:8px 10px">${esc(s.name)}</td>${cells}</tr>`;
+  }).join('');
+  return`
+  <div class="section-card">
+    <div class="section-ttl" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <span>🖥️ 인강/현강 체크</span>
+      <div style="display:flex;align-items:center;gap:6px">
+        <button id="att-prev" class="abtn" ${monIdx<=0?'disabled':''} style="padding:5px 12px">‹</button>
+        <span style="font-size:13px;font-weight:700;color:#1A237E;min-width:44px;text-align:center">${mon}</span>
+        <button id="att-next" class="abtn" ${monIdx>=MONTHS.length-1?'disabled':''} style="padding:5px 12px">›</button>
+      </div>
+    </div>
+    <div style="font-size:12px;color:#9BA3AF;margin-bottom:14px;line-height:1.6">주차별로 현강(O)·인강·결석 중 선택하면 바로 저장됩니다. 성적 입력과 별개로 관리돼요.</div>
+    ${!sc.students.length?`<div style="text-align:center;padding:40px 0;color:#9BA3AF;font-size:13px">등록된 학생이 없습니다</div>`:`
+    <div style="overflow-x:auto"><table class="rec-tbl" style="min-width:520px">
+      <thead><tr><th style="text-align:left">이름</th>${WEEKS.map(wk=>`<th>${wk}</th>`).join('')}</tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`}
   </div>`;}
 
 function rSchoolSettings(sc){return`
@@ -2414,7 +2484,45 @@ function bAdmin(){
         render();
       };
     });
-    document.querySelectorAll('[data-ds]').forEach(b=>{b.onclick=()=>{const s=sc.students.find(x=>x.id===b.dataset.ds);if(!confirm(`${s?.name||'이 학생'}을 삭제할까요?\n해당 학생의 성적 기록도 함께 삭제됩니다.`))return;sc.students=sc.students.filter(x=>x.id!==b.dataset.ds);sc.records=sc.records.filter(x=>x.sid!==b.dataset.ds);saveDB();render();};});
+    document.querySelectorAll('[data-ds]').forEach(b=>{b.onclick=()=>{const s=sc.students.find(x=>x.id===b.dataset.ds);if(s)openWithdrawStudent(sc,s.id);};});
+    return;
+  }
+  if(ST.atab==='withdrawn'){
+    document.querySelectorAll('[data-restore-id]').forEach(b=>{
+      b.onclick=()=>{
+        const idx=(sc.withdrawnStudents||[]).findIndex(x=>x.id===b.dataset.restoreId);
+        if(idx<0)return;
+        const [s]=sc.withdrawnStudents.splice(idx,1);
+        delete s.reason;delete s.withdrawnAt;
+        sc.students.push(s);
+        saveDB();render();
+      };
+    });
+    document.querySelectorAll('[data-perm-del-id]').forEach(b=>{
+      b.onclick=()=>{
+        const s=(sc.withdrawnStudents||[]).find(x=>x.id===b.dataset.permDelId);
+        if(!s)return;
+        if(!confirm(`${s.name} 학생을 완전히 삭제할까요?\n이 작업은 되돌릴 수 없으며, 성적 기록도 함께 삭제됩니다.`))return;
+        sc.withdrawnStudents=sc.withdrawnStudents.filter(x=>x.id!==s.id);
+        sc.records=sc.records.filter(x=>x.sid!==s.id);
+        saveDB();render();
+      };
+    });
+    return;
+  }
+  if(ST.atab==='attendance'){
+    document.getElementById('att-prev')?.addEventListener('click',()=>{
+      const i=MONTHS.indexOf(ST.attMon||MONTHS[1]);if(i>0){ST.attMon=MONTHS[i-1];render();}
+    });
+    document.getElementById('att-next')?.addEventListener('click',()=>{
+      const i=MONTHS.indexOf(ST.attMon||MONTHS[1]);if(i<MONTHS.length-1){ST.attMon=MONTHS[i+1];render();}
+    });
+    document.querySelectorAll('[data-att-sid]').forEach(sel=>{
+      sel.onchange=()=>{
+        setAttendance(sc, sel.dataset.attSid, ST.attMon||MONTHS[1], sel.dataset.attWk, sel.value);
+        sel.style.color=({'':'#C4C9D4','현강':'#00897B','인강':'#1D4ED8','결석':'#E53935'})[sel.value]||'#C4C9D4';
+      };
+    });
     return;
   }
   if(ST.atab==='admin-settings'){
@@ -3517,6 +3625,45 @@ function showPpurioAllPopup(sc, type, mon, wk){
       });
     };
   });
+}
+
+// 학생 "삭제"는 실제로는 탈퇴 처리 — 성적 기록은 보존한 채 학생만 sc.withdrawnStudents로 이동.
+// "탈퇴 학생" 게시판에서 사유 확인/복구/영구삭제 가능.
+function openWithdrawStudent(sc, sid){
+  const s = sc.students.find(x=>x.id===sid);
+  if(!s) return;
+
+  const popup = document.createElement('div');
+  popup.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center';
+  popup.className = 'withdraw-student-popup';
+  popup.innerHTML = `
+    <div style="background:#fff;border-radius:18px;padding:28px;max-width:420px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-size:17px;font-weight:800;color:#1A237E">🚪 ${esc(s.name)} 학생 탈퇴 처리</div>
+        <button onclick="this.closest('.withdraw-student-popup').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9BA3AF">✕</button>
+      </div>
+      <div style="font-size:12.5px;color:#9BA3AF;line-height:1.6;margin-bottom:16px">학생 목록에서 제외되고 "탈퇴 학생" 게시판으로 이동합니다. 성적 기록은 그대로 보존되며, 언제든 복구할 수 있습니다.</div>
+      <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">탈퇴 사유 (선택)</label>
+      <textarea id="wd-reason" rows="3" placeholder="예: 타 학원 이동, 성적 불만족, 거리 문제 등" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:13px;outline:none;font-family:inherit;resize:vertical"
+        onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'"></textarea>
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button id="btn-wd-confirm" style="flex:1;padding:13px;background:#E53935;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">탈퇴 처리</button>
+        <button onclick="this.closest('.withdraw-student-popup').remove()" style="padding:13px 20px;background:#F7F8FA;border:none;border-radius:10px;font-size:14px;cursor:pointer;font-family:inherit">취소</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(popup);
+  popup.onclick = e => { if(e.target===popup) popup.remove(); };
+
+  document.getElementById('btn-wd-confirm').onclick = () => {
+    const reason = document.getElementById('wd-reason').value.trim();
+    sc.withdrawnStudents = sc.withdrawnStudents || [];
+    sc.withdrawnStudents.push({ ...s, reason, withdrawnAt: nowStr() });
+    sc.students = sc.students.filter(x=>x.id!==sid);
+    saveDB();
+    popup.remove();
+    render();
+  };
 }
 
 function openEditStudent(sc, sid){

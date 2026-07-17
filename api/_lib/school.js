@@ -43,7 +43,7 @@ export async function createSchool(name, grade) {
   const id = 'sch' + Date.now();
   const school = {
     id, name, grade: grade || '1학년',
-    students: [], records: [], notices: {}, suggestions: [], withdrawnStudents: [],
+    students: [], records: [], notices: {}, suggestions: [], withdrawnStudents: [], inquiries: [],
     hw1: '숙제1', hw2: '숙제2', hw2Skip: false, hwNames: {}, kakaoChannel: '',
     version: 1,
   };
@@ -95,6 +95,7 @@ export function normalizeSchoolForWrite(incoming, existing) {
     notices: incoming.notices || {},
     suggestions: Array.isArray(incoming.suggestions) ? incoming.suggestions : (existing?.suggestions || []),
     withdrawnStudents: Array.isArray(incoming.withdrawnStudents) ? incoming.withdrawnStudents : (existing?.withdrawnStudents || []),
+    inquiries: Array.isArray(incoming.inquiries) ? incoming.inquiries : (existing?.inquiries || []),
     hw1: incoming.hw1 || '숙제1',
     hw2: incoming.hw2 || '숙제2',
     hw2Skip: !!incoming.hw2Skip,

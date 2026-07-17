@@ -41,7 +41,8 @@ body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-s
 .school-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:20px}
 .school-card{position:relative;background:#fff;border:none;border-radius:16px;padding:22px 16px;cursor:pointer;text-align:center;box-shadow:0 2px 12px rgba(0,0,0,0.06);transition:all 0.18s}
 .school-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(26,35,126,0.15)}
-.school-card-name{font-size:15px;font-weight:700;color:#1A237E;margin-bottom:4px}
+.school-card-name{font-size:15px;font-weight:700;color:#1A237E;margin-bottom:6px}
+.school-card-grade{display:inline-block;font-size:12px;font-weight:700;color:#1A237E;background:#E8EAF6;padding:3px 11px;border-radius:20px;margin-bottom:8px}
 .school-card-count{font-size:11px;color:#9BA3AF;font-weight:500}
 .school-card-del{position:absolute;top:8px;right:8px;width:24px;height:24px;border-radius:8px;border:none;background:rgba(0,0,0,0.04);color:#9BA3AF;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s}
 .school-card-del:hover{background:#FCEAEA;color:#E53935}
@@ -1102,7 +1103,8 @@ function rSchoolSelect(){
       <button class="school-card-del" data-del="${sc.id}" title="학교 삭제" aria-label="${sc.name} 학교 삭제">✕</button>
       <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#1A237E,#3949AB);display:flex;align-items:center;justify-content:center;font-size:22px;margin:0 auto 12px">🏫</div>
       <div class="school-card-name">${sc.name}</div>
-      <div class="school-card-count">${sc.grade} · 학생 ${sc.students?.length??sc.studentCount??0}명 · 성적 ${sc.records?.length??sc.recordCount??0}건</div>
+      <div class="school-card-grade">${sc.grade}</div>
+      <div class="school-card-count">학생 ${sc.students?.length??sc.studentCount??0}명 · 성적 ${sc.records?.length??sc.recordCount??0}건</div>
     </div>`).join('');
   return`
   <div class="top-nav">
@@ -1758,6 +1760,7 @@ function rAdmin(){
     {id:'attendance',l:'인강/현강 체크',icon:'🖥️'},
     {id:'notices',l:'공지 입력',icon:'📢'},
     {id:'students',l:'학생 관리',icon:'👥'},
+    {id:'consultations',l:'상담 신청자',icon:'📋'},
     {id:'withdrawn',l:'탈퇴 학생',icon:'🚪'},
     {id:'school-settings',l:'학교 설정',icon:'🏫'},
     {id:'admin-settings',l:'관리자 설정',icon:'⚙️'},
@@ -1771,6 +1774,7 @@ function rAdmin(){
   else if(ST.atab==='attendance') inner=rAttendance(sc);
   else if(ST.atab==='notices') inner=rNotices(sc);
   else if(ST.atab==='students') inner=rStudentMgmt(sc);
+  else if(ST.atab==='consultations') inner=rConsultations(sc);
   else if(ST.atab==='withdrawn') inner=rWithdrawn(sc);
   else if(ST.atab==='school-settings') inner=rSchoolSettings(sc);
   else if(ST.atab==='logs') inner=rLogs(sc);
@@ -2116,14 +2120,15 @@ function rStudentMgmt(sc){
   </div>
   <div class="section-card">
     <div class="section-ttl">➕ 학생 개별 등록</div>
+    ${ST.prefillStudent?`<div style="font-size:12px;color:#00897B;background:#E0F7F4;padding:8px 12px;border-radius:8px;margin-bottom:12px">📋 상담 신청자 "${esc(ST.prefillStudent.name)}"의 정보가 채워졌습니다. 확인 후 추가해주세요.</div>`:''}
     <div class="form3" style="margin-bottom:14px">
-      <div class="fgrp"><label class="flbl">이름</label><input class="finp" id="ns-name"/></div>
+      <div class="fgrp"><label class="flbl">이름</label><input class="finp" id="ns-name" value="${esc(ST.prefillStudent?.name||'')}"/></div>
       <div class="fgrp"><label class="flbl">학생 ID</label><input class="finp" id="ns-id" value="${autoId}"/></div>
       <div class="fgrp"><label class="flbl">초기 비밀번호</label><input class="finp" id="ns-pw" value="1234"/></div>
-      <div class="fgrp"><label class="flbl">학생 전화번호</label><input class="finp" id="ns-ph" placeholder="010-0000-0000" oninput="autoHyphen(this)" maxlength="13"/></div>
-      <div class="fgrp"><label class="flbl">학부모 전화번호</label><input class="finp" id="ns-pph" placeholder="010-0000-0000" oninput="autoHyphen(this)" maxlength="13"/></div>
+      <div class="fgrp"><label class="flbl">학생 전화번호</label><input class="finp" id="ns-ph" value="${esc(ST.prefillStudent?.phone||'')}" placeholder="010-0000-0000" oninput="autoHyphen(this)" maxlength="13"/></div>
+      <div class="fgrp"><label class="flbl">학부모 전화번호</label><input class="finp" id="ns-pph" value="${esc(ST.prefillStudent?.parentPhone||'')}" placeholder="010-0000-0000" oninput="autoHyphen(this)" maxlength="13"/></div>
       <div class="fgrp"><label class="flbl">구분</label>
-        <select class="finp" id="ns-type"><option value="regular">재학생</option><option value="new">신규생</option><option value="transfer">전입생</option></select>
+        <select class="finp" id="ns-type"><option value="regular" ${!ST.prefillStudent?'selected':''}>재학생</option><option value="new" ${ST.prefillStudent?'selected':''}>신규생</option><option value="transfer">전입생</option></select>
       </div>
     </div>
     <button class="abtn abtn-green" id="btn-ns">학생 추가</button>
@@ -2158,6 +2163,51 @@ function rStudentMgmt(sc){
         </tr>`;}).join('')}
       </tbody>
     </table></div>
+  </div>`;}
+
+function rConsultations(sc){
+  const list = sc.inquiries || [];
+  const today = (()=>{ const d=new Date(); return `${String(d.getMonth()+1).padStart(2,'0')}월 ${String(d.getDate()).padStart(2,'0')}일`; })();
+  const rows = [...list].reverse().map((q,i)=>`
+    <tr>
+      <td style="font-size:11px;color:#9BA3AF">${list.length-i}</td>
+      <td style="font-size:11px;color:#9BA3AF;white-space:nowrap">${esc(q.regDate)||'-'}</td>
+      <td style="font-weight:700;color:#1A237E">${esc(q.name)}</td>
+      <td style="font-size:12px">${esc(q.studentPhone)||'-'}</td>
+      <td style="font-size:12px">${esc(q.parentPhone)||'-'}</td>
+      <td style="font-size:12px;max-width:180px">${esc(q.mockScore)||'-'}</td>
+      <td style="font-size:12px;max-width:140px">${esc(q.lastScore)||'-'}</td>
+      <td style="font-size:12px;max-width:200px">${esc(q.reason)||'-'}</td>
+      <td style="white-space:nowrap;display:flex;gap:4px">
+        ${q.convertedStudentId
+          ?`<span style="font-size:11px;font-weight:700;color:#00897B;background:#E0F7F4;padding:4px 9px;border-radius:20px">✓ 등록됨</span>`
+          :`<button class="abtn abtn-green" data-to-student="${q.id}" style="font-size:11px;padding:4px 8px">학생으로 등록</button>`}
+        <button class="abtn abtn-red" data-del-inquiry="${q.id}" style="font-size:11px;padding:4px 8px">삭제</button>
+      </td>
+    </tr>`).join('');
+  return`
+  <div class="section-card">
+    <div class="section-ttl">📋 상담 신청 등록</div>
+    <div class="form3" style="margin-bottom:14px">
+      <div class="fgrp"><label class="flbl">등록 일자</label><input class="finp" id="iq-date" value="${today}"/></div>
+      <div class="fgrp"><label class="flbl">이름</label><input class="finp" id="iq-name"/></div>
+      <div class="fgrp"><label class="flbl">학생 번호</label><input class="finp" id="iq-ph" placeholder="010-0000-0000" oninput="autoHyphen(this)" maxlength="13"/></div>
+      <div class="fgrp"><label class="flbl">부모님 번호</label><input class="finp" id="iq-pph" placeholder="010-0000-0000" oninput="autoHyphen(this)" maxlength="13"/></div>
+      <div class="fgrp"><label class="flbl">모의고사 점수</label><input class="finp" id="iq-mock" placeholder="예: 고1 - 97점"/></div>
+      <div class="fgrp"><label class="flbl">지난 내신 점수</label><input class="finp" id="iq-last" placeholder="예: 2등급"/></div>
+    </div>
+    <div class="fgrp" style="margin-bottom:14px"><label class="flbl">수강계기</label><input class="finp" id="iq-reason" placeholder="예: 블로그, 추천(선배)" style="width:100%"/></div>
+    <button class="abtn abtn-green" id="btn-iq-add">신청자 추가</button>
+    <div id="iq-msg" style="font-size:12px;margin-top:8px"></div>
+  </div>
+  <div class="section-card">
+    <div class="section-ttl">📋 상담 신청자 목록 (${list.length}명)</div>
+    <div style="font-size:12px;color:#9BA3AF;margin-bottom:14px">"학생으로 등록"을 누르면 학생 관리의 개별 등록 폼에 이름·연락처가 채워집니다.</div>
+    ${!list.length?`<div style="text-align:center;padding:40px 0;color:#9BA3AF;font-size:13px">등록된 상담 신청자가 없습니다</div>`:`
+    <div style="overflow-x:auto"><table class="rec-tbl">
+      <thead><tr><th>순번</th><th>등록 일자</th><th>이름</th><th>학생 번호</th><th>부모님 번호</th><th>모의고사 점수</th><th>지난 내신 점수</th><th>수강계기</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`}
   </div>`;}
 
 function rWithdrawn(sc){
@@ -2441,6 +2491,11 @@ function bAdmin(){
       const today=new Date().toISOString().slice(0,10);
       const newSt={id,name,pwd:pw,phone:document.getElementById('ns-ph').value,parentPhone:document.getElementById('ns-pph').value,type:sType,createdAt:today};
       sc.students.push(newSt);
+      if(ST.prefillStudent?.inquiryId){
+        const inq=(sc.inquiries||[]).find(x=>x.id===ST.prefillStudent.inquiryId);
+        if(inq)inq.convertedStudentId=id;
+        ST.prefillStudent=null;
+      }
       saveDB();msg.textContent=`✓ ${name} 추가 완료!`;msg.style.color='#00897B';render();
       // 카카오 ID/비번 자동 발송 팝업
       if(newSt.parentPhone||newSt.phone)sendPpurioIdPw(sc,newSt);
@@ -2485,6 +2540,48 @@ function bAdmin(){
       };
     });
     document.querySelectorAll('[data-ds]').forEach(b=>{b.onclick=()=>{const s=sc.students.find(x=>x.id===b.dataset.ds);if(s)openWithdrawStudent(sc,s.id);};});
+    return;
+  }
+  if(ST.atab==='consultations'){
+    document.getElementById('btn-iq-add').onclick=()=>{
+      const name=document.getElementById('iq-name').value.trim();
+      const msg=document.getElementById('iq-msg');
+      if(!name){msg.textContent='이름을 입력하세요';msg.style.color='#E53935';return;}
+      const iq={
+        id:'iq'+Date.now(),
+        regDate:document.getElementById('iq-date').value.trim(),
+        name,
+        studentPhone:document.getElementById('iq-ph').value.trim(),
+        parentPhone:document.getElementById('iq-pph').value.trim(),
+        mockScore:document.getElementById('iq-mock').value.trim(),
+        lastScore:document.getElementById('iq-last').value.trim(),
+        reason:document.getElementById('iq-reason').value.trim(),
+        convertedStudentId:null,
+      };
+      sc.inquiries=sc.inquiries||[];
+      sc.inquiries.push(iq);
+      saveDB();
+      msg.textContent=`✓ ${name} 추가 완료!`;msg.style.color='#00897B';
+      render();
+    };
+    document.querySelectorAll('[data-to-student]').forEach(b=>{
+      b.onclick=()=>{
+        const q=(sc.inquiries||[]).find(x=>x.id===b.dataset.toStudent);
+        if(!q)return;
+        ST.prefillStudent={name:q.name,phone:q.studentPhone,parentPhone:q.parentPhone,inquiryId:q.id};
+        ST.atab='students';
+        render();
+      };
+    });
+    document.querySelectorAll('[data-del-inquiry]').forEach(b=>{
+      b.onclick=()=>{
+        const q=(sc.inquiries||[]).find(x=>x.id===b.dataset.delInquiry);
+        if(!q)return;
+        if(!confirm(`${q.name} 상담 신청 기록을 삭제할까요?`))return;
+        sc.inquiries=sc.inquiries.filter(x=>x.id!==q.id);
+        saveDB();render();
+      };
+    });
     return;
   }
   if(ST.atab==='withdrawn'){

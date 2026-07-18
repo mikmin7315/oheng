@@ -43,7 +43,7 @@ export async function createSchool(name, grade) {
   const id = 'sch' + Date.now();
   const school = {
     id, name, grade: grade || '1학년',
-    students: [], records: [], notices: {}, suggestions: [], withdrawnStudents: [], inquiries: [],
+    students: [], records: [], notices: {}, suggestions: [], withdrawnStudents: [], inquiries: [], sendLogs: [],
     hw1: '숙제1', hw2: '숙제2', hw2Skip: false, hwNames: {}, kakaoChannel: '',
     version: 1,
   };
@@ -96,6 +96,9 @@ export function normalizeSchoolForWrite(incoming, existing) {
     suggestions: Array.isArray(incoming.suggestions) ? incoming.suggestions : (existing?.suggestions || []),
     withdrawnStudents: Array.isArray(incoming.withdrawnStudents) ? incoming.withdrawnStudents : (existing?.withdrawnStudents || []),
     inquiries: Array.isArray(incoming.inquiries) ? incoming.inquiries : (existing?.inquiries || []),
+    // sendLogs는 전용 append/clear 엔드포인트로만 바뀜 — 일반 저장(PUT)에서는 클라이언트가 들고 있던
+    // 오래된 값으로 덮어쓰지 않도록 항상 서버의 기존 값을 그대로 유지
+    sendLogs: existing?.sendLogs || [],
     hw1: incoming.hw1 || '숙제1',
     hw2: incoming.hw2 || '숙제2',
     hw2Skip: !!incoming.hw2Skip,

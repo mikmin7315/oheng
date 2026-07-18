@@ -1908,7 +1908,7 @@ function rDashboard(sc){
     if(rtR.length){const p=Math.round(rtR.filter(r=>r.rtPass).length/rtR.length*100);rtPassRate=p+'%';rtPassColor=p>=70?'#00897B':'#E53935';}
   }
 
-  const sentLogs=lastWk?getSendLogs(sc.id).filter(l=>l.type==='score'&&l.month===lastMon&&l.week===lastWkStr&&l.status==='success'):[];
+  const sentLogs=lastWk?getSendLogs(sc).filter(l=>l.type==='score'&&l.month===lastMon&&l.week===lastWkStr&&l.status==='success'):[];
   const sentSids=new Set(sentLogs.map(l=>l.sid));
   const notSentCount=lastWk?allR.filter(r=>r.month===lastMon&&r.week===lastWkStr&&!sentSids.has(r.sid)).length:0;
 
@@ -2870,7 +2870,12 @@ function bAdmin(){
     });
     document.getElementById('btn-sl-clear')?.addEventListener('click',()=>{
       if(!confirm('모든 발송 이력을 삭제할까요?')) return;
-      localStorage.removeItem('oheng_sendlogs_'+sc.id);
+      if(ST.serverAdminSession){
+        sc.sendLogs=[];
+        fetch('/api/admin/clear-send-logs',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({schoolId:sc.id})}).catch(()=>{});
+      } else {
+        localStorage.removeItem('oheng_sendlogs_'+sc.id);
+      }
       renderSendLogTable(sc);
     });
     document.getElementById('btn-sl-retry-fail')?.addEventListener('click',()=>retrySendFails(sc));
@@ -3195,7 +3200,7 @@ function renderScoreDropAlert(sc, mon, wk){
 }
 
 function rSendLogs(sc){
-  const logs = getSendLogs(sc.id);
+  const logs = getSendLogs(sc);
   const MONTHS=['전체','1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
   const totalCnt = logs.length;
   const successCnt = logs.filter(l=>l.status==='success').length;
@@ -3247,7 +3252,7 @@ function renderSendLogTable(sc){
   const typeFilter  = document.getElementById('sl-filter-type')?.value  || '';
   const monthFilter = document.getElementById('sl-filter-month')?.value || '';
   const statFilter  = document.getElementById('sl-filter-status')?.value || '';
-  let logs = getSendLogs(sc.id).reverse(); // 최신순
+  let logs = getSendLogs(sc).reverse(); // 최신순
   if(typeFilter)  logs = logs.filter(l => l.type  === typeFilter);
   if(monthFilter) logs = logs.filter(l => l.month === monthFilter);
   if(statFilter)  logs = logs.filter(l => l.status === statFilter);
@@ -3350,7 +3355,7 @@ function rAdminSuggestions(sc){
 }
 
 async function retrySendFails(sc){
-  const failLogs = getSendLogs(sc.id).filter(l => l.status === 'fail');
+  const failLogs = getSendLogs(sc).filter(l => l.status === 'fail');
   if(!failLogs.length){ alert('실패 이력이 없습니다.'); return; }
 
   // 같은 학생+수신자(학부모/학생)+유형+월+주차 중 마지막 실패건만 유니크하게 (수신자별로 독립 재발송)
@@ -3388,17 +3393,17 @@ async function retrySendFails(sc){
       });
       if(res.ok){
         ok++;
-        addSendLog(sc.id, {type:l.type, studentId:s.id, studentName:s.name, recipient:l.recipient,
+        addSendLog(sc,{type:l.type, studentId:s.id, studentName:s.name, recipient:l.recipient,
           phone, month:l.month, week:l.week, status:'success', errorMsg:'', sentAt});
       } else {
         fail++;
         const ed = await res.json().catch(()=>({}));
-        addSendLog(sc.id, {type:l.type, studentId:s.id, studentName:s.name, recipient:l.recipient,
+        addSendLog(sc,{type:l.type, studentId:s.id, studentName:s.name, recipient:l.recipient,
           phone, month:l.month, week:l.week, status:'fail', errorMsg:ed.message||String(res.status), sentAt});
       }
     } catch(e){
       fail++;
-      addSendLog(sc.id, {type:l.type, studentId:s.id, studentName:s.name, recipient:l.recipient,
+      addSendLog(sc,{type:l.type, studentId:s.id, studentName:s.name, recipient:l.recipient,
         phone, month:l.month, week:l.week, status:'fail', errorMsg:e.message||'네트워크 오류', sentAt});
     }
     await new Promise(r=>setTimeout(r,300));
@@ -3429,17 +3434,29 @@ function nextStudentId(sc){
 }
 /* ── 카카오톡 발송 ── */
 /* ── 발송 이력 저장/조회 ── */
-function addSendLog(scId, entry){
-  // entry: {type, studentId, studentName, phone, month, wk, status, errorMsg, sentAt}
+// 서버 세션이면 발송 이력도 서버에 저장해 어느 기기에서든 확인 가능하게 함(로컬 모드는 기존처럼 localStorage만 사용).
+// entry: {type, studentId, studentName, recipient, phone, month, week, status, errorMsg, sentAt}
+function addSendLog(sc, entry){
+  if(ST.serverAdminSession){
+    sc.sendLogs = Array.isArray(sc.sendLogs) ? sc.sendLogs : [];
+    sc.sendLogs.push(entry);
+    if(sc.sendLogs.length > 1000) sc.sendLogs = sc.sendLogs.slice(-1000);
+    fetch('/api/admin/append-send-log', {
+      method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({schoolId: sc.id, entry})
+    }).catch(e=>console.warn('발송 이력 서버 저장 실패(화면에는 반영됨):', e));
+    return;
+  }
   try{
-    const key = 'oheng_sendlogs_' + scId;
+    const key = 'oheng_sendlogs_' + sc.id;
     const logs = JSON.parse(localStorage.getItem(key) || '[]');
     logs.push(entry);
     localStorage.setItem(key, JSON.stringify(logs.slice(-1000)));
   } catch(e){ console.warn('addSendLog 오류:', e); }
 }
-function getSendLogs(scId){
-  try{ return JSON.parse(localStorage.getItem('oheng_sendlogs_' + scId) || '[]'); }
+function getSendLogs(sc){
+  if(ST.serverAdminSession) return Array.isArray(sc.sendLogs) ? sc.sendLogs : [];
+  try{ return JSON.parse(localStorage.getItem('oheng_sendlogs_' + sc.id) || '[]'); }
   catch(e){ return []; }
 }
 function nowStr(){
@@ -3601,19 +3618,19 @@ function showPpurioAllPopup(sc, type, mon, wk, onlyStudentId){
         if(res.ok){
           success++;
           if(statusEl){ statusEl.textContent='✓'; statusEl.style.color='#00897B'; }
-          addSendLog(sc.id, {type: isScore?'score':'account', studentId: s.id, studentName: s.name, recipient: recipientLabel,
+          addSendLog(sc,{type: isScore?'score':'account', studentId: s.id, studentName: s.name, recipient: recipientLabel,
             phone, month: mon||'-', week: wk||'-', status:'success', errorMsg:'', sentAt});
         } else {
           fail++;
           const errData = await res.json().catch(()=>({}));
           if(statusEl){ statusEl.textContent='✗'; statusEl.style.color='#E53935'; }
-          addSendLog(sc.id, {type: isScore?'score':'account', studentId: s.id, studentName: s.name, recipient: recipientLabel,
+          addSendLog(sc,{type: isScore?'score':'account', studentId: s.id, studentName: s.name, recipient: recipientLabel,
             phone, month: mon||'-', week: wk||'-', status:'fail', errorMsg: errData.message||String(res.status), sentAt});
         }
       } catch(e){
         fail++;
         if(statusEl){ statusEl.textContent='✗'; statusEl.style.color='#E53935'; }
-        addSendLog(sc.id, {type: isScore?'score':'account', studentId: s.id, studentName: s.name, recipient: recipientLabel,
+        addSendLog(sc,{type: isScore?'score':'account', studentId: s.id, studentName: s.name, recipient: recipientLabel,
           phone, month: mon||'-', week: wk||'-', status:'fail', errorMsg: e.message||'네트워크 오류', sentAt});
       }
       await new Promise(r=>setTimeout(r,300)); // 과부하 방지
@@ -3680,19 +3697,19 @@ function showPpurioAllPopup(sc, type, mon, wk, onlyStudentId){
         if(res.ok){
           btn.textContent='✓ 완료'; btn.style.background='#E0F7F4'; btn.style.color='#00897B';
           if(statusEl){ statusEl.textContent='✓'; statusEl.style.color='#00897B'; }
-          addSendLog(sc.id, {type: isScore?'score':'account', studentId: row.s.id, studentName: row.s.name, recipient: row.recipientLabel,
+          addSendLog(sc,{type: isScore?'score':'account', studentId: row.s.id, studentName: row.s.name, recipient: row.recipientLabel,
             phone: row.phone, month: mon||'-', week: wk||'-', status:'success', errorMsg:'', sentAt});
         } else {
           btn.textContent='✗ 실패'; btn.style.background='#FFEBEE'; btn.style.color='#E53935';
           btn.disabled=false;
           if(statusEl){ statusEl.textContent='✗'; statusEl.style.color='#E53935'; }
-          addSendLog(sc.id, {type: isScore?'score':'account', studentId: row.s.id, studentName: row.s.name, recipient: row.recipientLabel,
+          addSendLog(sc,{type: isScore?'score':'account', studentId: row.s.id, studentName: row.s.name, recipient: row.recipientLabel,
             phone: row.phone, month: mon||'-', week: wk||'-', status:'fail', errorMsg: String(res.status), sentAt});
         }
       }).catch((e)=>{
         btn.textContent='✗ 오류'; btn.style.background='#FFEBEE'; btn.style.color='#E53935';
         btn.disabled=false;
-        addSendLog(sc.id, {type: isScore?'score':'account', studentId: row.s.id, studentName: row.s.name, recipient: row.recipientLabel,
+        addSendLog(sc,{type: isScore?'score':'account', studentId: row.s.id, studentName: row.s.name, recipient: row.recipientLabel,
           phone: row.phone, month: mon||'-', week: wk||'-', status:'fail', errorMsg: e.message||'네트워크 오류', sentAt});
       });
     };

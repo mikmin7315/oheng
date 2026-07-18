@@ -2126,8 +2126,9 @@ function rBulk(sc){
         <span style="font-size:14px;font-weight:500">이번 주차 저장 결과</span>
         <span class="result-count" style="font-size:12px;color:var(--tx2);margin-left:8px">${mon} ${wk} · ${sc.records.filter(r=>r.month===mon&&r.week===wk).length}명</span>
       </div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <div style="font-size:11px;color:var(--tx2)">전체 \${sc.records.length}건 저장됨</div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <div style="font-size:11px;color:var(--tx2)">전체 ${sc.records.length}건 저장됨</div>
+        <button id="btn-ppurio-notify-selected" style="display:none;padding:5px 12px;background:#1A237E;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">💬 선택 0명 발송</button>
         <button id="btn-ppurio-notify" style="padding:5px 12px;background:#FEE500;color:#000;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">💬 성적 알림 발송</button>
       </div>
     </div>
@@ -2216,7 +2217,8 @@ function rStudentMgmt(sc){
   <div class="section-card">
     <div class="section-ttl" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
       <span>👥 학생 목록 (${sc.students.length}명)</span>
-      <div style="display:flex;gap:8px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button id="btn-ppurio-selected-idpw" style="display:none;padding:6px 14px;background:#1A237E;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">💬 선택 0명 발송</button>
         <button id="btn-ppurio-all-idpw" style="padding:6px 14px;background:#FEE500;color:#000;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">💬 ID/비번 일괄 발송</button>
         <button class="abtn abtn-blue" id="btn-export-excel" style="font-size:11px;padding:6px 12px">📊 엑셀 내보내기</button>
         <button class="abtn abtn-gray" onclick="printStudentList()" style="font-size:11px;padding:6px 12px">🖨️ 인쇄</button>
@@ -2252,9 +2254,11 @@ function renderStudentTable(sc){
   const cp='padding:7px 8px'; // 압축된 셀 여백 — 끝에 수강계기 입력칸을 넣기 위해 나머지 칸을 좁힘
   wrap.innerHTML = `<table class="rec-tbl">
       <thead><tr>
+        <th style="${cp}"><input type="checkbox" id="stu-select-all" style="width:15px;height:15px;cursor:pointer;accent-color:#1A237E"></th>
         <th style="${cp}">ID</th><th style="${cp}">이름</th><th style="${cp}">구분</th><th style="${cp}">전화번호</th><th style="${cp}">학부모</th><th style="${cp}">비번</th><th style="${cp}">등록일</th><th style="${cp}">수강계기</th><th style="${cp}"></th>
       </tr></thead>
       <tbody>${filtered.map(s=>`<tr>
+          <td style="${cp}"><input type="checkbox" class="stu-select" data-sid="${s.id}" style="width:15px;height:15px;cursor:pointer;accent-color:#1A237E"></td>
           <td style="${cp};font-family:monospace;font-size:10.5px;color:#6B7280">${esc(s.id)}</td>
           <td style="${cp};font-weight:700;color:#1A237E">${esc(s.name)}</td>
           <td style="${cp}"><span style="padding:2px 7px;border-radius:20px;font-size:10.5px;font-weight:600;${typeColor[s.type||'regular']||typeColor.regular}">${typeMap[s.type||'regular']}</span></td>
@@ -2294,6 +2298,27 @@ function renderStudentTable(sc){
       saveDB();
     };
   });
+  // 체크박스로 고른 학생만 골라 ID/비번 발송 — "전체 선택" 헤더 체크박스와 연동
+  const selectedBtn=document.getElementById('btn-ppurio-selected-idpw');
+  const updateSelectedBtn=()=>{
+    if(!selectedBtn)return;
+    const n=wrap.querySelectorAll('.stu-select:checked').length;
+    if(n){selectedBtn.style.display='';selectedBtn.textContent=`💬 선택 ${n}명 발송`;}
+    else selectedBtn.style.display='none';
+  };
+  wrap.querySelectorAll('.stu-select').forEach(chk=>{
+    chk.addEventListener('change',()=>{
+      const all=[...wrap.querySelectorAll('.stu-select')];
+      const selectAllChk=document.getElementById('stu-select-all');
+      if(selectAllChk)selectAllChk.checked=all.length>0&&all.every(c=>c.checked);
+      updateSelectedBtn();
+    });
+  });
+  document.getElementById('stu-select-all')?.addEventListener('change',(e)=>{
+    wrap.querySelectorAll('.stu-select').forEach(c=>{c.checked=e.target.checked;});
+    updateSelectedBtn();
+  });
+  updateSelectedBtn();
 }
 
 function rWithdrawn(sc){
@@ -2606,6 +2631,11 @@ function bAdmin(){
     const tplBtn=document.getElementById('btn-csv-template');if(tplBtn)tplBtn.onclick=()=>downloadCSVTemplate();
     const exportStudBtn=document.getElementById('btn-export-excel');if(exportStudBtn)exportStudBtn.onclick=()=>exportStudentsExcel(sc);
     const ppurioAllBtn=document.getElementById('btn-ppurio-all-idpw');if(ppurioAllBtn)ppurioAllBtn.onclick=()=>sendPpurioAllIdPw(sc);
+    document.getElementById('btn-ppurio-selected-idpw')?.addEventListener('click',()=>{
+      const ids=[...document.querySelectorAll('.stu-select:checked')].map(c=>c.dataset.sid);
+      if(!ids.length)return;
+      sendPpurioSelectedIdPw(sc, ids);
+    });
     document.getElementById('stu-search').oninput=e=>{ST.stuSearch=e.target.value;renderStudentTable(sc);};
     document.getElementById('stu-filter-type').onchange=e=>{ST.stuFilterType=e.target.value;renderStudentTable(sc);};
     renderStudentTable(sc);
@@ -2999,6 +3029,11 @@ function bAdmin(){
   if(savedTblEl)wireCommentBtns(savedTblEl,sc);
   const ppurioNotifyBtn=document.getElementById('btn-ppurio-notify');
   if(ppurioNotifyBtn)ppurioNotifyBtn.onclick=()=>sendPpurioScoreNotify(sc,ST.bMon,ST.bWk);
+  document.getElementById('btn-ppurio-notify-selected')?.addEventListener('click',()=>{
+    const ids=[...document.querySelectorAll('.score-select:checked')].map(c=>c.dataset.sid);
+    if(!ids.length)return;
+    showPpurioAllPopup(sc, 'score', ST.bMon, ST.bWk, ids);
+  });
 }
 
 function applyRtSkip(row,dis){
@@ -3111,6 +3146,7 @@ function renderSavedTable(sc,mon,wk){
       return'-';
     }
     rows+='<tr>'
+      +'<td><input type="checkbox" class="score-select" data-sid="'+r.sid+'" checked style="width:15px;height:15px;cursor:pointer;accent-color:#1A237E"></td>'
       +'<td style="font-weight:700;color:#1A237E">'+(s?s.name:r.sid)+'</td>'
       +'<td style="color:#E65100;font-weight:600">'+(r.thrRt!=null?r.thrRt+'점':'-')+'</td>'
       +'<td style="color:#E65100;font-weight:600">'+(r.thrWt!=null?r.thrWt+'점':'-')+'</td>'
@@ -3131,6 +3167,7 @@ function renderSavedTable(sc,mon,wk){
   });
   return '<div style="overflow-x:auto"><table class="rec-tbl">'
     +'<thead><tr>'
+    +'<th><input type="checkbox" id="score-select-all" checked style="width:15px;height:15px;cursor:pointer;accent-color:#1A237E"></th>'
     +'<th>학생</th><th>RT기준</th><th>WT기준</th><th>RT점수</th><th>RT등수</th><th>RT합격</th>'
     +'<th>WT점수</th><th>WT등수</th><th>WT합격</th><th>전체점수</th><th>전체등수</th>'
     +'<th>'+hw1+'</th><th>'+hw2+'</th><th></th>'
@@ -3153,6 +3190,27 @@ function wireCommentBtns(root,sc){
       root.querySelectorAll('[data-dr]').forEach(db=>{db.onclick=()=>{sc.records.splice(parseInt(db.dataset.dr),1);saveDB();root.innerHTML=renderSavedTable(sc,ST.bMon,ST.bWk);wireCommentBtns(root,sc);};});
     };
   });
+  // 체크박스로 고른 학생만 골라 성적 알림 발송 — "전체 선택" 헤더 체크박스와 연동
+  const selectedBtn=document.getElementById('btn-ppurio-notify-selected');
+  const updateSelectedBtn=()=>{
+    if(!selectedBtn)return;
+    const n=root.querySelectorAll('.score-select:checked').length;
+    if(n){selectedBtn.style.display='';selectedBtn.textContent=`💬 선택 ${n}명 발송`;}
+    else selectedBtn.style.display='none';
+  };
+  root.querySelectorAll('.score-select').forEach(chk=>{
+    chk.addEventListener('change',()=>{
+      const all=[...root.querySelectorAll('.score-select')];
+      const selectAllChk=root.querySelector('#score-select-all');
+      if(selectAllChk)selectAllChk.checked=all.length>0&&all.every(c=>c.checked);
+      updateSelectedBtn();
+    });
+  });
+  root.querySelector('#score-select-all')?.addEventListener('change',(e)=>{
+    root.querySelectorAll('.score-select').forEach(c=>{c.checked=e.target.checked;});
+    updateSelectedBtn();
+  });
+  updateSelectedBtn();
 }
 
 function renderScoreDropAlert(sc, mon, wk){
@@ -3508,6 +3566,18 @@ async function sendPpurioAllIdPw(sc){
   showPpurioAllPopup(sc, 'account');
 }
 
+// 학생 목록에서 체크박스로 고른 학생들에게만 발송
+async function sendPpurioSelectedIdPw(sc, studentIds){
+  const students = sc.students.filter(s => studentIds.includes(s.id) && (s.parentPhone || s.phone));
+  if(!students.length){ alert('선택한 학생 중 전화번호가 등록된 학생이 없습니다.'); return; }
+  const missing = students.filter(s=>!s.pwd);
+  if(missing.length){
+    if(!confirm(`선택한 학생 중 ${missing.length}명은 아직 비밀번호가 발급되지 않았습니다.\n일괄로 새 비밀번호를 발급할까요?`))return;
+    for(const s of missing){ await resetStudentPassword(sc,s); }
+  }
+  showPpurioAllPopup(sc, 'account', undefined, undefined, studentIds);
+}
+
 async function sendPpurioScoreNotify(sc, mon, wk){
   const recs = sc.records.filter(r => r.month===mon && r.week===wk);
   if(!recs.length){ alert('저장된 성적이 없습니다.'); return; }
@@ -3518,6 +3588,10 @@ function showPpurioAllPopup(sc, type, mon, wk, onlyStudentId){
   const existing = document.querySelector('.ppurio-popup');
   if(existing) existing.remove();
 
+  // onlyStudentId: 학생 ID 하나(string) 또는 여러 개(array) — 학생 목록/성적 저장 결과 표에서
+  // 체크박스로 고른 대상만 골라 보낼 때 사용. 안 넘기면(=undefined) 전체 대상.
+  const idFilter = onlyStudentId==null ? null : (Array.isArray(onlyStudentId) ? new Set(onlyStudentId) : new Set([onlyStudentId]));
+
   const isScore = type === 'score';
   const recs = isScore ? sc.records.filter(r=>r.month===mon&&r.week===wk) : null;
   let targets = isScore
@@ -3526,9 +3600,9 @@ function showPpurioAllPopup(sc, type, mon, wk, onlyStudentId){
   let noPhone = isScore
     ? sc.students.filter(s=>!s.parentPhone&&!s.phone && recs?.find(r=>r.sid===s.id))
     : sc.students.filter(s=>!s.parentPhone&&!s.phone);
-  if(onlyStudentId){
-    targets = targets.filter(s=>s.id===onlyStudentId);
-    noPhone = noPhone.filter(s=>s.id===onlyStudentId);
+  if(idFilter){
+    targets = targets.filter(s=>idFilter.has(s.id));
+    noPhone = noPhone.filter(s=>idFilter.has(s.id));
   }
 
   const popup = document.createElement('div');
@@ -3574,7 +3648,7 @@ function showPpurioAllPopup(sc, type, mon, wk, onlyStudentId){
   popup.innerHTML = `
     <div style="background:#fff;border-radius:18px;padding:28px;max-width:500px;width:95%;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <div style="font-size:16px;font-weight:800;color:#1A237E">💬 ${isScore?'성적 알림':'ID/비번'} ${onlyStudentId?'발송':'일괄 발송'}</div>
+        <div style="font-size:16px;font-weight:800;color:#1A237E">💬 ${isScore?'성적 알림':'ID/비번'} ${idFilter?'발송':'일괄 발송'}</div>
         <button onclick="this.closest('.ppurio-popup').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9BA3AF">✕</button>
       </div>
       <div style="font-size:12px;color:#9BA3AF;margin-bottom:14px">${isScore?mon+' '+wk+' · ':''} 발송대상 ${targets.length}명 · 메시지 ${rows.length}건(학부모·학생 모두 발송) · 번호없음 ${noPhone.length}명</div>

@@ -20,6 +20,45 @@ export function verifyPassword(password, stored) {
   return crypto.timingSafeEqual(candidate, expected);
 }
 
+// ── 비밀번호 양방향 암호화 (AES-256-GCM) ──
+// 로그인 검증은 여전히 pwdHash(scrypt, 단방향)로 하고, 이 암호화는 "관리자가 다시 볼 수 있어야 하는"
+// 평문 비밀번호를 DB에 그대로 두지 않기 위한 것. DB(Redis)만 유출되고 이 키(Vercel 환경변수)는
+// 별도로 보호되는 한, 비밀번호는 노출되지 않는다.
+const ENC_PREFIX = 'encv1:';
+
+function getPwdEncKey() {
+  const raw = process.env.PWD_ENC_KEY;
+  if (!raw) throw new Error('PWD_ENC_KEY 환경변수가 설정되지 않았습니다');
+  if (/^[0-9a-fA-F]{64}$/.test(raw)) return Buffer.from(raw, 'hex');
+  // 임의 길이 문자열도 허용 — sha256으로 32바이트 키로 정규화
+  return crypto.createHash('sha256').update(raw).digest();
+}
+
+export function encryptPwd(plain) {
+  const key = getPwdEncKey();
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const enc = Buffer.concat([cipher.update(String(plain), 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return ENC_PREFIX + [iv.toString('hex'), tag.toString('hex'), enc.toString('hex')].join(':');
+}
+
+// 과거(마이그레이션 전) 데이터는 평문 그대로일 수 있어 encv1: 접두사가 없으면 그대로 반환(하위호환)
+export function decryptPwd(stored) {
+  if (!stored || typeof stored !== 'string') return stored || null;
+  if (!stored.startsWith(ENC_PREFIX)) return stored;
+  try {
+    const [ivHex, tagHex, dataHex] = stored.slice(ENC_PREFIX.length).split(':');
+    const key = getPwdEncKey();
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(ivHex, 'hex'));
+    decipher.setAuthTag(Buffer.from(tagHex, 'hex'));
+    const dec = Buffer.concat([decipher.update(Buffer.from(dataHex, 'hex')), decipher.final()]);
+    return dec.toString('utf8');
+  } catch {
+    return null;
+  }
+}
+
 // ── 세션 (Redis에 토큰의 sha256 해시를 키로 저장 — 원본 토큰 유출과 별개로 보호) ──
 function tokenKey(token) {
   return 'session:' + crypto.createHash('sha256').update(token).digest('hex');

@@ -1,4 +1,4 @@
-import { requireAdminSessionOrApiToken, isSameOrigin, verifyPassword, hashPassword } from '../_lib/auth.js';
+import { requireAdminSessionOrApiToken, isSameOrigin, verifyPassword, hashPassword, encryptPwd } from '../_lib/auth.js';
 import { getRedis } from '../_lib/redis.js';
 import {
   getSchoolIndex, getSchool, createSchool, putSchoolRaw,
@@ -105,7 +105,7 @@ export default async function handler(req, res) {
     if (idx < 0) return res.status(404).json({ success: false, message: '학생을 찾을 수 없습니다' });
 
     const pwd = (newPwd && String(newPwd).trim().length >= 4) ? String(newPwd).trim() : String(Math.floor(1000 + Math.random() * 9000));
-    sc.students[idx].pwd = pwd;
+    sc.students[idx].pwd = encryptPwd(pwd);
     sc.students[idx].pwdHash = hashPassword(pwd);
     sc.version = (sc.version || 0) + 1;
     await getRedis().set('school:' + schoolId, sc);

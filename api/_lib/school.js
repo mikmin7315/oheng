@@ -1,5 +1,5 @@
 import { getRedis } from './redis.js';
-import { hashPassword, verifyPassword } from './auth.js';
+import { hashPassword, verifyPassword, encryptPwd, decryptPwd } from './auth.js';
 
 const SCHOOL_PREFIX = 'school:';
 const INDEX_KEY = 'school:index';
@@ -75,10 +75,10 @@ export function computeAggregates(school) {
 
 // 관리자가 PUT으로 보낸 학교 blob을 신뢰 가능한 형태로 정규화.
 // - id는 서버 기존값 고정 (변조 방지)
-// - 비밀번호는 평문(pwd)도 함께 저장해 관리자가 언제든 다시 확인/재발송할 수 있게 함
-//   (로그인 검증에는 여전히 pwdHash를 사용 — 평문은 조회용). 기존 학생의 비밀번호 변경은
-//   전용 재설정 엔드포인트로만 가능하고, 일반 저장(PUT)에서는 기존 pwd/pwdHash를 그대로 유지.
-// - 신규 학생(기존에 없던 id)은 클라이언트가 보낸 평문 pwd를 그대로 저장 + 해시도 함께 생성
+// - 비밀번호는 암호화(pwd, AES-256-GCM)도 함께 저장해 관리자가 언제든 다시 확인/재발송할 수 있게 함
+//   (로그인 검증에는 여전히 pwdHash를 사용 — 암호화된 pwd는 조회용, DB만 유출돼도 원문 노출 안 됨).
+//   기존 학생의 비밀번호 변경은 전용 재설정 엔드포인트로만 가능하고, 일반 저장(PUT)에서는 기존 pwd/pwdHash를 그대로 유지.
+// - 신규 학생(기존에 없던 id)은 클라이언트가 보낸 평문 pwd를 암호화해서 저장 + 해시도 함께 생성
 export function normalizeSchoolForWrite(incoming, existing) {
   const existingStudentsById = new Map((existing?.students || []).map(s => [s.id, s]));
   const students = (incoming.students || []).map(s => {
@@ -86,7 +86,7 @@ export function normalizeSchoolForWrite(incoming, existing) {
     const { pwd, pwdHash, ...rest } = s;
     if (prev) return { ...rest, pwd: prev.pwd, pwdHash: prev.pwdHash };
     const initialPwd = pwd || '1234';
-    return { ...rest, pwd: initialPwd, pwdHash: hashPassword(initialPwd) };
+    return { ...rest, pwd: encryptPwd(initialPwd), pwdHash: hashPassword(initialPwd) };
   });
 
   return {
@@ -117,7 +117,7 @@ export function hashSchoolForMigration(school) {
   const students = (school.students || []).map(s => {
     const { pwd, ...rest } = s;
     const initialPwd = pwd || '1234';
-    return { ...rest, pwd: initialPwd, pwdHash: hashPassword(initialPwd) };
+    return { ...rest, pwd: encryptPwd(initialPwd), pwdHash: hashPassword(initialPwd) };
   });
   return {
     id: school.id,
@@ -176,12 +176,13 @@ export async function findStudentByCredentials(id, pw) {
   return null;
 }
 
-// 관리자용 응답에서도 pwdHash는 절대 내려보내지 않음 (관리자 화면은 "재설정"만 가능, "보기" 불가)
+// 관리자용 응답에서는 pwdHash는 절대 내려보내지 않고, 암호화된 pwd는 이 시점에만 복호화해서 내려줌
+// (DB에는 암호화된 값만 남아있고, 평문은 이 응답이 만들어지는 순간에만 메모리상에 잠깐 존재)
 export function toAdminView(school) {
   if (!school) return null;
   return {
     ...school,
-    students: (school.students || []).map(({ pwdHash, ...rest }) => rest),
-    withdrawnStudents: (school.withdrawnStudents || []).map(({ pwdHash, ...rest }) => rest),
+    students: (school.students || []).map(({ pwdHash, pwd, ...rest }) => ({ ...rest, pwd: decryptPwd(pwd) })),
+    withdrawnStudents: (school.withdrawnStudents || []).map(({ pwdHash, pwd, ...rest }) => ({ ...rest, pwd: decryptPwd(pwd) })),
   };
 }

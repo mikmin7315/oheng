@@ -1,4 +1,4 @@
-import { requireStudentSession, isSameOrigin, verifyPassword, hashPassword } from '../_lib/auth.js';
+import { requireStudentSession, isSameOrigin, verifyPassword, hashPassword, encryptPwd } from '../_lib/auth.js';
 import { getSchool } from '../_lib/school.js';
 import { getRedis } from '../_lib/redis.js';
 
@@ -49,7 +49,7 @@ export default async function handler(req, res) {
     if (!verifyPassword(currentPw, sc.students[idx].pwdHash)) {
       return res.status(400).json({ success: false, message: '현재 비밀번호가 틀렸습니다' });
     }
-    sc.students[idx].pwd = newPw;
+    sc.students[idx].pwd = encryptPwd(newPw);
     sc.students[idx].pwdHash = hashPassword(newPw);
     sc.version = (sc.version || 0) + 1;
     await getRedis().set('school:' + session.schoolId, sc);

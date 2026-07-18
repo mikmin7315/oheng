@@ -3727,11 +3727,11 @@ function showPpurioAllPopup(sc, type, mon, wk, onlyStudentId){
     const btn = document.getElementById('btn-send-all');
     const allMsg = document.getElementById('all-send-msg');
     btn.disabled = true;
-    btn.textContent = '발송 중...';
+    btn.textContent = `발송 중... (0/${selected.length})`;
     btn.style.background = '#E8ECF0';
     btn.style.color = '#9BA3AF';
 
-    let success = 0, fail = 0;
+    let success = 0, fail = 0, done = 0;
     for(const {s, key, recipientLabel, phone, vars, tpl, pfId} of selected){
       const statusEl = popup.querySelector(`.send-status-${key}`);
       if(statusEl) statusEl.textContent = '발송 중...';
@@ -3761,6 +3761,8 @@ function showPpurioAllPopup(sc, type, mon, wk, onlyStudentId){
         addSendLog(sc,{type: isScore?'score':'account', studentId: s.id, studentName: s.name, recipient: recipientLabel,
           phone, month: mon||'-', week: wk||'-', status:'fail', errorMsg: e.message||'네트워크 오류', sentAt});
       }
+      done++;
+      btn.textContent = `발송 중... (${done}/${selected.length})`;
       await new Promise(r=>setTimeout(r,300)); // 과부하 방지
     }
 

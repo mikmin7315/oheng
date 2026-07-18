@@ -3263,6 +3263,7 @@ function renderSendLogTable(sc){
     const typeColor = l.type === 'score' ? '#1A237E' : '#E65100';
     return `<tr>
       <td style="font-weight:700;color:#0D1117">${l.studentName||'-'}</td>
+      <td>${l.recipient?`<span style="padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;background:${l.recipient==='학부모'?'#EFF6FF':'#E0F7F4'};color:${l.recipient==='학부모'?'#1D4ED8':'#00897B'}">${esc(l.recipient)}</span>`:'-'}</td>
       <td style="color:#5C6470;font-size:11px">${l.phone||'-'}</td>
       <td><span style="padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;background:${typeBg};color:${typeColor}">${typeLabel}</span></td>
       <td style="color:#5C6470">${l.month||'-'} ${l.type==='score'?l.week||'':''}</td>
@@ -3277,6 +3278,7 @@ function renderSendLogTable(sc){
       <thead>
         <tr style="background:#F7F8FA">
           <th style="padding:10px 12px;text-align:left;font-size:11px;color:#9BA3AF;font-weight:700;border-bottom:1px solid #F0F2F5">학생명</th>
+          <th style="padding:10px 12px;text-align:left;font-size:11px;color:#9BA3AF;font-weight:700;border-bottom:1px solid #F0F2F5">수신자</th>
           <th style="padding:10px 12px;text-align:left;font-size:11px;color:#9BA3AF;font-weight:700;border-bottom:1px solid #F0F2F5">수신번호</th>
           <th style="padding:10px 12px;text-align:left;font-size:11px;color:#9BA3AF;font-weight:700;border-bottom:1px solid #F0F2F5">유형</th>
           <th style="padding:10px 12px;text-align:left;font-size:11px;color:#9BA3AF;font-weight:700;border-bottom:1px solid #F0F2F5">월/주차</th>
@@ -3351,10 +3353,10 @@ async function retrySendFails(sc){
   const failLogs = getSendLogs(sc.id).filter(l => l.status === 'fail');
   if(!failLogs.length){ alert('실패 이력이 없습니다.'); return; }
 
-  // 같은 학생+유형+월+주차 중 마지막 실패건만 유니크하게
+  // 같은 학생+수신자(학부모/학생)+유형+월+주차 중 마지막 실패건만 유니크하게 (수신자별로 독립 재발송)
   const seen = new Set();
   const targets = failLogs.filter(l => {
-    const k = `${l.studentId}_${l.type}_${l.month}_${l.week}`;
+    const k = `${l.studentId}_${l.recipient||''}_${l.type}_${l.month}_${l.week}`;
     if(seen.has(k)) return false; seen.add(k); return true;
   });
 
@@ -3364,7 +3366,7 @@ async function retrySendFails(sc){
   for(const l of targets){
     const s = sc.students.find(x=>x.id===l.studentId);
     if(!s){ fail++; continue; }
-    const phone = (s.parentPhone||s.phone||'').replace(/[^0-9]/g,'');
+    const phone = (l.phone||'').replace(/[^0-9]/g,''); // 원래 실패했던 그 번호로 재발송(학부모/학생 구분 유지)
     if(!phone){ fail++; continue; }
     const tpl = l.type==='score' ? PPURIO_TPL_SCORE : PPURIO_TPL_ACCOUNT;
     const pfId = l.type==='score' ? PPURIO_PFID_SCORE : PPURIO_PFID_ACCOUNT;
@@ -3386,17 +3388,17 @@ async function retrySendFails(sc){
       });
       if(res.ok){
         ok++;
-        addSendLog(sc.id, {type:l.type, studentId:s.id, studentName:s.name,
+        addSendLog(sc.id, {type:l.type, studentId:s.id, studentName:s.name, recipient:l.recipient,
           phone, month:l.month, week:l.week, status:'success', errorMsg:'', sentAt});
       } else {
         fail++;
         const ed = await res.json().catch(()=>({}));
-        addSendLog(sc.id, {type:l.type, studentId:s.id, studentName:s.name,
+        addSendLog(sc.id, {type:l.type, studentId:s.id, studentName:s.name, recipient:l.recipient,
           phone, month:l.month, week:l.week, status:'fail', errorMsg:ed.message||String(res.status), sentAt});
       }
     } catch(e){
       fail++;
-      addSendLog(sc.id, {type:l.type, studentId:s.id, studentName:s.name,
+      addSendLog(sc.id, {type:l.type, studentId:s.id, studentName:s.name, recipient:l.recipient,
         phone, month:l.month, week:l.week, status:'fail', errorMsg:e.message||'네트워크 오류', sentAt});
     }
     await new Promise(r=>setTimeout(r,300));
@@ -3464,36 +3466,16 @@ async function resetStudentPassword(sc, student, customPwd){
   return pwd;
 }
 
+// 학부모 번호와 학생 본인 번호가 둘 다 있으면 두 번호 모두에게 각각 발송 — showPpurioAllPopup을
+// 이 학생 한 명으로만 필터링해서 재사용 (중복 UI/발송 로직을 따로 유지하지 않기 위함)
 async function sendPpurioIdPw(sc, student){
-  const phone = (student.parentPhone || student.phone || '').replace(/[^0-9]/g,'');
-  if(!phone){ alert(student.name + ' 학생의 전화번호가 없습니다.'); return; }
+  if(!student.parentPhone && !student.phone){ alert(student.name + ' 학생의 전화번호가 없습니다.'); return; }
   if(!student.pwd){
     if(!confirm(`${student.name} 학생은 아직 비밀번호가 발급되지 않았습니다.\n새 비밀번호를 발급하고 바로 발송할까요?`))return;
     const pwd=await resetStudentPassword(sc,student);
     if(!pwd)return;
   }
-
-  const variables = {
-    '#{학생명}': student.name,
-    '#{학교명}': sc.name,
-    '#{아이디}': student.id,
-    '#{비밀번호}': student.pwd
-  };
-
-  showPpurioPopup('ID/비번 발송', student.name, phone, PPURIO_TPL_ACCOUNT, variables,
-    `[오은실 영어학원]
-
-${student.name} 학생의 성적 조회 계정을 안내드립니다.
-
-■ 학교 : ${sc.name}
-■ 아이디 : ${student.id}
-■ 비밀번호 : ${student.pwd}
-
-※ 첫 로그인 후 설정 메뉴에서
-   비밀번호를 변경해 주세요.
-
-문의사항은 선생님께 연락 주세요 :)`
-  );
+  showPpurioAllPopup(sc, 'account', undefined, undefined, student.id);
 }
 
 async function sendPpurioAllIdPw(sc){
@@ -3513,92 +3495,29 @@ async function sendPpurioScoreNotify(sc, mon, wk){
   showPpurioAllPopup(sc, 'score', mon, wk);
 }
 
-function showPpurioPopup(title, name, phone, tplCode, vars, previewMsg){
-  const existing = document.querySelector('.ppurio-popup');
-  if(existing) existing.remove();
-
-  const popup = document.createElement('div');
-  popup.className = 'ppurio-popup';
-  popup.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center';
-
-  popup.innerHTML = `
-    <div style="background:#fff;border-radius:18px;padding:28px;max-width:440px;width:92%;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-        <div style="font-size:16px;font-weight:800;color:#1A237E">💬 알림톡 발송 - ${title}</div>
-        <button onclick="this.closest('.ppurio-popup').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9BA3AF">✕</button>
-      </div>
-      <div style="background:#F7F8FA;border-radius:10px;padding:14px;font-size:12px;line-height:1.9;color:#5C6470;white-space:pre-wrap;margin-bottom:14px;max-height:180px;overflow-y:auto">${esc(previewMsg)}</div>
-      <div style="font-size:12px;color:#5C6470;margin-bottom:6px">📱 수신번호: <strong>${phone.replace(/(\d{3})(\d{4})(\d{4})/,'$1-$2-$3')}</strong></div>
-      <div style="font-size:12px;color:#5C6470;margin-bottom:16px">📋 템플릿: <span style="font-family:monospace;font-size:11px;color:#9BA3AF">${tplCode}</span></div>
-      <div id="ppurio-msg" style="font-size:12px;min-height:18px;margin-bottom:12px"></div>
-      <div style="display:flex;gap:8px">
-        <button id="btn-ppurio-send" style="flex:1;padding:13px;background:#FEE500;color:#000;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">💬 카카오 알림톡 발송</button>
-        <button onclick="this.closest('.ppurio-popup').remove()" style="padding:13px 18px;background:#F7F8FA;border:none;border-radius:10px;font-size:14px;cursor:pointer;font-family:inherit">취소</button>
-      </div>
-    </div>`;
-
-  document.body.appendChild(popup);
-  popup.onclick = e => { if(e.target===popup) popup.remove(); };
-
-  document.getElementById('btn-ppurio-send').onclick = async () => {
-    if(!confirm(`${name}에게 알림톡을 발송합니다.\n\n취소하면 발송되지 않습니다.\n계속하시겠습니까?`)) return;
-    const btn = document.getElementById('btn-ppurio-send');
-    const msg = document.getElementById('ppurio-msg');
-    btn.disabled = true; btn.textContent = '발송 중...';
-    const sentAt = nowStr();
-    // 발송 대상 학교 식별 (개별 발송은 curSch 기준)
-    const _sc = curSch();
-    const _type = tplCode === PPURIO_TPL_SCORE ? 'score' : 'account';
-    const _pfId = tplCode === PPURIO_TPL_SCORE ? PPURIO_PFID_SCORE : PPURIO_PFID_ACCOUNT;
-    try{
-      const res = await fetch('/api/send', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json','x-api-token':API_AUTH_TOKEN},
-        body: JSON.stringify({templateCode: tplCode, to: phone, variables: vars, pfId: _pfId})
-      });
-      if(res.ok){
-        msg.textContent = '✓ 발송 완료!'; msg.style.color = '#00897B';
-        btn.textContent = '✓ 완료';
-        addSendLog(_sc.id, {type:_type, studentId:'', studentName:name,
-          phone, month:'-', week:'-', status:'success', errorMsg:'', sentAt});
-        setTimeout(()=>popup.remove(), 1500);
-      } else {
-        const errData = await res.json().catch(()=>({}));
-        msg.innerHTML = '⚠️ 발송 실패: '+(errData.message||res.status);
-        msg.style.color = '#E53935';
-        btn.disabled = false; btn.textContent = '💬 카카오 알림톡 발송';
-        addSendLog(_sc.id, {type:_type, studentId:'', studentName:name,
-          phone, month:'-', week:'-', status:'fail', errorMsg:errData.message||String(res.status), sentAt});
-      }
-    } catch(e){
-      msg.innerHTML = '⚠️ 발송 오류. 잔액 및 설정을 확인해주세요.';
-      msg.style.color = '#E53935';
-      btn.disabled = false; btn.textContent = '💬 카카오 알림톡 발송';
-      addSendLog(_sc.id, {type:_type, studentId:'', studentName:name,
-        phone, month:'-', week:'-', status:'fail', errorMsg:e.message||'네트워크 오류', sentAt});
-    }
-  };
-}
-
-function showPpurioAllPopup(sc, type, mon, wk){
+function showPpurioAllPopup(sc, type, mon, wk, onlyStudentId){
   const existing = document.querySelector('.ppurio-popup');
   if(existing) existing.remove();
 
   const isScore = type === 'score';
   const recs = isScore ? sc.records.filter(r=>r.month===mon&&r.week===wk) : null;
-  const targets = isScore
+  let targets = isScore
     ? sc.students.filter(s=>(s.parentPhone||s.phone) && recs.find(r=>r.sid===s.id))
     : sc.students.filter(s=>s.parentPhone||s.phone);
-  const noPhone = isScore
+  let noPhone = isScore
     ? sc.students.filter(s=>!s.parentPhone&&!s.phone && recs?.find(r=>r.sid===s.id))
     : sc.students.filter(s=>!s.parentPhone&&!s.phone);
+  if(onlyStudentId){
+    targets = targets.filter(s=>s.id===onlyStudentId);
+    noPhone = noPhone.filter(s=>s.id===onlyStudentId);
+  }
 
   const popup = document.createElement('div');
   popup.className = 'ppurio-popup';
   popup.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center';
 
-  const rows = targets.map(s=>{
-    const phone=(s.parentPhone||s.phone||'').replace(/[^0-9]/g,'');
+  // 학부모/학생 번호가 둘 다 있으면 각각 별도 메시지로 발송 — 한 명당 최대 2건(수신자별로 독립 발송/기록)
+  const rows = targets.flatMap(s=>{
     const rec=isScore?recs.find(r=>r.sid===s.id):null;
     const vars=isScore?{
       '#{학생명}':s.name,'#{월}':mon,'#{주차}':wk
@@ -3607,21 +3526,25 @@ function showPpurioAllPopup(sc, type, mon, wk){
     };
     const tpl=isScore?PPURIO_TPL_SCORE:PPURIO_TPL_ACCOUNT;
     const pfId=isScore?PPURIO_PFID_SCORE:PPURIO_PFID_ACCOUNT;
-    return {s, phone, vars, tpl, pfId};
+    const recipients=[];
+    if(s.parentPhone)recipients.push({label:'학부모',phone:s.parentPhone.replace(/[^0-9]/g,'')});
+    if(s.phone)recipients.push({label:'학생',phone:s.phone.replace(/[^0-9]/g,'')});
+    return recipients.map(r=>({s, key:s.id+'_'+r.label, recipientLabel:r.label, phone:r.phone, vars, tpl, pfId}));
   });
 
-  const rowsHtml = rows.map(({s, phone, vars, tpl})=>`
+  const rowsHtml = rows.map(({s, key, recipientLabel, phone, vars})=>`
     <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #F7F8FA">
       <div>
         <span style="font-weight:700;font-size:13px;color:#1A237E">${esc(s.name)}</span>
-        <span style="font-size:11px;color:#9BA3AF;margin-left:8px">${esc((s.parentPhone||s.phone||'').replace(/(\d{3})(\d{4})(\d{4})/,'$1-$2-$3'))}</span>
-        ${isScore&&rows.find(r=>r.s.id===s.id)?.vars?.['전체점수']?`<span style="font-size:11px;color:#5C6470;margin-left:6px">${rows.find(r=>r.s.id===s.id).vars['전체점수']}</span>`:''}
+        <span style="font-size:10px;font-weight:700;color:${recipientLabel==='학부모'?'#1D4ED8':'#00897B'};background:${recipientLabel==='학부모'?'#EFF6FF':'#E0F7F4'};padding:2px 7px;border-radius:20px;margin-left:6px">${recipientLabel}</span>
+        <span style="font-size:11px;color:#9BA3AF;margin-left:6px">${esc(phone.replace(/(\d{3})(\d{4})(\d{4})/,'$1-$2-$3'))}</span>
+        ${isScore&&vars['전체점수']?`<span style="font-size:11px;color:#5C6470;margin-left:6px">${vars['전체점수']}</span>`:''}
       </div>
       <div style="display:flex;align-items:center;gap:6px">
-        <span class="send-status-${s.id}" style="font-size:11px;color:#9BA3AF"></span>
-        <button class="btn-preview-send" data-sid="${s.id}"
+        <span class="send-status-${key}" style="font-size:11px;color:#9BA3AF"></span>
+        <button class="btn-preview-send" data-key="${key}"
           style="padding:5px 10px;background:#F7F8FA;border:1.5px solid #E8ECF0;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;color:#5C6470">미리보기</button>
-        <button class="btn-single-send" data-sid="${s.id}"
+        <button class="btn-single-send" data-key="${key}"
           style="padding:5px 12px;background:#FEE500;color:#000;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">💬 발송</button>
       </div>
     </div>`).join('');
@@ -3629,16 +3552,16 @@ function showPpurioAllPopup(sc, type, mon, wk){
   popup.innerHTML = `
     <div style="background:#fff;border-radius:18px;padding:28px;max-width:500px;width:95%;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <div style="font-size:16px;font-weight:800;color:#1A237E">💬 ${isScore?'성적 알림':'ID/비번'} 일괄 발송</div>
+        <div style="font-size:16px;font-weight:800;color:#1A237E">💬 ${isScore?'성적 알림':'ID/비번'} ${onlyStudentId?'발송':'일괄 발송'}</div>
         <button onclick="this.closest('.ppurio-popup').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9BA3AF">✕</button>
       </div>
-      <div style="font-size:12px;color:#9BA3AF;margin-bottom:14px">${isScore?mon+' '+wk+' · ':''} 발송대상 ${targets.length}명 · 번호없음 ${noPhone.length}명</div>
+      <div style="font-size:12px;color:#9BA3AF;margin-bottom:14px">${isScore?mon+' '+wk+' · ':''} 발송대상 ${targets.length}명 · 메시지 ${rows.length}건(학부모·학생 모두 발송) · 번호없음 ${noPhone.length}명</div>
 
       <!-- 전체 일괄 발송 버튼 -->
       <button id="btn-send-all"
         style="width:100%;padding:13px;background:#FEE500;color:#000;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px;transition:background 0.15s"
         onmouseover="this.style.background='#FDD835'" onmouseout="this.style.background='#FEE500'">
-        💬 전체 ${targets.length}명 일괄 발송
+        💬 ${rows.length}건 일괄 발송
       </button>
       <div id="all-send-msg" style="font-size:12px;text-align:center;margin-bottom:12px;min-height:18px"></div>
 
@@ -3651,7 +3574,7 @@ function showPpurioAllPopup(sc, type, mon, wk){
   // 전체 일괄 발송
   document.getElementById('btn-send-all').onclick = async () => {
     // 확인창
-    if(!confirm(`${targets.length}명에게 알림톡을 발송합니다.
+    if(!confirm(`${targets.length}명(메시지 ${rows.length}건 · 학부모+학생)에게 알림톡을 발송합니다.
 
 취소하면 발송되지 않습니다.
 계속하시겠습니까?`)) return;
@@ -3664,8 +3587,8 @@ function showPpurioAllPopup(sc, type, mon, wk){
     btn.style.color = '#9BA3AF';
 
     let success = 0, fail = 0;
-    for(const {s, phone, vars, tpl, pfId} of rows){
-      const statusEl = popup.querySelector(`.send-status-${s.id}`);
+    for(const {s, key, recipientLabel, phone, vars, tpl, pfId} of rows){
+      const statusEl = popup.querySelector(`.send-status-${key}`);
       if(statusEl) statusEl.textContent = '발송 중...';
       const sentAt = nowStr();
       try{
@@ -3678,27 +3601,27 @@ function showPpurioAllPopup(sc, type, mon, wk){
         if(res.ok){
           success++;
           if(statusEl){ statusEl.textContent='✓'; statusEl.style.color='#00897B'; }
-          addSendLog(sc.id, {type: isScore?'score':'account', studentId: s.id, studentName: s.name,
+          addSendLog(sc.id, {type: isScore?'score':'account', studentId: s.id, studentName: s.name, recipient: recipientLabel,
             phone, month: mon||'-', week: wk||'-', status:'success', errorMsg:'', sentAt});
         } else {
           fail++;
           const errData = await res.json().catch(()=>({}));
           if(statusEl){ statusEl.textContent='✗'; statusEl.style.color='#E53935'; }
-          addSendLog(sc.id, {type: isScore?'score':'account', studentId: s.id, studentName: s.name,
+          addSendLog(sc.id, {type: isScore?'score':'account', studentId: s.id, studentName: s.name, recipient: recipientLabel,
             phone, month: mon||'-', week: wk||'-', status:'fail', errorMsg: errData.message||String(res.status), sentAt});
         }
       } catch(e){
         fail++;
         if(statusEl){ statusEl.textContent='✗'; statusEl.style.color='#E53935'; }
-        addSendLog(sc.id, {type: isScore?'score':'account', studentId: s.id, studentName: s.name,
+        addSendLog(sc.id, {type: isScore?'score':'account', studentId: s.id, studentName: s.name, recipient: recipientLabel,
           phone, month: mon||'-', week: wk||'-', status:'fail', errorMsg: e.message||'네트워크 오류', sentAt});
       }
       await new Promise(r=>setTimeout(r,300)); // 과부하 방지
     }
 
-    allMsg.textContent = `✓ ${success}명 완료${fail?` · ${fail}명 실패`:''}`;
+    allMsg.textContent = `✓ ${success}건 완료${fail?` · ${fail}건 실패`:''}`;
     allMsg.style.color = fail ? '#E65100' : '#00897B';
-    btn.textContent = `완료 (${success}/${targets.length})`;
+    btn.textContent = `완료 (${success}/${rows.length})`;
     btn.style.background = '#E0F7F4';
     btn.style.color = '#00897B';
   };
@@ -3706,8 +3629,8 @@ function showPpurioAllPopup(sc, type, mon, wk){
   // 미리보기 버튼
   popup.querySelectorAll('.btn-preview-send').forEach(btn=>{
     btn.onclick = ()=>{
-      const sid = btn.dataset.sid;
-      const row = rows.find(r=>r.s.id===sid);
+      const key = btn.dataset.key;
+      const row = rows.find(r=>r.key===key);
       if(!row) return;
       const varStr = Object.entries(row.vars)
         .map(([k,v])=>`<tr><td style="padding:5px 8px;font-weight:600;color:#5C6470;white-space:nowrap">${k}</td><td style="padding:5px 8px;color:#0D1117">${v}</td></tr>`)
@@ -3720,8 +3643,8 @@ function showPpurioAllPopup(sc, type, mon, wk){
             <div style="font-size:15px;font-weight:800;color:#1A237E">발송 내용 미리보기</div>
             <button onclick="this.closest('div[style*=\"z-index:10000\"]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9BA3AF">✕</button>
           </div>
-          <div style="font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:6px;letter-spacing:0.5px">수신번호</div>
-          <div style="font-size:13px;font-weight:600;color:#0D1117;margin-bottom:14px">${row.s.name} · ${(row.s.parentPhone||row.s.phone||'번호없음')}</div>
+          <div style="font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:6px;letter-spacing:0.5px">수신번호 (${esc(row.recipientLabel)})</div>
+          <div style="font-size:13px;font-weight:600;color:#0D1117;margin-bottom:14px">${row.s.name} · ${row.phone}</div>
           <div style="font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:6px;letter-spacing:0.5px">템플릿 변수</div>
           <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:14px;border:0.5px solid #F0F2F5;border-radius:8px;overflow:hidden">
             <tbody>${varStr}</tbody>
@@ -3736,16 +3659,16 @@ function showPpurioAllPopup(sc, type, mon, wk){
   // 개별 발송 버튼
   popup.querySelectorAll('.btn-single-send').forEach(btn=>{
     btn.onclick = ()=>{
-      const sid = btn.dataset.sid;
-      const row = rows.find(r=>r.s.id===sid);
+      const key = btn.dataset.key;
+      const row = rows.find(r=>r.key===key);
       if(!row) return;
 
-      if(!confirm(`${row.s.name} 학생에게 알림톡을 발송합니다.
+      if(!confirm(`${row.s.name} 학생(${row.recipientLabel})에게 알림톡을 발송합니다.
 
 취소하면 발송되지 않습니다.
 계속하시겠습니까?`)) return;
 
-      const statusEl = popup.querySelector(`.send-status-${sid}`);
+      const statusEl = popup.querySelector(`.send-status-${key}`);
       btn.disabled = true; btn.textContent = '발송 중...';
       const ppBody = { templateCode: row.tpl, to: row.phone, variables: row.vars, pfId: row.pfId };
       const sentAt = nowStr();
@@ -3757,19 +3680,19 @@ function showPpurioAllPopup(sc, type, mon, wk){
         if(res.ok){
           btn.textContent='✓ 완료'; btn.style.background='#E0F7F4'; btn.style.color='#00897B';
           if(statusEl){ statusEl.textContent='✓'; statusEl.style.color='#00897B'; }
-          addSendLog(sc.id, {type: isScore?'score':'account', studentId: row.s.id, studentName: row.s.name,
+          addSendLog(sc.id, {type: isScore?'score':'account', studentId: row.s.id, studentName: row.s.name, recipient: row.recipientLabel,
             phone: row.phone, month: mon||'-', week: wk||'-', status:'success', errorMsg:'', sentAt});
         } else {
           btn.textContent='✗ 실패'; btn.style.background='#FFEBEE'; btn.style.color='#E53935';
           btn.disabled=false;
           if(statusEl){ statusEl.textContent='✗'; statusEl.style.color='#E53935'; }
-          addSendLog(sc.id, {type: isScore?'score':'account', studentId: row.s.id, studentName: row.s.name,
+          addSendLog(sc.id, {type: isScore?'score':'account', studentId: row.s.id, studentName: row.s.name, recipient: row.recipientLabel,
             phone: row.phone, month: mon||'-', week: wk||'-', status:'fail', errorMsg: String(res.status), sentAt});
         }
       }).catch((e)=>{
         btn.textContent='✗ 오류'; btn.style.background='#FFEBEE'; btn.style.color='#E53935';
         btn.disabled=false;
-        addSendLog(sc.id, {type: isScore?'score':'account', studentId: row.s.id, studentName: row.s.name,
+        addSendLog(sc.id, {type: isScore?'score':'account', studentId: row.s.id, studentName: row.s.name, recipient: row.recipientLabel,
           phone: row.phone, month: mon||'-', week: wk||'-', status:'fail', errorMsg: e.message||'네트워크 오류', sentAt});
       });
     };

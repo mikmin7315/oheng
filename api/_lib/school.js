@@ -75,15 +75,18 @@ export function computeAggregates(school) {
 
 // 관리자가 PUT으로 보낸 학교 blob을 신뢰 가능한 형태로 정규화.
 // - id는 서버 기존값 고정 (변조 방지)
-// - 기존 학생의 pwdHash는 서버에 저장된 값 유지 (클라이언트가 보낸 pwd/pwdHash 무시 — 비밀번호 변경은 전용 재설정 엔드포인트로만)
-// - 신규 학생(기존에 없던 id)은 클라이언트가 보낸 평문 pwd를 서버가 해싱하고 평문은 저장하지 않음
+// - 비밀번호는 평문(pwd)도 함께 저장해 관리자가 언제든 다시 확인/재발송할 수 있게 함
+//   (로그인 검증에는 여전히 pwdHash를 사용 — 평문은 조회용). 기존 학생의 비밀번호 변경은
+//   전용 재설정 엔드포인트로만 가능하고, 일반 저장(PUT)에서는 기존 pwd/pwdHash를 그대로 유지.
+// - 신규 학생(기존에 없던 id)은 클라이언트가 보낸 평문 pwd를 그대로 저장 + 해시도 함께 생성
 export function normalizeSchoolForWrite(incoming, existing) {
   const existingStudentsById = new Map((existing?.students || []).map(s => [s.id, s]));
   const students = (incoming.students || []).map(s => {
     const prev = existingStudentsById.get(s.id);
     const { pwd, pwdHash, ...rest } = s;
-    if (prev) return { ...rest, pwdHash: prev.pwdHash };
-    return { ...rest, pwdHash: hashPassword(pwd || '1234') };
+    if (prev) return { ...rest, pwd: prev.pwd, pwdHash: prev.pwdHash };
+    const initialPwd = pwd || '1234';
+    return { ...rest, pwd: initialPwd, pwdHash: hashPassword(initialPwd) };
   });
 
   return {
@@ -113,7 +116,8 @@ export function normalizeSchoolForWrite(incoming, existing) {
 export function hashSchoolForMigration(school) {
   const students = (school.students || []).map(s => {
     const { pwd, ...rest } = s;
-    return { ...rest, pwdHash: hashPassword(pwd || '1234') };
+    const initialPwd = pwd || '1234';
+    return { ...rest, pwd: initialPwd, pwdHash: hashPassword(initialPwd) };
   });
   return {
     id: school.id,

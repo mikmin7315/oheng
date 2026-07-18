@@ -3525,7 +3525,7 @@ function nowStr(){
   return `${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())} ${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`;
 }
 
-// 서버 모드: 서버가 비밀번호를 해시로만 들고 있어 평문을 절대 보여줄 수 없다 — "재설정"으로 새 비번을 발급받아 화면에 1회 표시.
+// 서버 모드: 서버가 평문 비밀번호도 함께 저장하므로, 재설정하면 그 이후로는 학생 목록에서 계속 조회 가능.
 // 로컬 모드(레거시): 평문 비번을 그대로 들고 있으므로 여기서도 값만 바꿔 saveDB().
 async function resetStudentPassword(sc, student, customPwd){
   if(ST.serverAdminSession){
@@ -3555,13 +3555,31 @@ async function sendPpurioIdPw(sc, student){
   showPpurioAllPopup(sc, 'account', undefined, undefined, student.id);
 }
 
+// 학생 수가 많으면 (미발급 비밀번호를 순차로 재발급하느라) 팝업이 뜨기까지 꽤 걸릴 수 있어서
+// 그동안 화면이 멈춘 것처럼 보이지 않도록 진행 상태를 보여줌
+function showBusyOverlay(text){
+  const el = document.createElement('div');
+  el.id = 'busy-overlay';
+  el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10001;display:flex;align-items:center;justify-content:center';
+  el.innerHTML = `<div style="background:#fff;border-radius:16px;padding:24px 32px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.25);min-width:220px">
+    <div style="font-size:14px;font-weight:700;color:#1A237E;margin-bottom:8px" id="busy-overlay-text">${esc(text)}</div>
+    <div style="font-size:12px;color:#9BA3AF">잠시만 기다려주세요 — 창을 닫지 마세요</div>
+  </div>`;
+  document.body.appendChild(el);
+  return el;
+}
+function updateBusyOverlay(el, text){ const t = el?.querySelector('#busy-overlay-text'); if(t) t.textContent = text; }
+
 async function sendPpurioAllIdPw(sc){
   const students = sc.students.filter(s => s.parentPhone || s.phone);
   if(!students.length){ alert('전화번호가 등록된 학생이 없습니다.'); return; }
   const missing = students.filter(s=>!s.pwd);
   if(missing.length){
-    if(!confirm(`${missing.length}명의 학생은 아직 비밀번호가 발급되지 않았습니다.\n일괄로 새 비밀번호를 발급할까요?`))return;
-    for(const s of missing){ await resetStudentPassword(sc,s); } // 같은 학교 문서를 순차 저장 — 병렬 호출 시 서로 덮어쓸 수 있어 반드시 순서대로 await
+    if(!confirm(`${missing.length}명의 학생은 아직 비밀번호가 발급되지 않았습니다.\n일괄로 새 비밀번호를 발급할까요?\n\n(인원이 많으면 시간이 좀 걸릴 수 있습니다)`))return;
+    const overlay = showBusyOverlay(`비밀번호 발급 중... (0/${missing.length})`);
+    let i = 0;
+    for(const s of missing){ i++; updateBusyOverlay(overlay, `비밀번호 발급 중... (${i}/${missing.length})`); await resetStudentPassword(sc,s); } // 같은 학교 문서를 순차 저장 — 병렬 호출 시 서로 덮어쓸 수 있어 반드시 순서대로 await
+    overlay.remove();
   }
   showPpurioAllPopup(sc, 'account');
 }
@@ -3573,7 +3591,10 @@ async function sendPpurioSelectedIdPw(sc, studentIds){
   const missing = students.filter(s=>!s.pwd);
   if(missing.length){
     if(!confirm(`선택한 학생 중 ${missing.length}명은 아직 비밀번호가 발급되지 않았습니다.\n일괄로 새 비밀번호를 발급할까요?`))return;
-    for(const s of missing){ await resetStudentPassword(sc,s); }
+    const overlay = showBusyOverlay(`비밀번호 발급 중... (0/${missing.length})`);
+    let i = 0;
+    for(const s of missing){ i++; updateBusyOverlay(overlay, `비밀번호 발급 중... (${i}/${missing.length})`); await resetStudentPassword(sc,s); }
+    overlay.remove();
   }
   showPpurioAllPopup(sc, 'account', undefined, undefined, studentIds);
 }
@@ -3886,7 +3907,7 @@ function openEditStudent(sc, sid){
           <input value="${esc(s.id)}" disabled style="width:100%;padding:10px 14px;border:1.5px solid #F0F2F5;border-radius:9px;font-size:14px;background:#F7F8FA;color:#9BA3AF;font-family:monospace">
         </div>
         <div>
-          <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">비밀번호 ${s.pwd?'':'<span style="color:#C4C9D4;font-weight:400;text-transform:none">(서버에 암호화 저장되어 조회 불가 — 바꿀 때만 입력)</span>'}</label>
+          <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">비밀번호 ${s.pwd?'':'<span style="color:#C4C9D4;font-weight:400;text-transform:none">(아직 확인된 적 없음 — 한 번 재설정하면 이후 계속 조회 가능)</span>'}</label>
           <input id="edit-pwd" value="${s.pwd?esc(s.pwd):''}" placeholder="변경하려면 새 비밀번호 입력 (비워두면 유지)" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit"
             onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">
         </div>

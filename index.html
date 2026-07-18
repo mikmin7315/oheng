@@ -2462,7 +2462,7 @@ function rAdminSettings(sc){
 
 function rLogs(sc){
   try{
-    const logs=JSON.parse(localStorage.getItem('oheng_logs_'+sc.id)||'[]');
+    const logs=getSaveLogs(sc);
     if(!logs.length)return`<div class="section-card" style="text-align:center;padding:30px 0">
       <div style="font-size:32px;margin-bottom:10px">📋</div>
       <div style="font-size:14px;font-weight:500;margin-bottom:6px">저장 로그가 없습니다</div>
@@ -2578,8 +2578,10 @@ function bAdmin(){
       const newSt={id,name,pwd:pw,phone:document.getElementById('ns-ph').value,parentPhone:document.getElementById('ns-pph').value,type:sType,reason:document.getElementById('ns-reason')?.value.trim()||'',createdAt:today};
       sc.students.push(newSt);
       saveDB();msg.textContent=`✓ ${name} 추가 완료!`;msg.style.color='#00897B';render();
-      // 카카오 ID/비번 자동 발송 팝업
-      if(newSt.parentPhone||newSt.phone)sendPpurioIdPw(sc,newSt);
+      // 카카오 ID/비번 발송은 강제하지 않고 선택 — "취소"하면 나중에 일괄 발송으로 보낼 수 있음
+      if((newSt.parentPhone||newSt.phone) && confirm(`${name} 학생 등록 완료!\n\n지금 바로 카카오 알림톡(ID/비번)을 보낼까요?\n\n"취소"를 누르면 지금은 보내지 않고, 나중에 "ID/비번 일괄 발송"에서 한 번에 보낼 수 있습니다.`)){
+        sendPpurioIdPw(sc,newSt);
+      }
     };
     const csvInput=document.getElementById('csv-upload');
     if(csvInput){csvInput.onchange=e=>{const f=e.target.files[0];if(f){const el=document.getElementById('csv-filename');if(el)el.textContent=f.name;}};}
@@ -4012,16 +4014,33 @@ function sendKakaoScoreNotify(sc, mon, wk){
   document.body.appendChild(popup);
 }
 
+// 서버 세션이면 저장 로그도 서버에 남겨 어느 기기에서든 확인 가능하게 함 (발송 이력과 동일한 방식)
 function addLog(sc,mon,wk,count,thrRt,thrWt){
+  const now=new Date();
+  const pad=n=>String(n).padStart(2,'0');
+  const entry={month:mon,week:wk,count,thrRt,thrWt,
+    savedAt:`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`};
+  if(ST.serverAdminSession){
+    sc.saveLogs=Array.isArray(sc.saveLogs)?sc.saveLogs:[];
+    sc.saveLogs.push(entry);
+    if(sc.saveLogs.length>200)sc.saveLogs=sc.saveLogs.slice(-200);
+    fetch('/api/admin/append-save-log',{
+      method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({schoolId:sc.id,entry})
+    }).catch(e=>console.warn('저장 로그 서버 기록 실패(화면에는 반영됨):',e));
+    return;
+  }
   try{
     const key='oheng_logs_'+sc.id;
     const logs=JSON.parse(localStorage.getItem(key)||'[]');
-    const now=new Date();
-    const pad=n=>String(n).padStart(2,'0');
-    logs.push({month:mon,week:wk,count,thrRt,thrWt,
-      savedAt:`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`});
+    logs.push(entry);
     localStorage.setItem(key,JSON.stringify(logs.slice(-200)));
   }catch(e){console.warn('addLog 오류:',e);}
+}
+function getSaveLogs(sc){
+  if(ST.serverAdminSession)return Array.isArray(sc.saveLogs)?sc.saveLogs:[];
+  try{return JSON.parse(localStorage.getItem('oheng_logs_'+sc.id)||'[]');}
+  catch(e){return [];}
 }
 
 function printStudentList(){

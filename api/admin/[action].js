@@ -111,6 +111,22 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true, password: pwd, studentId });
   }
 
+  if (action === 'append-save-log') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    const { schoolId, entry } = req.body || {};
+    if (!schoolId || !entry) return res.status(400).json({ success: false, message: 'Missing schoolId/entry' });
+
+    const sc = await getSchool(schoolId);
+    if (!sc) return res.status(404).json({ success: false, message: '학교를 찾을 수 없습니다' });
+    sc.saveLogs = Array.isArray(sc.saveLogs) ? sc.saveLogs : [];
+    sc.saveLogs.push(entry);
+    if (sc.saveLogs.length > 200) sc.saveLogs = sc.saveLogs.slice(-200);
+    sc.version = (sc.version || 0) + 1;
+    await getRedis().set('school:' + schoolId, sc);
+    return res.status(200).json({ success: true });
+  }
+
   if (action === 'append-send-log') {
     if (req.method !== 'POST') return res.status(405).end();
     if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });

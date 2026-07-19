@@ -1275,6 +1275,7 @@ function rStudent(){
   const unreadReplies=(sc?.suggestions||[]).filter(s=>s.sid===ST.user.id&&s.reply&&!s.replyRead).length;
   const tabs=[
     {id:'report',l:'성적표'},
+    {id:'lectures',l:'인강 시청'},
     {id:'suggest',l:'제안하기'+(unreadReplies?` <span style="background:#E53935;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;vertical-align:middle">${unreadReplies}</span>`:'')},
     {id:'inquiry',l:'문의하기'},
     {id:'settings',l:'설정'}
@@ -1282,6 +1283,7 @@ function rStudent(){
   const recs=sRecs(ST.user.id,ST.userSchool);
   let inner='';
   if(ST.tab==='report') inner=rReport(recs);
+  else if(ST.tab==='lectures') inner=rLectures();
   else if(ST.tab==='suggest') inner=rSuggest();
   else if(ST.tab==='inquiry') inner=rInquiry();
   else inner=rStudentSettings();
@@ -1291,6 +1293,32 @@ function rStudent(){
       <button class="nbtn no-print" id="btn-lo">로그아웃</button></div></div>
   <div class="tabs no-print">${tabs.map(t=>`<div class="tab ${ST.tab===t.id?'active':''}" data-tab="${t.id}">${t.l}</div>`).join('')}</div>
   <div class="s-content">${inner}</div>`;}
+
+function rLectures(){
+  if(ST.myVideos===undefined){
+    ST.myVideos=null;
+    fetch('/api/videos/mine',{credentials:'include'}).then(r=>r.json()).then(d=>{ST.myVideos=d.success?d.videos:[];render();}).catch(()=>{ST.myVideos=[];render();});
+  }
+  if(ST.myVideos===null){
+    return`<div style="text-align:center;padding:60px 20px;color:#9BA3AF"><div style="font-size:13px">불러오는 중...</div></div>`;
+  }
+  const videos=ST.myVideos;
+  if(!videos.length){
+    return`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;color:#9BA3AF;text-align:center"><div style="font-size:36px;margin-bottom:12px">🎬</div><div style="font-size:15px;font-weight:600;color:#5C6470;margin-bottom:6px">아직 볼 수 있는 영상이 없습니다</div><div style="font-size:13px">선생님이 영상을 등록하면 여기에 표시됩니다</div></div>`;
+  }
+  return`<div style="display:flex;flex-direction:column;gap:10px">
+    ${videos.map(v=>{
+      const wk=v.month&&v.week?`${v.month} ${v.week}`:'';
+      return`<div style="background:#fff;border:1.5px solid #D9E0EA;border-radius:12px;padding:16px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px">
+          <div style="font-size:14px;font-weight:700;color:#1A237E">${esc(v.title)}</div>
+          ${wk?`<span style="font-size:11px;font-weight:700;color:#5C6470;background:#F7F8FA;padding:3px 9px;border-radius:20px;white-space:nowrap">${wk}</span>`:''}
+        </div>
+        ${v.note?`<div style="font-size:12.5px;color:#5C6470;margin-bottom:10px">${esc(v.note)}</div>`:''}
+        <div style="background:#F7F8FA;border-radius:10px;padding:24px;text-align:center;color:#9BA3AF;font-size:12.5px">🔒 재생 준비 중 (콜러스 연동 예정)</div>
+      </div>`;}).join('')}
+  </div>`;
+}
 
 function rSuggest(){
   const sc=ST.userSchool;
@@ -1831,6 +1859,7 @@ function rAdmin(){
     {id:'dashboard',l:'대시보드',icon:'📊'},
     {id:'records',l:'성적 일괄 입력',icon:'📝'},
     {id:'attendance',l:'인강/현강 체크',icon:'🖥️'},
+    {id:'videos',l:'영상 관리',icon:'🎬'},
     {id:'notices',l:'공지 입력',icon:'📢'},
     {id:'students',l:'학생 관리',icon:'👥'},
     {id:'withdrawn',l:'탈퇴 학생',icon:'🚪'},
@@ -1844,6 +1873,7 @@ function rAdmin(){
   if(ST.atab==='dashboard') inner=rDashboard(sc);
   else if(ST.atab==='records') inner=rBulk(sc);
   else if(ST.atab==='attendance') inner=rAttendance(sc);
+  else if(ST.atab==='videos') inner=rVideos(sc);
   else if(ST.atab==='notices') inner=rNotices(sc);
   else if(ST.atab==='students') inner=rStudentMgmt(sc);
   else if(ST.atab==='withdrawn') inner=rWithdrawn(sc);
@@ -2392,6 +2422,107 @@ function rAttendance(sc){
     </table></div>`}
   </div>`;}
 
+function rVideos(sc){
+  const MONTHS=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];const WEEKS=['1주','2주','3주','4주','5주'];
+  if(ST.videos===undefined){
+    ST.videos=null;
+    fetch('/api/videos/list',{credentials:'include'}).then(r=>r.json()).then(d=>{ST.videos=d.success?d.videos:[];render();}).catch(()=>{ST.videos=[];render();});
+  }
+  if(ST.videos===null){
+    return`<div class="section-card"><div style="text-align:center;padding:40px 0;color:#9BA3AF;font-size:13px">영상 목록 불러오는 중...</div></div>`;
+  }
+  const schools=ST.schoolsSummary||[];
+  const videos=ST.videos;
+  const editingId=ST.videoEditId||null;
+  const exceptionId=ST.videoExceptionId||null;
+
+  const formVideo=editingId?videos.find(v=>v.id===editingId):null;
+  const formHtml=(ST.videoFormOpen||formVideo)?`
+    <div class="section-card" style="background:#F7F8FA">
+      <div class="section-ttl">${formVideo?'영상 수정':'새 영상 추가'}</div>
+      <div class="form2" style="margin-bottom:12px">
+        <div class="fgrp"><label class="flbl">제목</label><input class="finp" id="vf-title" value="${formVideo?esc(formVideo.title):''}" placeholder="예: 2월 1주 RT 강의"></div>
+        <div class="fgrp"><label class="flbl">비고 (선택)</label><input class="finp" id="vf-note" value="${formVideo?esc(formVideo.note||''):''}" placeholder="관리자만 보는 메모"></div>
+      </div>
+      <div class="form2" style="margin-bottom:12px">
+        <div class="fgrp"><label class="flbl">월 (선택)</label><select class="finp" id="vf-mon"><option value="">-</option>${MONTHS.map(m=>`<option ${formVideo?.month===m?'selected':''}>${m}</option>`).join('')}</select></div>
+        <div class="fgrp"><label class="flbl">주차 (선택)</label><select class="finp" id="vf-wk"><option value="">-</option>${WEEKS.map(w=>`<option ${formVideo?.week===w?'selected':''}>${w}</option>`).join('')}</select></div>
+      </div>
+      <div style="margin-bottom:12px"><label class="flbl">콜러스 미디어 콘텐츠 키 (선택)</label>
+        <input class="finp" id="vf-mediakey" value="${formVideo?esc(formVideo.mediaKey||''):''}" placeholder="콜러스 연동 전에는 비워두거나 메모용으로만 사용">
+        <div style="font-size:11px;color:#9BA3AF;margin-top:5px">콜러스 계정 연동 전까지는 실제 재생과 무관 — 나중에 발급받은 키를 여기에 넣으면 됩니다.</div>
+      </div>
+      <div style="margin-bottom:14px"><label class="flbl">허용 학교</label>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">
+          ${schools.map(s=>`<label style="display:flex;align-items:center;gap:5px;padding:6px 10px;background:#fff;border:1.5px solid #E8ECF0;border-radius:8px;font-size:12px;cursor:pointer">
+            <input type="checkbox" class="vf-school" value="${s.id}" ${(formVideo?.allowSchoolIds||[]).includes(s.id)?'checked':''} style="width:14px;height:14px;cursor:pointer">
+            ${esc(s.name)} ${esc(s.grade||'')}
+          </label>`).join('')}
+        </div>
+      </div>
+      <button class="abtn abtn-green" id="btn-video-save">저장</button>
+      <button class="abtn abtn-gray" id="btn-video-cancel" style="margin-left:6px">취소</button>
+      <div id="video-form-msg" style="font-size:12px;margin-top:8px;font-weight:600"></div>
+    </div>`:'';
+
+  const excVideo=exceptionId?videos.find(v=>v.id===exceptionId):null;
+  const excPanelHtml=excVideo?`
+    <div class="section-card" style="background:#F7F8FA">
+      <div class="section-ttl">"${esc(excVideo.title)}" — ${esc(sc.name)} 학생 예외</div>
+      <div style="font-size:12px;color:#9BA3AF;margin-bottom:12px;line-height:1.6">이 학교는 기본적으로 ${(excVideo.allowSchoolIds||[]).includes(sc.id)?'<strong style="color:#00897B">허용</strong>':'<strong style="color:#E53935">비허용</strong>'} 상태입니다. 특정 학생만 다르게 하려면 아래에서 선택하세요.</div>
+      ${!sc.students.length?`<div style="color:#9BA3AF;font-size:13px">등록된 학생이 없습니다</div>`:`
+      <div style="overflow-x:auto"><table class="rec-tbl">
+        <thead><tr><th style="text-align:left">이름</th><th>설정</th></tr></thead>
+        <tbody>${sc.students.map(s=>{
+          const state=(excVideo.includeStudentIds||[]).includes(s.id)?'include':(excVideo.excludeStudentIds||[]).includes(s.id)?'exclude':'default';
+          return`<tr><td style="padding:8px 10px;font-weight:700;color:#1A237E">${esc(s.name)}</td>
+          <td style="padding:8px 10px;text-align:center">
+            <select class="vf-exc" data-sid="${s.id}" style="padding:5px 8px;border:1.5px solid #E8ECF0;border-radius:7px;font-size:12px">
+              <option value="default" ${state==='default'?'selected':''}>기본값 따름</option>
+              <option value="include" ${state==='include'?'selected':''}>이 학생만 허용</option>
+              <option value="exclude" ${state==='exclude'?'selected':''}>이 학생만 차단</option>
+            </select>
+          </td></tr>`;}).join('')}</tbody>
+      </table></div>`}
+      <button class="abtn abtn-green" id="btn-exc-save" style="margin-top:12px">저장</button>
+      <button class="abtn abtn-gray" id="btn-exc-cancel" style="margin-left:6px;margin-top:12px">취소</button>
+      <div id="video-exc-msg" style="font-size:12px;margin-top:8px;font-weight:600"></div>
+    </div>`:'';
+
+  const listRows=videos.map(v=>{
+    const wk=v.month&&v.week?`${v.month} ${v.week}`:'-';
+    const allowCount=(v.allowSchoolIds||[]).length;
+    const excCount=(v.excludeStudentIds||[]).length+(v.includeStudentIds||[]).length;
+    return`<tr>
+      <td style="padding:10px 12px;font-weight:700;color:#1A237E">${esc(v.title)}</td>
+      <td style="padding:10px 12px;text-align:center;color:#5C6470">${wk}</td>
+      <td style="padding:10px 12px;text-align:center">${v.mediaKey?'<span style="color:#00897B;font-weight:700">있음</span>':'<span style="color:#9BA3AF">미등록</span>'}</td>
+      <td style="padding:10px 12px;text-align:center;color:#5C6470">${allowCount}개 학교${excCount?` · 예외 ${excCount}명`:''}</td>
+      <td style="padding:10px 12px;text-align:center;white-space:nowrap">
+        <button data-video-exc="${v.id}" style="padding:4px 9px;background:#EEF0FB;color:#1A237E;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;margin-right:4px">학생 예외</button>
+        <button data-video-edit="${v.id}" style="padding:4px 9px;background:#EEF0FB;color:#1A237E;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;margin-right:4px">수정</button>
+        <button data-video-del="${v.id}" style="padding:4px 9px;background:#FFEBEE;color:#E53935;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">삭제</button>
+      </td>
+    </tr>`;}).join('');
+
+  return`
+  <div class="section-card">
+    <div class="section-ttl" style="display:flex;justify-content:space-between;align-items:center">
+      <span>🎬 영상 관리 (${videos.length}개)</span>
+      ${!ST.videoFormOpen&&!formVideo?`<button class="abtn abtn-blue" id="btn-video-add">＋ 새 영상 추가</button>`:''}
+    </div>
+    <div style="font-size:12px;color:#9BA3AF;margin-bottom:14px;line-height:1.6">여기서 등록한 영상은 허용된 학교 학생에게만 "인강 시청" 탭에 보입니다. 실제 재생은 콜러스 연동 후 가능합니다.</div>
+  </div>
+  ${formHtml}
+  ${excPanelHtml}
+  <div class="section-card">
+    ${!videos.length?`<div style="text-align:center;padding:40px 0;color:#9BA3AF;font-size:13px">등록된 영상이 없습니다</div>`:
+    `<div style="overflow-x:auto"><table class="rec-tbl">
+      <thead><tr><th style="text-align:left">제목</th><th>주차</th><th>미디어 키</th><th>접근 권한</th><th></th></tr></thead>
+      <tbody>${listRows}</tbody>
+    </table></div>`}
+  </div>`;}
+
 function rSchoolSettings(sc){return`
   <div class="section-card">
     <div class="section-ttl">학교 기본 정보</div>
@@ -2695,6 +2826,85 @@ function bAdmin(){
         ST.atab='students';ST.stuSearch=s.name;ST.stuFilterType='';
         render();
       };
+    });
+    return;
+  }
+  if(ST.atab==='videos'){
+    document.getElementById('btn-video-add')?.addEventListener('click',()=>{
+      ST.videoFormOpen=true;ST.videoEditId=null;render();
+    });
+    document.getElementById('btn-video-cancel')?.addEventListener('click',()=>{
+      ST.videoFormOpen=false;ST.videoEditId=null;render();
+    });
+    document.querySelectorAll('[data-video-edit]').forEach(b=>{
+      b.onclick=()=>{ST.videoEditId=b.dataset.videoEdit;ST.videoFormOpen=true;render();};
+    });
+    document.querySelectorAll('[data-video-del]').forEach(b=>{
+      b.onclick=async()=>{
+        if(!confirm('이 영상을 삭제할까요?'))return;
+        const id=b.dataset.videoDel;
+        await fetch('/api/videos/delete',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})}).catch(()=>{});
+        ST.videos=(ST.videos||[]).filter(v=>v.id!==id);
+        render();
+      };
+    });
+    document.querySelectorAll('[data-video-exc]').forEach(b=>{
+      b.onclick=()=>{ST.videoExceptionId=b.dataset.videoExc;render();};
+    });
+    document.getElementById('btn-exc-cancel')?.addEventListener('click',()=>{ST.videoExceptionId=null;render();});
+    document.getElementById('btn-video-save')?.addEventListener('click', async()=>{
+      const title=(document.getElementById('vf-title')?.value||'').trim();
+      const msgEl=document.getElementById('video-form-msg');
+      if(!title){if(msgEl){msgEl.textContent='제목을 입력하세요';msgEl.style.color='#E53935';}return;}
+      const existing=ST.videoEditId?(ST.videos||[]).find(v=>v.id===ST.videoEditId):null;
+      const allowSchoolIds=[...document.querySelectorAll('.vf-school:checked')].map(c=>c.value);
+      const body={
+        ...(existing||{}),
+        title,
+        note:(document.getElementById('vf-note')?.value||'').trim(),
+        month:document.getElementById('vf-mon')?.value||'',
+        week:document.getElementById('vf-wk')?.value||'',
+        mediaKey:(document.getElementById('vf-mediakey')?.value||'').trim(),
+        allowSchoolIds,
+      };
+      if(msgEl){msgEl.textContent='저장 중...';msgEl.style.color='#9BA3AF';}
+      try{
+        const res=await fetch('/api/videos/save',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        const data=await res.json();
+        if(!data.success)throw new Error(data.message||'저장 실패');
+        ST.videos=(ST.videos||[]).filter(v=>v.id!==data.video.id);
+        ST.videos.push(data.video);
+        ST.videoFormOpen=false;ST.videoEditId=null;
+        render();
+      }catch(e){
+        if(msgEl){msgEl.textContent='✗ '+(e.message||'오류');msgEl.style.color='#E53935';}
+      }
+    });
+    document.getElementById('btn-exc-save')?.addEventListener('click', async()=>{
+      const video=(ST.videos||[]).find(v=>v.id===ST.videoExceptionId);
+      if(!video)return;
+      const scStudentIds=new Set(sc.students.map(s=>s.id));
+      const otherExclude=(video.excludeStudentIds||[]).filter(id=>!scStudentIds.has(id));
+      const otherInclude=(video.includeStudentIds||[]).filter(id=>!scStudentIds.has(id));
+      const theseExclude=[],theseInclude=[];
+      document.querySelectorAll('.vf-exc').forEach(sel=>{
+        if(sel.value==='exclude')theseExclude.push(sel.dataset.sid);
+        else if(sel.value==='include')theseInclude.push(sel.dataset.sid);
+      });
+      const body={...video, excludeStudentIds:[...otherExclude,...theseExclude], includeStudentIds:[...otherInclude,...theseInclude]};
+      const msgEl=document.getElementById('video-exc-msg');
+      if(msgEl){msgEl.textContent='저장 중...';msgEl.style.color='#9BA3AF';}
+      try{
+        const res=await fetch('/api/videos/save',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        const data=await res.json();
+        if(!data.success)throw new Error(data.message||'저장 실패');
+        ST.videos=(ST.videos||[]).filter(v=>v.id!==data.video.id);
+        ST.videos.push(data.video);
+        ST.videoExceptionId=null;
+        render();
+      }catch(e){
+        if(msgEl){msgEl.textContent='✗ '+(e.message||'오류');msgEl.style.color='#E53935';}
+      }
     });
     return;
   }

@@ -1912,6 +1912,9 @@ function rDashboard(sc){
   const sentSids=new Set(sentLogs.map(l=>l.sid));
   const notSentCount=lastWk?allR.filter(r=>r.month===lastMon&&r.week===lastWkStr&&!sentSids.has(r.sid)).length:0;
 
+  const absentCount=lastWk?allR.filter(r=>r.month===lastMon&&r.week===lastWkStr&&r.attendType==='결석').length:0;
+  const onlineCount=lastWk?allR.filter(r=>r.month===lastMon&&r.week===lastWkStr&&r.attendType==='인강').length:0;
+
   const recentWks=weekSet.slice(-8);
   const dashLabels=recentWks.map(w=>w.replace('_',' '));
   const wtAvgJS=JSON.stringify(recentWks.map(w=>{const[m,wk]=w.split('_');return allR.find(r=>r.month===m&&r.week===wk&&r.wtAvg!=null)?.wtAvg??null;}));
@@ -1936,7 +1939,7 @@ function rDashboard(sc){
     </tr>`;}).join('');
 
   return`
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px" class="dash-kpi-grid">
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px" class="dash-kpi-grid">
     <div style="background:#fff;border-radius:14px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.06)">
       <div style="font-size:10px;font-weight:700;color:#9BA3AF;margin-bottom:8px;letter-spacing:0.5px">등록 학생</div>
       <div style="font-size:28px;font-weight:900;color:#1A237E">${sc.students.length}</div>
@@ -1956,6 +1959,11 @@ function rDashboard(sc){
       <div style="font-size:10px;font-weight:700;color:#9BA3AF;margin-bottom:8px;letter-spacing:0.5px">알림톡 미발송</div>
       <div style="font-size:28px;font-weight:900;color:${notSentCount>0?'#E53935':'#00897B'}">${notSentCount}</div>
       <div style="font-size:11px;color:#9BA3AF;margin-top:2px">명 (최근 주차)</div>
+    </div>
+    <div style="background:#fff;border-radius:14px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.06);cursor:pointer" onclick="ST.atab='attendance';render()">
+      <div style="font-size:10px;font-weight:700;color:#9BA3AF;margin-bottom:8px;letter-spacing:0.5px">결석 (최근 주차)</div>
+      <div style="font-size:28px;font-weight:900;color:${!lastWk?'#9BA3AF':absentCount>0?'#E53935':'#00897B'}">${lastWk?absentCount:'-'}</div>
+      <div style="font-size:11px;color:#9BA3AF;margin-top:2px">${lastWk?`인강 ${onlineCount}명`:'데이터 없음'}</div>
     </div>
   </div>
 
@@ -2022,9 +2030,12 @@ function rBulk(sc){
   const hw1=hwEntry.hw1||sc.hw1||'숙제1';
   const hw2=hwEntry.hw2||sc.hw2||'숙제2';
   const hw2Skip=hwEntry.hw2Skip!==undefined?hwEntry.hw2Skip:(sc.hw2Skip||false);
+  const ATT_OPTS=[{v:'',l:'-',c:'#C4C9D4'},{v:'현강',l:'현강(O)',c:'#00897B'},{v:'인강',l:'인강',c:'#1D4ED8'},{v:'결석',l:'결석',c:'#E53935'}];
   const rows=sc.students.map(s=>{
     const ex=sc.records.find(r=>r.sid===s.id&&r.month===mon&&r.week===wk)||{};
     const rtSkipped=!!ex.rtSkip;const wtSkipped=!!ex.wtSkip;
+    const attVal=ex.attendType||'';
+    const attColor=ATT_OPTS.find(o=>o.v===attVal)?.c||'#C4C9D4';
     return`<tr data-sid="${s.id}" data-rtskip="${rtSkipped?'1':'0'}" data-wtskip="${wtSkipped?'1':'0'}">
       <td class="sn">${esc(s.name)}</td>
       <td><input class="ci inp-rt" type="number" min="0" max="100" value="${rtSkipped||ex.rtScore==null?'':ex.rtScore}"${rtSkipped?' disabled':''}></td>
@@ -2038,6 +2049,7 @@ function rBulk(sc){
       <td><select class="cs inp-hw1">${HW.map(o=>`<option ${(ex.hw1||ex.homework)===o?'selected':''}>${o}</option>`).join('')}</select></td>
       <td><select class="cs inp-hw2" ${hw2Skip?'disabled style=\"opacity:0.35\"':''}>${HW.map(o=>`<option ${ex.hw2===o?'selected':''}>${o}</option>`).join('')}</select></td>
       <td><input class="ci inp-rt2" value="${ex.retestTime||''}" list="retest-list" style="min-width:70px" autocomplete="off"></td>
+      <td><select class="cs att-sel" data-sid="${s.id}" style="font-weight:700;color:${attColor}">${ATT_OPTS.map(o=>`<option value="${o.v}" ${o.v===attVal?'selected':''}>${o.l}</option>`).join('')}</select></td>
     </tr>`;}).join('');
   const draft=loadDraft(sc,mon,wk);
   return`
@@ -2110,6 +2122,7 @@ function rBulk(sc){
       <th class="th-hw2 th-hw1-name">${hw1}</th>
       <th class="th-hw2 th-hw2-name">${hw2}</th>
       <th class="th-hw2">재시험</th>
+      <th class="th-hw2">출석</th>
     </tr></thead>
     <tbody id="bk-body">${rows}</tbody>
   </table></div>
@@ -2959,6 +2972,12 @@ function bAdmin(){
   }
   document.getElementById('thr-rt')?.addEventListener('input',()=>{recalc();scheduleDraftSave();});
   document.getElementById('thr-wt')?.addEventListener('input',()=>{recalc();scheduleDraftSave();});
+  document.querySelectorAll('.att-sel').forEach(sel=>{
+    sel.onchange=()=>{
+      setAttendance(sc, sel.dataset.sid, ST.bMon||curMonWk().mon, ST.bWk||curMonWk().wk, sel.value);
+      sel.style.color=({'':'#C4C9D4','현강':'#00897B','인강':'#1D4ED8','결석':'#E53935'})[sel.value]||'#C4C9D4';
+    };
+  });
   recalc();
   document.getElementById('btn-save').onclick=async()=>{
     const saveBtn=document.getElementById('btn-save');

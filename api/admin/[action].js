@@ -28,10 +28,58 @@ function validateMigrateShape(body) {
   return null;
 }
 
+// GitHub Contents API로 파일을 생성/갱신 (비공개 백업 저장소 전용, 기존 sha가 있으면 갱신)
+async function githubPutFile(repo, path, contentStr, message, token) {
+  const url = `https://api.github.com/repos/${repo}/contents/${path}`;
+  const headers = { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'User-Agent': 'oheng-backup' };
+  let sha;
+  const getRes = await fetch(url, { headers });
+  if (getRes.ok) sha = (await getRes.json()).sha;
+  const putRes = await fetch(url, {
+    method: 'PUT',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, content: Buffer.from(contentStr, 'utf8').toString('base64'), sha }),
+  });
+  if (!putRes.ok) {
+    const errBody = await putRes.text().catch(() => '');
+    throw new Error(`GitHub API 오류 (${putRes.status}): ${errBody.slice(0, 300)}`);
+  }
+  return putRes.json();
+}
+
 // Vercel 함수 개수 제한(Hobby 12개)에 맞추기 위해 schools/next-student-id/credentials/migrate/school-summary를
 // 한 파일로 통합. /api/admin/schools 등 경로는 그대로 유지됨(동적 라우트).
 export default async function handler(req, res) {
   const { action } = req.query;
+
+  // backup-run: Vercel Cron이 매주 자동 호출 — 쿠키 세션 없이 CRON_SECRET로만 인증되므로
+  // 아래 공통 관리자 세션 체크보다 먼저 처리 (수동 호출 시엔 기존 관리자 세션/API 토큰도 허용)
+  if (action === 'backup-run') {
+    if (req.method !== 'GET' && req.method !== 'POST') return res.status(405).end();
+    const isCron = !!process.env.CRON_SECRET && req.headers.authorization === `Bearer ${process.env.CRON_SECRET}`;
+    if (!isCron) {
+      const manualSession = await requireAdminSessionOrApiToken(req);
+      if (!manualSession) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    const token = process.env.GITHUB_BACKUP_TOKEN;
+    const repo = process.env.GITHUB_BACKUP_REPO;
+    if (!token || !repo) {
+      return res.status(500).json({ success: false, message: 'GITHUB_BACKUP_TOKEN/GITHUB_BACKUP_REPO 환경변수가 설정되지 않았습니다' });
+    }
+    try {
+      const redis = getRedis();
+      const index = await getSchoolIndex();
+      const schools = (await Promise.all(index.map(id => getSchool(id)))).filter(Boolean);
+      const admin = await redis.get('admin:auth');
+      const exportedAt = new Date().toISOString();
+      const payload = { exportedAt, schoolIndex: index, schools, admin: admin || null };
+      await githubPutFile(repo, 'oheng-backup.json', JSON.stringify(payload, null, 2), `백업 ${exportedAt}`, token);
+      return res.status(200).json({ success: true, schoolsBackedUp: schools.length, exportedAt });
+    } catch (e) {
+      return res.status(500).json({ success: false, message: e.message });
+    }
+  }
+
   const session = await requireAdminSessionOrApiToken(req);
   if (!session) return res.status(401).json({ success: false, message: 'Unauthorized' });
 

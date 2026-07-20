@@ -1307,17 +1307,32 @@ function rLectures(){
   if(!videos.length){
     return`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;color:#9BA3AF;text-align:center"><div style="font-size:36px;margin-bottom:12px">🎬</div><div style="font-size:15px;font-weight:600;color:#5C6470;margin-bottom:6px">아직 볼 수 있는 영상이 없습니다</div><div style="font-size:13px">선생님이 영상을 등록하면 여기에 표시됩니다</div></div>`;
   }
-  return`<div style="display:flex;flex-direction:column;gap:10px">
-    ${videos.map(v=>{
-      const wk=v.month&&v.week?`${v.month} ${v.week}`:'';
-      return`<div style="background:#fff;border:1.5px solid #D9E0EA;border-radius:12px;padding:16px">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px">
-          <div style="font-size:14px;font-weight:700;color:#1A237E">${esc(v.title)}</div>
-          ${wk?`<span style="font-size:11px;font-weight:700;color:#5C6470;background:#F7F8FA;padding:3px 9px;border-radius:20px;white-space:nowrap">${wk}</span>`:''}
-        </div>
-        <div style="background:#F7F8FA;border-radius:10px;padding:24px;text-align:center;color:#9BA3AF;font-size:12.5px">🔒 재생 준비 중 (콜러스 연동 예정)</div>
-      </div>`;}).join('')}
+
+  const cardHtml=v=>`<div style="background:#fff;border:1.5px solid #D9E0EA;border-radius:12px;padding:16px">
+    <div style="font-size:14px;font-weight:700;color:#1A237E;margin-bottom:8px">🎬 ${esc(v.title)}</div>
+    <div style="background:#F7F8FA;border-radius:10px;padding:24px;text-align:center;color:#9BA3AF;font-size:12.5px">🔒 재생 준비 중 (콜러스 연동 예정)</div>
   </div>`;
+
+  // 주차 있는 영상은 최신 주차부터, 여러 개면 같은 주차 묶음으로 표시. 주차 없는 자료(보충자료 등)는 맨 아래 별도 묶음.
+  const dated=videos.filter(v=>v.month&&v.week);
+  const undated=videos.filter(v=>!(v.month&&v.week));
+  const weekKeys=[...new Set(dated.map(v=>v.month+'_'+v.week))]
+    .sort((a,b)=>{const[am,aw]=a.split('_'),[bm,bw]=b.split('_');return moI(bm)-moI(am)||wkI(bw)-wkI(aw);});
+
+  const weekSections=weekKeys.map(wk=>{
+    const[m,w]=wk.split('_');
+    const list=dated.filter(v=>v.month===m&&v.week===w);
+    return`<div style="margin-bottom:18px">
+      <div style="font-size:12px;font-weight:700;color:#9BA3AF;margin-bottom:8px;letter-spacing:0.3px">${m} ${w} · ${list.length}개</div>
+      <div style="display:flex;flex-direction:column;gap:10px">${list.map(cardHtml).join('')}</div>
+    </div>`;}).join('');
+
+  const undatedSection=undated.length?`<div style="margin-bottom:18px">
+    <div style="font-size:12px;font-weight:700;color:#9BA3AF;margin-bottom:8px;letter-spacing:0.3px">기타 자료 · ${undated.length}개</div>
+    <div style="display:flex;flex-direction:column;gap:10px">${undated.map(cardHtml).join('')}</div>
+  </div>`:'';
+
+  return `<div>${weekSections}${undatedSection}</div>`;
 }
 
 function rSuggest(){

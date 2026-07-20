@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>OHENG 인강</title>
+<meta name="theme-color" content="#0B0F1A">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic',sans-serif;background:#0B0F1A;color:#E8ECF4;min-height:100dvh}
+  #app{min-height:100dvh;display:flex;flex-direction:column}
+  .top{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #1C2333;position:sticky;top:0;background:#0B0F1A;z-index:10}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:800;font-size:17px;letter-spacing:-0.3px}
+  .brand .dot{width:8px;height:8px;border-radius:50%;background:#FFB300}
+  .who{font-size:12px;color:#8A93A8}
+  .btn{padding:8px 14px;border-radius:8px;border:1px solid #2A3247;background:#141A28;color:#C8CFDD;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit}
+  .btn:hover{background:#1A2135}
+  .btn-primary{background:#4C5FD5;border-color:#4C5FD5;color:#fff}
+  .btn-primary:hover{background:#5A6CE0}
+  .btn-primary:disabled{opacity:0.5;cursor:default}
+  main{flex:1;padding:24px 20px 60px;max-width:720px;margin:0 auto;width:100%}
+
+  /* 로그인 */
+  .login-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:20px}
+  .login-card{width:100%;max-width:340px;background:#111726;border:1px solid #1C2333;border-radius:18px;padding:32px 28px}
+  .login-title{font-size:20px;font-weight:800;margin-bottom:4px}
+  .login-sub{font-size:12.5px;color:#8A93A8;margin-bottom:24px}
+  .finp{width:100%;padding:12px 14px;border-radius:10px;border:1.5px solid #2A3247;background:#0B0F1A;color:#E8ECF4;font-size:14px;font-family:inherit;margin-bottom:10px;outline:none}
+  .finp:focus{border-color:#4C5FD5}
+  .login-err{font-size:12px;color:#F87171;min-height:16px;margin-bottom:8px}
+
+  /* 목록 */
+  .wk-head{font-size:12px;font-weight:700;color:#7B8499;margin:22px 0 10px;letter-spacing:0.3px}
+  .wk-head:first-child{margin-top:0}
+  .vcard{background:#111726;border:1px solid #1C2333;border-radius:14px;padding:16px;margin-bottom:10px;cursor:pointer;transition:border-color .15s}
+  .vcard:hover{border-color:#3A4260}
+  .vcard-title{font-size:14.5px;font-weight:700;display:flex;align-items:center;gap:8px}
+  .empty{text-align:center;padding:80px 20px;color:#5C6478}
+  .empty .ic{font-size:38px;margin-bottom:14px}
+
+  /* 재생 화면 */
+  .player-back{background:none;border:none;color:#8A93A8;font-size:13px;cursor:pointer;margin-bottom:16px;font-family:inherit;display:flex;align-items:center;gap:6px}
+  .player-back:hover{color:#E8ECF4}
+  .player-title{font-size:19px;font-weight:800;margin-bottom:4px}
+  .player-wk{font-size:12.5px;color:#8A93A8;margin-bottom:20px}
+  .player-box{background:#000;border-radius:16px;aspect-ratio:16/9;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#5C6478;text-align:center;padding:24px}
+  .player-box .ic{font-size:34px}
+  .player-box .msg{font-size:13.5px;color:#8A93A8}
+  .player-box .sub{font-size:11.5px;color:#4B5468}
+
+  .loading{flex:1;display:flex;align-items:center;justify-content:center;color:#5C6478;font-size:13px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const ST={screen:'loading',student:null,videos:null,active:null};
+
+function esc(str){return String(str??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+const MONTHS=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+const WEEKS=['1주','2주','3주','4주','5주'];
+function moI(m){return MONTHS.indexOf(m)}
+function wkI(w){return WEEKS.indexOf(w)}
+
+async function checkSession(){
+  try{
+    const res=await fetch('/api/auth/session',{credentials:'include'});
+    if(!res.ok)return false;
+    const d=await res.json();
+    return d.success && d.role==='student';
+  }catch(e){return false;}
+}
+async function loadMe(){
+  try{
+    const res=await fetch('/api/student/me',{credentials:'include'});
+    if(!res.ok)return null;
+    const d=await res.json();
+    return d.success?d:null;
+  }catch(e){return null;}
+}
+async function loadVideos(){
+  try{
+    const res=await fetch('/api/videos/mine',{credentials:'include'});
+    const d=await res.json();
+    return d.success?d.videos:[];
+  }catch(e){return [];}
+}
+
+async function boot(){
+  const ok=await checkSession();
+  if(!ok){ST.screen='login';render();return;}
+  const me=await loadMe();
+  if(!me){ST.screen='login';render();return;}
+  ST.student=me;
+  ST.videos=await loadVideos();
+  ST.screen='list';
+  render();
+}
+
+async function doLogin(id,pw,errEl,btn){
+  errEl.textContent='';btn.disabled=true;btn.textContent='로그인 중...';
+  try{
+    const res=await fetch('/api/auth/login',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({role:'student',id,pw})});
+    const d=await res.json();
+    if(!d.success){errEl.textContent=d.message||'로그인 실패';btn.disabled=false;btn.textContent='로그인';return;}
+    await boot();
+  }catch(e){
+    errEl.textContent='네트워크 오류';btn.disabled=false;btn.textContent='로그인';
+  }
+}
+
+function doLogout(){
+  fetch('/api/auth/logout',{method:'POST',credentials:'include'}).catch(()=>{});
+  ST.screen='login';ST.student=null;ST.videos=null;ST.active=null;
+  render();
+}
+
+function topBar(){
+  if(ST.screen==='login')return'';
+  return`<div class="top">
+    <div class="brand"><span class="dot"></span>OHENG 인강</div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span class="who">${esc(ST.student?.student?.name||'')} · ${esc(ST.student?.school?.name||'')}</span>
+      <button class="btn" id="btn-logout">로그아웃</button>
+    </div>
+  </div>`;
+}
+
+function loginScreen(){
+  return`<div class="login-wrap">
+    <div class="login-card">
+      <div class="login-title">OHENG 인강</div>
+      <div class="login-sub">학생 계정으로 로그인하세요</div>
+      <input class="finp" id="lg-id" placeholder="학생 ID" autocomplete="username">
+      <input class="finp" id="lg-pw" type="password" placeholder="비밀번호" autocomplete="current-password">
+      <div class="login-err" id="lg-err"></div>
+      <button class="btn btn-primary" id="lg-btn" style="width:100%;padding:12px">로그인</button>
+    </div>
+  </div>`;
+}
+
+function videoCard(v){
+  return`<div class="vcard" data-vid="${v.id}">
+    <div class="vcard-title">🎬 ${esc(v.title)}</div>
+  </div>`;
+}
+
+function listScreen(){
+  const videos=ST.videos||[];
+  if(!videos.length){
+    return`<div class="empty"><div class="ic">🎬</div><div style="font-size:14px;font-weight:600;color:#C8CFDD;margin-bottom:6px">아직 볼 수 있는 영상이 없습니다</div><div style="font-size:12.5px">선생님이 영상을 등록하면 여기에 표시됩니다</div></div>`;
+  }
+  const dated=videos.filter(v=>v.month&&v.week);
+  const undated=videos.filter(v=>!(v.month&&v.week));
+  const weekKeys=[...new Set(dated.map(v=>v.month+'_'+v.week))]
+    .sort((a,b)=>{const[am,aw]=a.split('_'),[bm,bw]=b.split('_');return moI(bm)-moI(am)||wkI(bw)-wkI(aw);});
+  const weekSections=weekKeys.map(wk=>{
+    const[m,w]=wk.split('_');
+    const list=dated.filter(v=>v.month===m&&v.week===w);
+    return`<div class="wk-head">${m} ${w} · ${list.length}개</div>${list.map(videoCard).join('')}`;
+  }).join('');
+  const undatedSection=undated.length?`<div class="wk-head">기타 자료 · ${undated.length}개</div>${undated.map(videoCard).join('')}`:'';
+  return weekSections+undatedSection;
+}
+
+function playerScreen(){
+  const v=ST.active;
+  const wk=v.month&&v.week?`${v.month} ${v.week}`:'기타 자료';
+  return`<button class="player-back" id="btn-back">‹ 목록으로</button>
+    <div class="player-title">${esc(v.title)}</div>
+    <div class="player-wk">${wk}</div>
+    <div class="player-box">
+      <div class="ic">🔒</div>
+      <div class="msg">재생 준비 중</div>
+      <div class="sub">콜러스(Kollus) 연동 후 이곳에서 바로 재생됩니다</div>
+    </div>`;
+}
+
+function render(){
+  const app=document.getElementById('app');
+  if(ST.screen==='loading'){app.innerHTML='<div class="loading">불러오는 중...</div>';return;}
+  if(ST.screen==='login'){app.innerHTML=topBar()+loginScreen();wireLogin();return;}
+  const body=ST.screen==='player'?playerScreen():listScreen();
+  app.innerHTML=topBar()+`<main>${body}</main>`;
+  wireApp();
+}
+
+function wireLogin(){
+  const idEl=document.getElementById('lg-id'),pwEl=document.getElementById('lg-pw');
+  const btn=document.getElementById('lg-btn'),err=document.getElementById('lg-err');
+  const submit=()=>doLogin(idEl.value.trim(),pwEl.value,err,btn);
+  btn.onclick=submit;
+  pwEl.addEventListener('keydown',e=>{if(e.key==='Enter')submit();});
+}
+
+function wireApp(){
+  document.getElementById('btn-logout')?.addEventListener('click',doLogout);
+  document.getElementById('btn-back')?.addEventListener('click',()=>{ST.screen='list';ST.active=null;render();});
+  document.querySelectorAll('[data-vid]').forEach(card=>{
+    card.addEventListener('click',()=>{
+      const v=(ST.videos||[]).find(x=>x.id===card.dataset.vid);
+      if(!v)return;
+      ST.active=v;ST.screen='player';render();
+    });
+  });
+}
+
+boot();
+</script>
+</body>
+</html>

@@ -67,9 +67,10 @@ export function canStudentAccessVideo(video, schoolId, studentId) {
   return (video.allowSchoolIds || []).includes(schoolId);
 }
 
+// note는 관리자 전용 메모("관리자만 보는 메모" 안내문구로 입력받음) — 학생 응답에서는 절대 내려보내지 않음
 export async function listVideosForStudent(schoolId, studentId) {
   const all = await listAllVideos();
   return all
     .filter(v => canStudentAccessVideo(v, schoolId, studentId))
-    .map(({ excludeStudentIds, includeStudentIds, allowSchoolIds, ...rest }) => rest);
+    .map(({ excludeStudentIds, includeStudentIds, allowSchoolIds, note, ...rest }) => rest);
 }

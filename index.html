@@ -1110,6 +1110,7 @@ function doLogout(){
     fetch('/api/auth/logout',{method:'POST',credentials:'include'}).catch(()=>{});
   }
   ST.loggedIn=false;ST.serverAdminSession=false;ST.serverStudentSession=false;
+  ST.myVideos=undefined; // 같은 브라우저에서 다른 학생으로 재로그인 시 이전 학생의 영상 목록이 캐시로 남지 않도록
   render();
 }
 // 관리자 학교 목록/개별 학교 데이터를 서버에서 불러오는 헬퍼 (서버 세션 확립 후 사용)
@@ -1314,7 +1315,6 @@ function rLectures(){
           <div style="font-size:14px;font-weight:700;color:#1A237E">${esc(v.title)}</div>
           ${wk?`<span style="font-size:11px;font-weight:700;color:#5C6470;background:#F7F8FA;padding:3px 9px;border-radius:20px;white-space:nowrap">${wk}</span>`:''}
         </div>
-        ${v.note?`<div style="font-size:12.5px;color:#5C6470;margin-bottom:10px">${esc(v.note)}</div>`:''}
         <div style="background:#F7F8FA;border-radius:10px;padding:24px;text-align:center;color:#9BA3AF;font-size:12.5px">🔒 재생 준비 중 (콜러스 연동 예정)</div>
       </div>`;}).join('')}
   </div>`;

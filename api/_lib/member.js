@@ -64,3 +64,12 @@ export async function updateMemberName(id, name) {
   await redis.set(MEMBER_PREFIX + id, member);
   return member;
 }
+
+export async function updateMemberEntitlements(id, entitlements) {
+  const redis = getRedis();
+  const member = await getMember(id);
+  if (!member) return null;
+  member.entitlements = entitlements;
+  await redis.set(MEMBER_PREFIX + id, member);
+  return member;
+}

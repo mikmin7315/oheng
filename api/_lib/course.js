@@ -72,11 +72,18 @@ export async function listPublishedCoursesForPublic() {
 // /api/videos/mine과 같은 필드 모양(id/title/month/week/mediaKey)에 courseId/courseTitle을 더해
 // lecture.html의 기존 렌더링 로직을 재사용하면서 강좌 단위로도 묶을 수 있게 한다.
 export async function listVideosForMember(member) {
+  const now = Date.now();
+  const activeCourseIds = new Set(
+    (member.entitlements || [])
+      .filter(e => e.status === 'active' && new Date(e.expiresAt).getTime() > now)
+      .map(e => e.courseId)
+  );
   const courses = await listAllCourses();
   const videos = await listAllVideos();
+  const entitledCourses = courses.filter(c => activeCourseIds.has(c.id));
   const accessible = videos.filter(v => canMemberAccessVideo(v, member, courses));
   return accessible.map(v => {
-    const owner = courses.find(c => (c.videoIds || []).includes(v.id));
+    const owner = entitledCourses.find(c => (c.videoIds || []).includes(v.id));
     return {
       id: v.id, title: v.title, month: v.month, week: v.week, mediaKey: v.mediaKey,
       courseId: owner ? owner.id : null, courseTitle: owner ? owner.title : '',

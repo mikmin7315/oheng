@@ -181,7 +181,7 @@ async function doOtpVerify(code,errEl,btn){
     const d=await res.json();
     btn.disabled=false;btn.textContent='확인';
     if(!d.success){errEl.textContent=d.message||'인증 실패';return;}
-    if(d.isNew){ST.screen='otp-name';render();return;}
+    if(d.isNew || !d.name){ST.screen='otp-name';render();return;}
     ST.mode='member';
     ST.member=await loadMemberMe();
     ST.videos=await loadMemberVideos();

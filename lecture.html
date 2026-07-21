@@ -18,9 +18,11 @@
   .btn-primary{background:#4C5FD5;border-color:#4C5FD5;color:#fff}
   .btn-primary:hover{background:#5A6CE0}
   .btn-primary:disabled{opacity:0.5;cursor:default}
+  .link-btn{background:none;border:none;color:#8A93A8;font-size:12.5px;cursor:pointer;font-family:inherit;text-decoration:underline}
+  .link-btn:hover{color:#C8CFDD}
   main{flex:1;padding:24px 20px 60px;max-width:720px;margin:0 auto;width:100%}
 
-  /* 로그인 */
+  /* 로그인/인증 */
   .login-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:20px}
   .login-card{width:100%;max-width:340px;background:#111726;border:1px solid #1C2333;border-radius:18px;padding:32px 28px}
   .login-title{font-size:20px;font-weight:800;margin-bottom:4px}
@@ -28,6 +30,17 @@
   .finp{width:100%;padding:12px 14px;border-radius:10px;border:1.5px solid #2A3247;background:#0B0F1A;color:#E8ECF4;font-size:14px;font-family:inherit;margin-bottom:10px;outline:none}
   .finp:focus{border-color:#4C5FD5}
   .login-err{font-size:12px;color:#F87171;min-height:16px;margin-bottom:8px}
+  .login-foot{margin-top:16px;text-align:center}
+
+  /* 강좌 둘러보기 */
+  .intro{text-align:center;padding:36px 20px 28px}
+  .intro-title{font-size:22px;font-weight:800;margin-bottom:6px}
+  .intro-sub{font-size:13px;color:#8A93A8;margin-bottom:20px}
+  .course-card{background:#111726;border:1px solid #1C2333;border-radius:14px;padding:18px;margin-bottom:12px}
+  .course-title{font-size:15.5px;font-weight:700;margin-bottom:6px}
+  .course-desc{font-size:12.5px;color:#8A93A8;margin-bottom:12px;line-height:1.5}
+  .course-meta{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;color:#7B8499}
+  .course-price{font-size:15px;font-weight:800;color:#FFB300}
 
   /* 목록 */
   .wk-head{font-size:12px;font-weight:700;color:#7B8499;margin:22px 0 10px;letter-spacing:0.3px}
@@ -54,15 +67,17 @@
 <body>
 <div id="app"></div>
 <script>
-const ST={screen:'loading',student:null,videos:null,active:null};
+const ST={screen:'loading',mode:null,student:null,member:null,videos:null,active:null,courses:null,otpPhone:''};
 
 function esc(str){return String(str??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 const MONTHS=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
 const WEEKS=['1주','2주','3주','4주','5주'];
 function moI(m){return MONTHS.indexOf(m)}
 function wkI(w){return WEEKS.indexOf(w)}
+function won(n){return (n||0).toLocaleString('ko-KR')+'원';}
 
-async function checkSession(){
+/* ── 데이터 로드 ── */
+async function checkStudentSession(){
   try{
     const res=await fetch('/api/auth/session',{credentials:'include'});
     if(!res.ok)return false;
@@ -70,7 +85,7 @@ async function checkSession(){
     return d.success && d.role==='student';
   }catch(e){return false;}
 }
-async function loadMe(){
+async function loadStudentMe(){
   try{
     const res=await fetch('/api/student/me',{credentials:'include'});
     if(!res.ok)return null;
@@ -78,26 +93,56 @@ async function loadMe(){
     return d.success?d:null;
   }catch(e){return null;}
 }
-async function loadVideos(){
+async function loadStudentVideos(){
   try{
     const res=await fetch('/api/videos/mine',{credentials:'include'});
     const d=await res.json();
     return d.success?d.videos:[];
   }catch(e){return [];}
 }
+async function loadMemberMe(){
+  try{
+    const res=await fetch('/api/member-auth/me',{credentials:'include'});
+    if(!res.ok)return null;
+    const d=await res.json();
+    return d.success?d.member:null;
+  }catch(e){return null;}
+}
+async function loadMemberVideos(){
+  try{
+    const res=await fetch('/api/courses/mine',{credentials:'include'});
+    const d=await res.json();
+    return d.success?d.videos:[];
+  }catch(e){return [];}
+}
+async function loadPublicCourses(){
+  try{
+    const res=await fetch('/api/courses/list');
+    const d=await res.json();
+    return d.success?d.courses:[];
+  }catch(e){return [];}
+}
 
 async function boot(){
-  const ok=await checkSession();
-  if(!ok){ST.screen='login';render();return;}
-  const me=await loadMe();
-  if(!me){ST.screen='login';render();return;}
-  ST.student=me;
-  ST.videos=await loadVideos();
-  ST.screen='list';
+  const studentOk=await checkStudentSession();
+  if(studentOk){
+    const me=await loadStudentMe();
+    if(me){
+      ST.mode='student';ST.student=me;ST.videos=await loadStudentVideos();ST.screen='list';render();return;
+    }
+  }
+  const member=await loadMemberMe();
+  if(member){
+    ST.mode='member';ST.member=member;ST.videos=await loadMemberVideos();ST.screen='list';render();return;
+  }
+  ST.mode=null;
+  ST.courses=await loadPublicCourses();
+  ST.screen='browse';
   render();
 }
 
-async function doLogin(id,pw,errEl,btn){
+/* ── 액션 ── */
+async function doStudentLogin(id,pw,errEl,btn){
   errEl.textContent='';btn.disabled=true;btn.textContent='로그인 중...';
   try{
     const res=await fetch('/api/auth/login',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({role:'student',id,pw})});
@@ -109,19 +154,136 @@ async function doLogin(id,pw,errEl,btn){
   }
 }
 
-function doLogout(){
-  fetch('/api/auth/logout',{method:'POST',credentials:'include'}).catch(()=>{});
-  ST.screen='login';ST.student=null;ST.videos=null;ST.active=null;
+async function doOtpRequest(phone,errEl,btn){
+  errEl.textContent='';
+  const digits=phone.replace(/[^0-9]/g,'');
+  if(digits.length<10){errEl.textContent='휴대폰 번호를 확인해주세요';return;}
+  btn.disabled=true;btn.textContent='전송 중...';
+  try{
+    const res=await fetch('/api/member-auth/otp-request',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:digits})});
+    const d=await res.json();
+    btn.disabled=false;btn.textContent='인증번호 받기';
+    if(!d.success){errEl.textContent=d.message||'전송 실패';return;}
+    ST.otpPhone=digits;ST.screen='otp-code';render();
+  }catch(e){
+    errEl.textContent='네트워크 오류';btn.disabled=false;btn.textContent='인증번호 받기';
+  }
+}
+
+async function doOtpVerify(code,errEl,btn){
+  errEl.textContent='';
+  if(!code.trim()){errEl.textContent='인증번호를 입력하세요';return;}
+  btn.disabled=true;btn.textContent='확인 중...';
+  try{
+    const res=await fetch('/api/member-auth/otp-verify',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:ST.otpPhone,code:code.trim()})});
+    const d=await res.json();
+    btn.disabled=false;btn.textContent='확인';
+    if(!d.success){errEl.textContent=d.message||'인증 실패';return;}
+    if(d.isNew){ST.screen='otp-name';render();return;}
+    ST.mode='member';
+    ST.member=await loadMemberMe();
+    ST.videos=await loadMemberVideos();
+    ST.screen='list';
+    render();
+  }catch(e){
+    errEl.textContent='네트워크 오류';btn.disabled=false;btn.textContent='확인';
+  }
+}
+
+async function doProfileSave(name,errEl,btn){
+  errEl.textContent='';
+  if(!name.trim()){errEl.textContent='이름을 입력하세요';return;}
+  btn.disabled=true;btn.textContent='저장 중...';
+  try{
+    const res=await fetch('/api/member-auth/profile',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name.trim()})});
+    const d=await res.json();
+    if(!d.success){errEl.textContent=d.message||'저장 실패';btn.disabled=false;btn.textContent='완료';return;}
+    ST.mode='member';
+    ST.member=await loadMemberMe();
+    ST.videos=await loadMemberVideos();
+    ST.screen='list';
+    render();
+  }catch(e){
+    errEl.textContent='네트워크 오류';btn.disabled=false;btn.textContent='완료';
+  }
+}
+
+async function doLogout(){
+  const url=ST.mode==='student'?'/api/auth/logout':'/api/member-auth/logout';
+  fetch(url,{method:'POST',credentials:'include'}).catch(()=>{});
+  ST.mode=null;ST.student=null;ST.member=null;ST.videos=null;ST.active=null;
+  ST.courses=await loadPublicCourses();
+  ST.screen='browse';
   render();
 }
 
+/* ── 화면 ── */
 function topBar(){
-  if(ST.screen==='login')return'';
+  if(['loading','browse','otp-phone','otp-code','otp-name','student-login'].includes(ST.screen))return'';
+  const who=ST.mode==='student'
+    ?`${esc(ST.student?.student?.name||'')} · ${esc(ST.student?.school?.name||'')}`
+    :`${esc(ST.member?.name||'')} · ${esc(ST.member?.phone||'')}`;
   return`<div class="top">
     <div class="brand"><span class="dot"></span>OHENG 인강</div>
     <div style="display:flex;align-items:center;gap:12px">
-      <span class="who">${esc(ST.student?.student?.name||'')} · ${esc(ST.student?.school?.name||'')}</span>
+      <span class="who">${who}</span>
       <button class="btn" id="btn-logout">로그아웃</button>
+    </div>
+  </div>`;
+}
+
+function browseScreen(){
+  const courses=ST.courses||[];
+  const list=courses.length
+    ?courses.map(c=>`<div class="course-card">
+        <div class="course-title">${esc(c.title)}</div>
+        <div class="course-desc">${esc(c.description||'')}</div>
+        <div class="course-meta"><span>영상 ${c.videoCount}개 · 수강기간 ${c.durationDays}일</span><span class="course-price">${won(c.price)}</span></div>
+      </div>`).join('')
+    :`<div class="empty"><div class="ic">🎬</div><div style="font-size:14px;font-weight:600;color:#C8CFDD;margin-bottom:6px">아직 등록된 강좌가 없습니다</div></div>`;
+  return`<div class="intro">
+      <div class="intro-title">OHENG 인강</div>
+      <div class="intro-sub">휴대폰 번호로 3초 만에 가입하고 바로 학습을 시작하세요</div>
+      <button class="btn btn-primary" id="btn-start" style="padding:12px 24px">휴대폰 인증하고 시작하기</button>
+      <div class="login-foot"><button class="link-btn" id="btn-student-link">학원 학생이신가요? 학생 로그인</button></div>
+    </div>
+    ${list}`;
+}
+
+function otpPhoneScreen(){
+  return`<div class="login-wrap">
+    <div class="login-card">
+      <div class="login-title">휴대폰 인증</div>
+      <div class="login-sub">인증번호를 받을 번호를 입력하세요</div>
+      <input class="finp" id="otp-phone" placeholder="01012345678" inputmode="numeric" autocomplete="tel">
+      <div class="login-err" id="otp-err"></div>
+      <button class="btn btn-primary" id="otp-req-btn" style="width:100%;padding:12px">인증번호 받기</button>
+      <div class="login-foot"><button class="link-btn" id="btn-back-browse">‹ 뒤로</button></div>
+    </div>
+  </div>`;
+}
+
+function otpCodeScreen(){
+  return`<div class="login-wrap">
+    <div class="login-card">
+      <div class="login-title">인증번호 입력</div>
+      <div class="login-sub">${esc(ST.otpPhone)}로 전송된 6자리 번호를 입력하세요</div>
+      <input class="finp" id="otp-code" placeholder="123456" inputmode="numeric" maxlength="6">
+      <div class="login-err" id="otp-err"></div>
+      <button class="btn btn-primary" id="otp-verify-btn" style="width:100%;padding:12px">확인</button>
+      <div class="login-foot"><button class="link-btn" id="btn-resend">인증번호 다시 받기</button></div>
+    </div>
+  </div>`;
+}
+
+function otpNameScreen(){
+  return`<div class="login-wrap">
+    <div class="login-card">
+      <div class="login-title">이름을 알려주세요</div>
+      <div class="login-sub">마지막 단계예요</div>
+      <input class="finp" id="otp-name" placeholder="이름">
+      <div class="login-err" id="otp-err"></div>
+      <button class="btn btn-primary" id="otp-name-btn" style="width:100%;padding:12px">완료</button>
     </div>
   </div>`;
 }
@@ -129,12 +291,13 @@ function topBar(){
 function loginScreen(){
   return`<div class="login-wrap">
     <div class="login-card">
-      <div class="login-title">OHENG 인강</div>
-      <div class="login-sub">학생 계정으로 로그인하세요</div>
+      <div class="login-title">학생 로그인</div>
+      <div class="login-sub">학원에서 발급받은 계정으로 로그인하세요</div>
       <input class="finp" id="lg-id" placeholder="학생 ID" autocomplete="username">
       <input class="finp" id="lg-pw" type="password" placeholder="비밀번호" autocomplete="current-password">
       <div class="login-err" id="lg-err"></div>
       <button class="btn btn-primary" id="lg-btn" style="width:100%;padding:12px">로그인</button>
+      <div class="login-foot"><button class="link-btn" id="btn-back-browse">‹ 뒤로</button></div>
     </div>
   </div>`;
 }
@@ -148,7 +311,16 @@ function videoCard(v){
 function listScreen(){
   const videos=ST.videos||[];
   if(!videos.length){
-    return`<div class="empty"><div class="ic">🎬</div><div style="font-size:14px;font-weight:600;color:#C8CFDD;margin-bottom:6px">아직 볼 수 있는 영상이 없습니다</div><div style="font-size:12.5px">선생님이 영상을 등록하면 여기에 표시됩니다</div></div>`;
+    const msg=ST.mode==='member'?'아직 구매한 강좌가 없습니다':'아직 볼 수 있는 영상이 없습니다';
+    const sub=ST.mode==='member'?'강좌를 구매하면 여기에 표시됩니다':'선생님이 영상을 등록하면 여기에 표시됩니다';
+    return`<div class="empty"><div class="ic">🎬</div><div style="font-size:14px;font-weight:600;color:#C8CFDD;margin-bottom:6px">${msg}</div><div style="font-size:12.5px">${sub}</div></div>`;
+  }
+  if(ST.mode==='member'){
+    const groups=[...new Set(videos.map(v=>v.courseTitle))];
+    return groups.map(title=>{
+      const list=videos.filter(v=>v.courseTitle===title);
+      return`<div class="wk-head">${esc(title)} · ${list.length}개</div>${list.map(videoCard).join('')}`;
+    }).join('');
   }
   const dated=videos.filter(v=>v.month&&v.week);
   const undated=videos.filter(v=>!(v.month&&v.week));
@@ -165,10 +337,10 @@ function listScreen(){
 
 function playerScreen(){
   const v=ST.active;
-  const wk=v.month&&v.week?`${v.month} ${v.week}`:'기타 자료';
+  const wk=ST.mode==='member'?(v.courseTitle||'강좌'):(v.month&&v.week?`${v.month} ${v.week}`:'기타 자료');
   return`<button class="player-back" id="btn-back">‹ 목록으로</button>
     <div class="player-title">${esc(v.title)}</div>
-    <div class="player-wk">${wk}</div>
+    <div class="player-wk">${esc(wk)}</div>
     <div class="player-box">
       <div class="ic">🔒</div>
       <div class="msg">재생 준비 중</div>
@@ -179,18 +351,54 @@ function playerScreen(){
 function render(){
   const app=document.getElementById('app');
   if(ST.screen==='loading'){app.innerHTML='<div class="loading">불러오는 중...</div>';return;}
-  if(ST.screen==='login'){app.innerHTML=topBar()+loginScreen();wireLogin();return;}
+  if(ST.screen==='browse'){app.innerHTML=topBar()+`<main>${browseScreen()}</main>`;wireBrowse();return;}
+  if(ST.screen==='otp-phone'){app.innerHTML=topBar()+otpPhoneScreen();wireOtpPhone();return;}
+  if(ST.screen==='otp-code'){app.innerHTML=topBar()+otpCodeScreen();wireOtpCode();return;}
+  if(ST.screen==='otp-name'){app.innerHTML=topBar()+otpNameScreen();wireOtpName();return;}
+  if(ST.screen==='student-login'){app.innerHTML=topBar()+loginScreen();wireStudentLogin();return;}
   const body=ST.screen==='player'?playerScreen():listScreen();
   app.innerHTML=topBar()+`<main>${body}</main>`;
   wireApp();
 }
 
-function wireLogin(){
+function wireBrowse(){
+  document.getElementById('btn-start').addEventListener('click',()=>{ST.screen='otp-phone';render();});
+  document.getElementById('btn-student-link').addEventListener('click',()=>{ST.screen='student-login';render();});
+}
+
+function wireOtpPhone(){
+  const phoneEl=document.getElementById('otp-phone');
+  const btn=document.getElementById('otp-req-btn'),err=document.getElementById('otp-err');
+  const submit=()=>doOtpRequest(phoneEl.value.trim(),err,btn);
+  btn.onclick=submit;
+  phoneEl.addEventListener('keydown',e=>{if(e.key==='Enter')submit();});
+  document.getElementById('btn-back-browse').addEventListener('click',()=>{ST.screen='browse';render();});
+}
+
+function wireOtpCode(){
+  const codeEl=document.getElementById('otp-code');
+  const btn=document.getElementById('otp-verify-btn'),err=document.getElementById('otp-err');
+  const submit=()=>doOtpVerify(codeEl.value.trim(),err,btn);
+  btn.onclick=submit;
+  codeEl.addEventListener('keydown',e=>{if(e.key==='Enter')submit();});
+  document.getElementById('btn-resend').addEventListener('click',()=>{ST.screen='otp-phone';render();});
+}
+
+function wireOtpName(){
+  const nameEl=document.getElementById('otp-name');
+  const btn=document.getElementById('otp-name-btn'),err=document.getElementById('otp-err');
+  const submit=()=>doProfileSave(nameEl.value.trim(),err,btn);
+  btn.onclick=submit;
+  nameEl.addEventListener('keydown',e=>{if(e.key==='Enter')submit();});
+}
+
+function wireStudentLogin(){
   const idEl=document.getElementById('lg-id'),pwEl=document.getElementById('lg-pw');
   const btn=document.getElementById('lg-btn'),err=document.getElementById('lg-err');
-  const submit=()=>doLogin(idEl.value.trim(),pwEl.value,err,btn);
+  const submit=()=>doStudentLogin(idEl.value.trim(),pwEl.value,err,btn);
   btn.onclick=submit;
   pwEl.addEventListener('keydown',e=>{if(e.key==='Enter')submit();});
+  document.getElementById('btn-back-browse').addEventListener('click',()=>{ST.screen='browse';render();});
 }
 
 function wireApp(){

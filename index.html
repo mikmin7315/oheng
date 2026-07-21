@@ -1464,10 +1464,23 @@ function rReport(recs){
       ${wtPct!=null?`<div style="height:6px;border-radius:4px;background:#D9E0EA;margin-top:10px;overflow:hidden"><div style="height:100%;background:#1E40AF;border-radius:4px;width:${Math.min(100,wtPct)}%"></div></div>`:''}
     </div>` : '';
     if(!rtBox&&!wtBox)return'';
-    return `<div style="display:flex;gap:16px;margin-bottom:4px">${rtBox}${wtBox}</div>`;
+    return `<div style="display:flex;gap:16px;margin-bottom:16px">${rtBox}${wtBox}</div>`;
   })()}
 
-  <hr style="border:0;border-top:1.5px solid #D9E0EA;margin:22px 0">
+  <!-- 과제/재시험 현황: 2개씩 한 줄로 -->
+  ${(()=>{
+    const hwItem=(label,value,done)=>`<div style="border:1.5px solid #D9E0EA;border-radius:10px;padding:10px 12px;background:#fff;display:flex;flex-direction:column;gap:5px;min-width:0">
+      <span style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:#57616F;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${ic('book')}${esc(label)}</span>
+      <span style="font-size:13px;font-weight:800;${done===true?'color:#146C43':done===false?'color:#B3261E':'color:#8C93A0'}">${esc(value)}</span>
+    </div>`;
+    const items=[hwItem(rec.hwName1||sc?.hw1||'숙제1', rec.hw1||rec.homework||'-', (rec.hw1||rec.homework)?((rec.hw1||rec.homework)==='완료'):null)];
+    if(!hw2SkipForWeek) items.push(hwItem(rec.hwName2||sc?.hw2||'숙제2', rec.hw2||'-', rec.hw2?(rec.hw2==='완료'):null));
+    items.push(`<div style="border:1.5px solid #D9E0EA;border-radius:10px;padding:10px 12px;background:#fff;display:flex;flex-direction:column;gap:5px;min-width:0">
+      <span style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:#57616F;white-space:nowrap">${ic('clock')}재시험</span>
+      <span style="font-size:13px;font-weight:800;${rec.retestTime?'color:#B3261E':'color:#8C93A0'}">${esc(rec.retestTime||'없음')}</span>
+    </div>`);
+    return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">${items.join('')}</div>`;
+  })()}
 
   <!-- 선생님 메시지 -->
   ${(notice||rec.comment)?`<div style="border:1.5px solid #D9E0EA;border-radius:12px;padding:15px 16px;margin-bottom:20px;display:flex;flex-direction:column;gap:14px;background:#fff">
@@ -1481,23 +1494,6 @@ function rReport(recs){
       <div style="font-size:13.5px;line-height:1.65;color:#2B3341;white-space:pre-wrap">${esc(rec.comment)}</div>
     </div>`:''}
   </div>`:''}
-
-  <!-- 과제 현황 -->
-  <div style="display:flex;flex-direction:column;margin-bottom:22px">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:12px 2px;border-top:1.5px solid #D9E0EA;font-size:13.5px;font-weight:600;color:#57616F">
-      <span style="display:flex;align-items:center;gap:7px;white-space:nowrap;flex-shrink:0">${ic('book')}${rec.hwName1||sc?.hw1||'숙제1'}</span>
-      <span style="font-weight:800;font-size:12.5px;padding:3px 9px;border-radius:7px;text-align:right;max-width:65%;${(rec.hw1||rec.homework)==='완료'?'color:#146C43;background:#E8F5EC':(rec.hw1||rec.homework)?'color:#B3261E;background:#FCEAEA':'color:#8C93A0;background:#EEF1F5'}">${rec.hw1||rec.homework||'-'}</span>
-    </div>
-    ${!(sc?.hwNames&&sc.hwNames[rec.month+'_'+rec.week]?sc.hwNames[rec.month+'_'+rec.week].hw2Skip:sc?.hw2Skip)?`<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:12px 2px;border-top:1.5px solid #D9E0EA;font-size:13.5px;font-weight:600;color:#57616F">
-      <span style="display:flex;align-items:center;gap:7px;white-space:nowrap;flex-shrink:0">${ic('book')}${rec.hwName2||sc?.hw2||'숙제2'}</span>
-      <span style="font-weight:800;font-size:12.5px;padding:3px 9px;border-radius:7px;text-align:right;max-width:65%;${rec.hw2==='완료'?'color:#146C43;background:#E8F5EC':rec.hw2?'color:#B3261E;background:#FCEAEA':'color:#8C93A0;background:#EEF1F5'}">${rec.hw2||'-'}</span>
-    </div>`:''}
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:12px 2px;border-top:1.5px solid #D9E0EA;font-size:13.5px;font-weight:600;color:#57616F">
-      <span style="display:flex;align-items:center;gap:7px;white-space:nowrap;flex-shrink:0">${ic('clock')}재시험</span>
-      <span style="font-weight:800;font-size:12.5px;padding:3px 9px;border-radius:7px;text-align:right;max-width:65%;line-height:1.5;${rec.retestTime?'color:#B3261E;background:#FCEAEA':'color:#8C93A0;background:#EEF1F5'}">${rec.retestTime||'없음'}</span>
-    </div>
-  </div>
-  </div>
   <button id="btn-save-report-img" class="no-print rpt-focus" style="width:100%;padding:12px;background:#fff;border:1.5px solid #D9E0EA;border-radius:10px;font-size:13px;font-weight:700;color:#1E40AF;cursor:pointer;margin-bottom:16px;display:flex;align-items:center;justify-content:center;gap:7px">${ic('camera')}성적표 이미지 저장</button>
 
     <!-- 성적 추이 차트 3종 -->

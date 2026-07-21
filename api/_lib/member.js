@@ -26,18 +26,25 @@ async function addToMemberIndex(id) {
   }
 }
 
-// 같은 번호로 동시에 인증 요청이 들어와도 회원이 중복 생성되지 않도록,
-// 전화번호 인덱스를 SET NX로 먼저 원자적으로 선점한다.
-// 선점에 실패하면(이미 다른 요청이 먼저 선점) 그 회원을 조회해서 반환한다.
 export async function findOrCreateMemberByPhone(phone) {
   const redis = getRedis();
   const newId = 'mem' + Date.now() + Math.floor(Math.random() * 1000);
+  const member = {
+    id: newId, phone, name: '', createdAt: new Date().toISOString(),
+    entitlements: [], linkedSchoolId: null, linkedStudentId: null,
+  };
+  // 먼저 회원 레코드를 써둔다(고유 id라 다른 요청과 충돌 없음) — 그래야 전화번호 인덱스가
+  // 가리키는 회원이 항상 실제로 존재함을 보장할 수 있다(인덱스 선점을 먼저 하면, 선점 직후
+  // 레코드를 쓰기 전에 실패할 경우 그 번호가 영구적으로 로그인 불가능해짐).
+  await redis.set(MEMBER_PREFIX + newId, member);
   const claimed = await redis.set(PHONE_INDEX_PREFIX + phone, newId, { nx: true });
 
   if (!claimed) {
+    // 이미 다른 요청이 먼저 선점 — 방금 만든 레코드는 버리고(참조하는 곳이 없어 안전) 기존 회원을 사용
+    await redis.del(MEMBER_PREFIX + newId);
     let existing = await findMemberByPhone(phone);
     if (!existing) {
-      // 선점한 쪽이 인덱스만 쓰고 아직 member 레코드를 쓰기 전인 극히 짧은 순간일 수 있음 — 한 번 더 시도
+      // 선점한 쪽이 인덱스만 쓰고 아직 자기 member 레코드를 다 쓰기 전인 극히 짧은 순간일 수 있음 — 한 번 더 시도
       await new Promise(r => setTimeout(r, 50));
       existing = await findMemberByPhone(phone);
     }
@@ -45,11 +52,6 @@ export async function findOrCreateMemberByPhone(phone) {
     return { member: existing, isNew: false };
   }
 
-  const member = {
-    id: newId, phone, name: '', createdAt: new Date().toISOString(),
-    entitlements: [], linkedSchoolId: null, linkedStudentId: null,
-  };
-  await redis.set(MEMBER_PREFIX + newId, member);
   await addToMemberIndex(newId);
   return { member, isNew: true };
 }

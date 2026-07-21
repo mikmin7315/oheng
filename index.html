@@ -1110,7 +1110,6 @@ function doLogout(){
     fetch('/api/auth/logout',{method:'POST',credentials:'include'}).catch(()=>{});
   }
   ST.loggedIn=false;ST.serverAdminSession=false;ST.serverStudentSession=false;
-  ST.myVideos=undefined; // 같은 브라우저에서 다른 학생으로 재로그인 시 이전 학생의 영상 목록이 캐시로 남지 않도록
   render();
 }
 // 관리자 학교 목록/개별 학교 데이터를 서버에서 불러오는 헬퍼 (서버 세션 확립 후 사용)
@@ -1276,7 +1275,6 @@ function rStudent(){
   const unreadReplies=(sc?.suggestions||[]).filter(s=>s.sid===ST.user.id&&s.reply&&!s.replyRead).length;
   const tabs=[
     {id:'report',l:'성적표'},
-    {id:'lectures',l:'인강 시청'},
     {id:'suggest',l:'제안하기'+(unreadReplies?` <span style="background:#E53935;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;vertical-align:middle">${unreadReplies}</span>`:'')},
     {id:'inquiry',l:'문의하기'},
     {id:'settings',l:'설정'}
@@ -1284,7 +1282,6 @@ function rStudent(){
   const recs=sRecs(ST.user.id,ST.userSchool);
   let inner='';
   if(ST.tab==='report') inner=rReport(recs);
-  else if(ST.tab==='lectures') inner=rLectures();
   else if(ST.tab==='suggest') inner=rSuggest();
   else if(ST.tab==='inquiry') inner=rInquiry();
   else inner=rStudentSettings();
@@ -1294,46 +1291,6 @@ function rStudent(){
       <button class="nbtn no-print" id="btn-lo">로그아웃</button></div></div>
   <div class="tabs no-print">${tabs.map(t=>`<div class="tab ${ST.tab===t.id?'active':''}" data-tab="${t.id}">${t.l}</div>`).join('')}</div>
   <div class="s-content">${inner}</div>`;}
-
-function rLectures(){
-  if(ST.myVideos===undefined){
-    ST.myVideos=null;
-    fetch('/api/videos/mine',{credentials:'include'}).then(r=>r.json()).then(d=>{ST.myVideos=d.success?d.videos:[];render();}).catch(()=>{ST.myVideos=[];render();});
-  }
-  if(ST.myVideos===null){
-    return`<div style="text-align:center;padding:60px 20px;color:#9BA3AF"><div style="font-size:13px">불러오는 중...</div></div>`;
-  }
-  const videos=ST.myVideos;
-  if(!videos.length){
-    return`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;color:#9BA3AF;text-align:center"><div style="font-size:36px;margin-bottom:12px">🎬</div><div style="font-size:15px;font-weight:600;color:#5C6470;margin-bottom:6px">아직 볼 수 있는 영상이 없습니다</div><div style="font-size:13px">선생님이 영상을 등록하면 여기에 표시됩니다</div></div>`;
-  }
-
-  const cardHtml=v=>`<div style="background:#fff;border:1.5px solid #D9E0EA;border-radius:12px;padding:16px">
-    <div style="font-size:14px;font-weight:700;color:#1A237E;margin-bottom:8px">🎬 ${esc(v.title)}</div>
-    <div style="background:#F7F8FA;border-radius:10px;padding:24px;text-align:center;color:#9BA3AF;font-size:12.5px">🔒 재생 준비 중 (콜러스 연동 예정)</div>
-  </div>`;
-
-  // 주차 있는 영상은 최신 주차부터, 여러 개면 같은 주차 묶음으로 표시. 주차 없는 자료(보충자료 등)는 맨 아래 별도 묶음.
-  const dated=videos.filter(v=>v.month&&v.week);
-  const undated=videos.filter(v=>!(v.month&&v.week));
-  const weekKeys=[...new Set(dated.map(v=>v.month+'_'+v.week))]
-    .sort((a,b)=>{const[am,aw]=a.split('_'),[bm,bw]=b.split('_');return moI(bm)-moI(am)||wkI(bw)-wkI(aw);});
-
-  const weekSections=weekKeys.map(wk=>{
-    const[m,w]=wk.split('_');
-    const list=dated.filter(v=>v.month===m&&v.week===w);
-    return`<div style="margin-bottom:18px">
-      <div style="font-size:12px;font-weight:700;color:#9BA3AF;margin-bottom:8px;letter-spacing:0.3px">${m} ${w} · ${list.length}개</div>
-      <div style="display:flex;flex-direction:column;gap:10px">${list.map(cardHtml).join('')}</div>
-    </div>`;}).join('');
-
-  const undatedSection=undated.length?`<div style="margin-bottom:18px">
-    <div style="font-size:12px;font-weight:700;color:#9BA3AF;margin-bottom:8px;letter-spacing:0.3px">기타 자료 · ${undated.length}개</div>
-    <div style="display:flex;flex-direction:column;gap:10px">${undated.map(cardHtml).join('')}</div>
-  </div>`:'';
-
-  return `<div>${weekSections}${undatedSection}</div>`;
-}
 
 function rSuggest(){
   const sc=ST.userSchool;
@@ -1439,6 +1396,14 @@ function rReport(recs){
   const totAvg = calcTotalAvg(sc, rec.month, rec.week);
   const clsCount = classCount(sc, rec.month, rec.week);
 
+  // 숙제 완료 요약 (히어로 영역에 바로 보이게)
+  const hw2SkipForWeek = sc?.hwNames&&sc.hwNames[rec.month+'_'+rec.week]?sc.hwNames[rec.month+'_'+rec.week].hw2Skip:sc?.hw2Skip;
+  const hw1Done = (rec.hw1||rec.homework)==='완료';
+  const hw2Done = rec.hw2==='완료';
+  const hwTotal = hw2SkipForWeek?1:2;
+  const hwDoneCount = (hw1Done?1:0)+(hw2SkipForWeek?0:(hw2Done?1:0));
+  const hwAllDone = hwDoneCount===hwTotal;
+
   // 지난 주 대비 변화
   const recIdx = recs.findIndex(r=>r===rec);
   const prevRec = recIdx>0 ? recs[recIdx-1] : null;
@@ -1447,7 +1412,7 @@ function rReport(recs){
   const rtPct = (!rtSkip&&rec.rtScore!=null&&rec.rvAvg)?Math.round(rec.rtScore/rec.rvAvg*100):null;
   const wtPct = (!wtSkip&&rec.wtScore!=null&&rec.wtAvg)?Math.round(rec.wtScore/rec.wtAvg*100):null;
   const totPct = (rec.totalScore!=null&&totAvg)?Math.round(rec.totalScore/totAvg*100):null;
-  const rankSub = rec.totalRank!=null ? `${rec.totalRank}등${clsCount?` / ${clsCount}명`:''}` : '';
+  const rankSub = rec.totalRank!=null ? `${rec.totalRank}등${clsCount?` / ${clsCount}명<span style="font-size:10.5px;font-weight:600;color:#8C93A0;margin-left:2px">(영상시청자 제외, 응시자)</span>`:''}` : '';
   const PF='font-family:\'Public Sans\',Pretendard,-apple-system,sans-serif';
 
   return`
@@ -1468,6 +1433,7 @@ function rReport(recs){
       : `<div style="font-size:15px;font-weight:800;color:#57616F;padding:10px 0">${rec.rtScore==null&&rec.wtScore==null?'시험 없음':'채점중'}</div>`
     }
     <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+      <span style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:700;padding:5px 11px;border-radius:8px;${hwAllDone?'color:#146C43;background:#E8F5EC':'color:#B3261E;background:#FCEAEA'}">${hwAllDone?'✓':'!'} 숙제 ${hwDoneCount}/${hwTotal} 완료</span>
       ${delta!=null?`<span style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:700;padding:5px 11px;border-radius:8px;${delta>0?'color:#146C43;background:#E8F5EC':delta<0?'color:#B3261E;background:#FCEAEA':'color:#57616F;background:#EEF1F5'}">${delta>0?'▲':delta<0?'▼':'–'} 지난주 대비 ${delta!==0?Math.abs(delta)+'점':'동일'}</span>`:''}
       ${totPct!=null?`<span style="font-size:12.5px;color:#57616F;font-weight:600;padding:5px 2px">반평균 ${totAvg}점 대비 ${totPct}%</span>`:''}
     </div>

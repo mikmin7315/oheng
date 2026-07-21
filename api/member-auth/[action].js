@@ -28,10 +28,8 @@ export default async function handler(req, res) {
     try {
       await sendPlainSms(phone, `[OHENG] 인증번호는 ${code} 입니다. 3분 내에 입력해주세요.`);
     } catch (e) {
-      console.error('sendPlainSms failed:', e?.message || e);
-      console.error('sendPlainSms error keys:', Object.keys(e || {}));
-      console.error('sendPlainSms error dump:', JSON.stringify(e, Object.getOwnPropertyNames(e || {})));
-      if (e?.failedMessageList) console.error('failedMessageList:', JSON.stringify(e.failedMessageList));
+      const detail = e?.failedMessageList?.[0]?.statusMessage || e?.message || String(e);
+      console.error('sendPlainSms failed:', detail);
       return res.status(500).json({ success: false, message: '인증번호 발송에 실패했습니다' });
     }
     return res.status(200).json({ success: true });

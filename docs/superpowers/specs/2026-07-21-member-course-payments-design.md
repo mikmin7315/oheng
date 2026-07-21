@@ -52,7 +52,10 @@ course:{id}                     → {
                                      createdAt, updatedAt,
                                    }
 
-payment:{paymentId}             → 포트원 결제 검증 결과 로그 (감사/디버깅용, 멱등성 체크에도 사용)
+order:{orderId}                 → { orderId, memberId, courseId, amount, status:'pending'|'paid', createdAt }
+                                   (create-order에서 서버가 직접 생성 — confirm/웹훅이 결제 내용을 대조할 기준)
+payment:{paymentId}             → 포트원 결제 검증 결과 로그. `SET ... NX`로 원자적으로 선점해서
+                                   confirm과 웹훅이 동시에 들어와도 entitlement가 중복 반영되지 않게 한다.
 ```
 
 기존 `video:{id}` 스키마는 변경하지 않는다. course는 videoId 배열로 기존 영상을 "가리킬" 뿐이다.
@@ -69,7 +72,7 @@ payment:{paymentId}             → 포트원 결제 검증 결과 로그 (감�
    - `otp:{phone}` 조회 → 코드 불일치 시 attempts+1 (5회 초과 시 코드 폐기, 재요청 필요), 만료 시 에러
    - 코드 일치 시 `member:phone:{phone}`로 기존 회원 조회
      - 있으면: 세션 발급하고 로그인 완료, `isNew:false`
-     - 없으면: `member:{id}` 신규 생성(name은 빈 문자열) + 인덱스 등록, 세션 발급, `isNew:true` 반환
+     - 없으면: 신규 회원 id를 먼저 만들고 **`SET member:phone:{phone} {id} NX`로 전화번호 인덱스를 원자적으로 선점**한 뒤에만 `member:{id}`를 생성한다. NX가 실패하면(동시 요청으로 이미 다른 쪽이 선점) 새로 만들지 않고 그 값으로 기존 회원을 조회해서 로그인 처리 — 동시 인증 시 회원이 중복 생성되는 것을 막는다.
    - 세션은 기존 `createSession`/`setSessionCookie` 재사용, `{role:'member', memberId}` 형태로 저장 (admin/student와 같은 패턴, role만 추가)
 3. `isNew:true`인 경우 클라이언트가 이름 입력 화면을 보여주고 `POST /api/member-auth/profile { name }` 호출 (세션 필요, 본인 것만 수정 가능)
 
@@ -79,10 +82,15 @@ payment:{paymentId}             → 포트원 결제 검증 결과 로그 (감�
 
 - `GET /api/courses/list` — 로그인 없이도 조회 가능 (제목/설명/가격/수강기간/영상 개수만, `published:true`인 것만). 둘러보기는 누구나.
 - `GET /api/courses/mine` — 회원 세션 필요. 내 `entitlements` 중 만료 안 된 것 + 각 course의 videoIds를 풀어서 실제 시청 가능한 영상 목록 반환 (기존 `/api/videos/mine`과 같은 응답 모양을 재사용해서 lecture.html의 렌더링 로직을 그대로 쓸 수 있게 한다).
-- `POST /api/payments/create-order { courseId }` — 회원 세션 필요. 포트원 결제에 필요한 주문 정보(orderId, amount, courseId, memberId)를 서버가 생성해서 반환. **금액은 반드시 서버가 course 가격에서 다시 계산** — 클라이언트가 보낸 금액을 신뢰하지 않는다.
-- `POST /api/payments/confirm { paymentId, orderId }` — 결제 위젯 완료 후 클라이언트가 호출. 서버가 **포트원 서버 API로 실제 결제 상태를 재조회**해서 확인(금액 일치, 상태 성공 확인) → 통과 시에만 `member.entitlements`에 항목 추가 (`expiresAt = now + course.durationDays`). `payment:{paymentId}` 존재 여부로 멱등 처리 (같은 결제 두 번 반영 방지).
+- `POST /api/payments/create-order { courseId }` — 회원 세션 필요. **서버가 `order:{orderId}` 레코드를 직접 만들어서 저장한다**: `{ orderId, memberId, courseId, amount, status:'pending', createdAt }`. amount는 반드시 서버가 course 가격에서 다시 계산 — 클라이언트가 보낸 금액을 신뢰하지 않는다. 이 orderId를 포트원 결제창에 그대로 넘긴다.
+- `POST /api/payments/confirm { paymentId, orderId }` — 결제 위젯 완료 후 클라이언트가 호출. 처리 순서:
+  1. `order:{orderId}` 조회 — 없거나 현재 세션의 memberId와 다르면 즉시 거부 (다른 사람 주문에 편승 방지)
+  2. **포트원 서버 API로 해당 paymentId의 실제 결제 상태를 재조회** — 상태가 성공이고, 금액이 `order.amount`와 일치하고, 포트원이 돌려준 주문번호가 이 `orderId`와 일치하는지까지 확인 (paymentId만 보고 확인하면 다른 주문의 정상 결제 건을 가져다 재사용하는 공격이 가능하므로 orderId 일치까지 반드시 확인)
+  3. 통과 시에만 entitlement 반영
 
-포트원 웹훅(결제 상태 변경 알림)도 같은 확인 로직을 태우는 별도 엔드포인트로 받아서, 클라이언트가 confirm 호출 전에 이탈해도 서버가 결제 성공을 놓치지 않게 한다 — 이 부분은 실제 포트원 계정으로 연동 테스트하면서 세부 스펙(웹훅 payload 형식 등)을 포트원 문서 기준으로 확정한다.
+**멱등성은 원자적으로 보장한다.** `confirm` 엔드포인트와 포트원 웹훅이 동시에 들어올 수 있으므로, "조회 후 없으면 기록" 방식이 아니라 `SET payment:{paymentId} {...} NX`로 먼저 선점을 시도하고, 그 SET이 성공했을 때만 `member.entitlements`를 갱신한다. NX가 실패하면(이미 다른 요청이 처리 중/완료) 아무것도 하지 않고 성공 응답만 반환 — 같은 결제가 두 번 반영되는 일이 없다.
+
+포트원 웹훅(결제 상태 변경 알림)도 같은 확인 로직(order 대조 + 포트원 재조회 + NX 선점)을 태우는 별도 엔드포인트로 받아서, 클라이언트가 confirm 호출 전에 이탈해도 서버가 결제 성공을 놓치지 않게 한다 — 웹훅 payload 형식 등 세부 스펙은 실제 포트원 계정으로 연동 테스트하면서 포트원 문서 기준으로 확정한다.
 
 ## 접근권한 통합
 

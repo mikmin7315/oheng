@@ -133,7 +133,9 @@ async function boot(){
   }
   const member=await loadMemberMe();
   if(member){
-    ST.mode='member';ST.member=member;ST.videos=await loadMemberVideos();ST.screen='list';render();return;
+    ST.mode='member';ST.member=member;
+    if(!member.name){ST.screen='otp-name';render();return;}
+    ST.videos=await loadMemberVideos();ST.screen='list';render();return;
   }
   ST.mode=null;
   ST.courses=await loadPublicCourses();

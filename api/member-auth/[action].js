@@ -28,6 +28,7 @@ export default async function handler(req, res) {
     try {
       await sendPlainSms(phone, `[OHENG] 인증번호는 ${code} 입니다. 3분 내에 입력해주세요.`);
     } catch (e) {
+      console.error('sendPlainSms failed:', e?.message || e, e?.response?.data ? JSON.stringify(e.response.data) : '');
       return res.status(500).json({ success: false, message: '인증번호 발송에 실패했습니다' });
     }
     return res.status(200).json({ success: true });

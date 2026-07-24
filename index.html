@@ -728,7 +728,39 @@ function ic(name){
   return `<svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none">${m[name]||''}</svg>`;
 }
 
-// 인강/현강/결석 체크 — 해당 주차에 기존 성적 레코드가 있으면 attendType 필드만 갱신, 없으면 빈 레코드를 새로 만들어 표시만 해둔다.
+// 인강/현강/결석 체크 옵션 — "직접입력"을 고르면 프롬프트로 자유 텍스트를 받아 attendType에 그대로 저장한다(프리셋 외 값도 허용).
+const ATT_OPTS=[{v:'',l:'-',c:'#C4C9D4'},{v:'현강',l:'현강(O)',c:'#00897B'},{v:'인강',l:'인강',c:'#1D4ED8'},{v:'결석',l:'결석',c:'#E53935'},{v:'__custom__',l:'✎ 직접입력',c:'#7B1FA2'}];
+function attColorFor(val){
+  const preset=ATT_OPTS.find(o=>o.v===val);
+  if(preset)return preset.c;
+  return val?'#7B1FA2':'#C4C9D4';
+}
+function attOptionsHtml(val){
+  const isCustom = !!val && !ATT_OPTS.some(o=>o.v===val);
+  return ATT_OPTS.map(o=>`<option value="${esc(o.v)}" ${o.v===val?'selected':''}>${o.l}</option>`).join('')
+    + (isCustom?`<option value="${esc(val)}" selected>${esc(val)}</option>`:'');
+}
+// select가 "직접입력"으로 바뀌면 프롬프트로 텍스트를 받아 setAttendance로 저장하고, 취소하면 이전 값으로 되돌린다.
+function bindAttSelect(sel, sc, sid, month, week){
+  sel.dataset.prevVal = sel.value;
+  sel.onchange=()=>{
+    if(sel.value==='__custom__'){
+      const txt=prompt('직접 입력할 내용을 입력하세요 (예: 조퇴, 보강예정 등)','');
+      if(txt===null||!txt.trim()){ sel.value=sel.dataset.prevVal||''; return; }
+      const custom=txt.trim();
+      let opt=[...sel.options].find(o=>o.value===custom);
+      if(!opt){opt=document.createElement('option');opt.value=custom;opt.textContent=custom;sel.insertBefore(opt,null);}
+      sel.value=custom;
+      setAttendance(sc, sid, month, week, custom);
+      sel.style.color=attColorFor(custom);
+      sel.dataset.prevVal=custom;
+      return;
+    }
+    setAttendance(sc, sid, month, week, sel.value);
+    sel.style.color=attColorFor(sel.value);
+    sel.dataset.prevVal=sel.value;
+  };
+}
 function setAttendance(sc, sid, month, week, val){
   let rec = sc.records.find(r=>r.sid===sid&&r.month===month&&r.week===week);
   if(!rec){
@@ -1169,16 +1201,21 @@ function bLogin(){
   };
 }
 
-function rSchoolSelect(){
-  const listSrc=(ST.serverAdminSession&&ST.schoolsSummary)?ST.schoolsSummary:DB.schools;
-  const cards=listSrc.map(sc=>`
+function schoolCardHtml(sc){
+  const isLecture=sc.type==='lecture';
+  return`
     <div class="school-card" data-sch="${sc.id}" style="transition:all 0.18s">
       <button class="school-card-del" data-del="${sc.id}" title="학교 삭제" aria-label="${sc.name} 학교 삭제">✕</button>
-      <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#1A237E,#3949AB);display:flex;align-items:center;justify-content:center;font-size:22px;margin:0 auto 12px">🏫</div>
-      <div class="school-card-name">${sc.name}</div>
-      <div class="school-card-grade">${sc.grade}</div>
+      <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,${isLecture?'#7B1FA2,#AB47BC':'#1A237E,#3949AB'});display:flex;align-items:center;justify-content:center;font-size:22px;margin:0 auto 12px">${isLecture?'📚':'🏫'}</div>
+      ${isLecture?'<div style="font-size:10.5px;font-weight:700;color:#7B1FA2;background:#F3E5F5;border-radius:20px;padding:2px 8px;display:inline-block;margin-bottom:4px">특강</div>':''}
+      <div class="school-card-name">${esc(sc.name)}</div>
+      <div class="school-card-grade">${esc(sc.grade)}</div>
       <div class="school-card-count">학생 ${sc.students?.length??sc.studentCount??0}명 · 성적 ${sc.records?.length??sc.recordCount??0}건</div>
-    </div>`).join('');
+    </div>`;
+}
+function rSchoolSelect(){
+  const typeFilter=ST.schoolTypeFilter||'';
+  const sortMode=ST.schoolSort||'count';
   return`
   <div class="top-nav">
     <div class="nav-logo"><span style="font-size:18px;font-weight:800;color:#fff;letter-spacing:-0.5px"><span style="color:#FFB300">OH</span>ENG</span></div>
@@ -1191,19 +1228,69 @@ function rSchoolSelect(){
         <div class="school-title">관리 학교 선택</div>
         <div class="school-sub">수업할 학교를 선택하면 해당 학교 전용 관리 화면으로 이동합니다</div>
       </div>
-      <div class="school-grid">${cards}</div>
+      <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap">
+        <input id="sch-search" value="${esc(ST.schoolSearch||'')}" placeholder="🔍 학교명 검색" style="flex:1;min-width:160px;padding:9px 12px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px;outline:none;font-family:inherit">
+        <select id="sch-filter-type" style="padding:9px 12px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px;background:#fff;color:#0D1117;outline:none">
+          <option value="" ${!typeFilter?'selected':''}>전체</option>
+          <option value="regular" ${typeFilter==='regular'?'selected':''}>정규반</option>
+          <option value="lecture" ${typeFilter==='lecture'?'selected':''}>특강</option>
+        </select>
+        <select id="sch-sort" style="padding:9px 12px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px;background:#fff;color:#0D1117;outline:none">
+          <option value="count" ${sortMode==='count'?'selected':''}>학생 많은 순</option>
+          <option value="name" ${sortMode==='name'?'selected':''}>가나다순</option>
+        </select>
+      </div>
+      <div id="school-grid-wrap"></div>
       <button class="school-add-btn" id="btn-add-toggle">+ 새 학교 추가</button>
       ${ST.showAddSchool?`<div class="add-school-form" style="margin-top:12px">
         <input id="ns-sname" placeholder="학교 이름">
         <input id="ns-sgrade" placeholder="학년 (예: 2학년)">
-        <div style="display:flex;gap:8px"><button class="abtn abtn-blue" id="btn-do-add">추가</button><button class="abtn abtn-gray" id="btn-cancel-add">취소</button></div>
+        <select id="ns-stype" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit;background:#fff;margin-top:8px">
+          <option value="regular">정규반 (학교 단위)</option>
+          <option value="lecture">특강 (여러 학교 학생 혼합)</option>
+        </select>
+        <div style="font-size:11px;color:#9BA3AF;margin-top:5px;line-height:1.5">특강으로 만들면 학생 등록 시 학생별 "고등학교" 입력칸이 추가돼요.</div>
+        <div style="display:flex;gap:8px;margin-top:8px"><button class="abtn abtn-blue" id="btn-do-add">추가</button><button class="abtn abtn-gray" id="btn-cancel-add">취소</button></div>
         <div id="add-msg" style="font-size:12px;margin-top:6px"></div>
       </div>`:''}
     </div>
   </div>`;}
 
-function bSchoolSelect(){
-  document.getElementById('btn-alo-main').onclick=doLogout;
+// 검색어/구분 필터/정렬만 바뀔 때는 검색창을 포함한 전체 화면을 다시 그리지 않고
+// #school-grid-wrap 안쪽만 갱신 — 매 타이핑마다 render()를 부르면 input이 통째로
+// 재생성되어 커서/포커스가 날아가기 때문.
+function renderSchoolGrid(){
+  const wrap=document.getElementById('school-grid-wrap');
+  if(!wrap)return;
+  const listSrc=(ST.serverAdminSession&&ST.schoolsSummary)?ST.schoolsSummary:DB.schools;
+  const q=(document.getElementById('sch-search')?.value||'').trim().toLowerCase();
+  const typeFilter=document.getElementById('sch-filter-type')?.value||'';
+  const sortMode=document.getElementById('sch-sort')?.value||'count';
+  ST.schoolSearch=document.getElementById('sch-search')?.value||'';
+  ST.schoolTypeFilter=typeFilter;
+  ST.schoolSort=sortMode;
+  const countOf=sc=>sc.students?.length??sc.studentCount??0;
+  const cmp=(a,b)=>sortMode==='name'?a.name.localeCompare(b.name,'ko'):countOf(b)-countOf(a);
+  let filtered=listSrc.filter(sc=>!q||sc.name.toLowerCase().includes(q));
+  if(typeFilter)filtered=filtered.filter(sc=>(sc.type==='lecture'?'lecture':'regular')===typeFilter);
+  const empty=filtered.filter(sc=>countOf(sc)===0).sort(cmp);
+  const active=filtered.filter(sc=>countOf(sc)>0);
+  const regularList=active.filter(sc=>sc.type!=='lecture').sort(cmp);
+  const lectureList=active.filter(sc=>sc.type==='lecture').sort(cmp);
+  const sectionHtml=(title,list)=>!list.length?'':`
+    <div style="font-size:13px;font-weight:700;color:#9BA3AF;margin:4px 2px 10px">${title} (${list.length})</div>
+    <div class="school-grid">${list.map(schoolCardHtml).join('')}</div>`;
+  const noResult=!regularList.length&&!lectureList.length&&!empty.length;
+  wrap.innerHTML=(noResult?`<div style="text-align:center;padding:30px 0;color:#9BA3AF;font-size:13px">조건에 맞는 학교가 없습니다</div>`:'')
+    +sectionHtml('특강 · 프로그램',lectureList)
+    +sectionHtml('정규반',regularList)
+    +(empty.length?`<button id="btn-toggle-inactive" style="width:100%;display:flex;align-items:center;justify-content:space-between;background:transparent;border:1.5px dashed var(--bd1);border-radius:10px;padding:10px 16px;color:var(--tx2);font-size:12.5px;cursor:pointer;margin-bottom:20px">
+        <span>미개설 · 학생 0명 (${empty.length}건)</span><span>${ST.showInactiveSchools?'▲ 접기':'▼ 펼치기'}</span>
+      </button>${ST.showInactiveSchools?`<div class="school-grid" style="margin-top:-10px;margin-bottom:20px">${empty.map(schoolCardHtml).join('')}</div>`:''}`:'');
+  bindSchoolCardHandlers();
+  document.getElementById('btn-toggle-inactive')?.addEventListener('click',()=>{ST.showInactiveSchools=!ST.showInactiveSchools;renderSchoolGrid();});
+}
+function bindSchoolCardHandlers(){
   document.querySelectorAll('[data-sch]').forEach(card=>{
     card.onclick=async()=>{
       const id=card.dataset.sch;
@@ -1241,28 +1328,37 @@ function bSchoolSelect(){
         saveDB();
       }
       if(ST.school===id)ST.school=null;
-      render();
+      renderSchoolGrid();
     };
   });
+}
+
+function bSchoolSelect(){
+  document.getElementById('btn-alo-main').onclick=doLogout;
+  renderSchoolGrid();
+  document.getElementById('sch-search').oninput=()=>renderSchoolGrid();
+  document.getElementById('sch-filter-type').onchange=()=>renderSchoolGrid();
+  document.getElementById('sch-sort').onchange=()=>renderSchoolGrid();
   document.getElementById('btn-add-toggle').onclick=()=>{ST.showAddSchool=!ST.showAddSchool;render();};
   if(ST.showAddSchool){
     document.getElementById('btn-cancel-add').onclick=()=>{ST.showAddSchool=false;render();};
     document.getElementById('btn-do-add').onclick=async()=>{
       const name=document.getElementById('ns-sname').value.trim();const grade=document.getElementById('ns-sgrade').value.trim()||'1학년';
+      const type=document.getElementById('ns-stype')?.value==='lecture'?'lecture':'regular';
       const msg=document.getElementById('add-msg');
       const listSrc=(ST.serverAdminSession&&ST.schoolsSummary)?ST.schoolsSummary:DB.schools;
       if(!name){msg.textContent='학교 이름을 입력하세요.';msg.style.color='#c62828';return;}
       if(listSrc.find(s=>s.name===name&&s.grade===grade)){msg.textContent='이미 존재하는 학교입니다.';msg.style.color='#c62828';return;}
       if(ST.serverAdminSession){
         try{
-          const res=await fetch('/api/admin/schools',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,grade})});
+          const res=await fetch('/api/admin/schools',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,grade,type})});
           const data=await res.json();
           if(!res.ok||!data.success){msg.textContent=data.message||'생성 실패';msg.style.color='#c62828';return;}
           ST.schoolsSummary=[...(ST.schoolsSummary||[]),data.school];
-          DB.schools.push({id:data.school.id,name,grade,students:[],records:[],notices:{}});
+          DB.schools.push({id:data.school.id,name,grade,type,students:[],records:[],notices:{}});
         }catch(e){msg.textContent='오류: '+e.message;msg.style.color='#c62828';return;}
       } else {
-        DB.schools.push({id:'sch'+Date.now(),name,grade,students:[],records:[],notices:{}});
+        DB.schools.push({id:'sch'+Date.now(),name,grade,type,students:[],records:[],notices:{}});
         saveDB();
       }
       ST.showAddSchool=false;render();
@@ -1396,13 +1492,7 @@ function rReport(recs){
   const totAvg = calcTotalAvg(sc, rec.month, rec.week);
   const clsCount = classCount(sc, rec.month, rec.week);
 
-  // 숙제 완료 요약 (히어로 영역에 바로 보이게)
   const hw2SkipForWeek = sc?.hwNames&&sc.hwNames[rec.month+'_'+rec.week]?sc.hwNames[rec.month+'_'+rec.week].hw2Skip:sc?.hw2Skip;
-  const hw1Done = (rec.hw1||rec.homework)==='완료';
-  const hw2Done = rec.hw2==='완료';
-  const hwTotal = hw2SkipForWeek?1:2;
-  const hwDoneCount = (hw1Done?1:0)+(hw2SkipForWeek?0:(hw2Done?1:0));
-  const hwAllDone = hwDoneCount===hwTotal;
 
   // 지난 주 대비 변화
   const recIdx = recs.findIndex(r=>r===rec);
@@ -1433,7 +1523,6 @@ function rReport(recs){
       : `<div style="font-size:15px;font-weight:800;color:#57616F;padding:10px 0">${rec.rtScore==null&&rec.wtScore==null?'시험 없음':'채점중'}</div>`
     }
     <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
-      <span style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:700;padding:5px 11px;border-radius:8px;${hwAllDone?'color:#146C43;background:#E8F5EC':'color:#B3261E;background:#FCEAEA'}">${hwAllDone?'✓':'!'} 숙제 ${hwDoneCount}/${hwTotal} 완료</span>
       ${delta!=null?`<span style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:700;padding:5px 11px;border-radius:8px;${delta>0?'color:#146C43;background:#E8F5EC':delta<0?'color:#B3261E;background:#FCEAEA':'color:#57616F;background:#EEF1F5'}">${delta>0?'▲':delta<0?'▼':'–'} 지난주 대비 ${delta!==0?Math.abs(delta)+'점':'동일'}</span>`:''}
       ${totPct!=null?`<span style="font-size:12.5px;color:#57616F;font-weight:600;padding:5px 2px">반평균 ${totAvg}점 대비 ${totPct}%</span>`:''}
     </div>
@@ -1464,10 +1553,23 @@ function rReport(recs){
       ${wtPct!=null?`<div style="height:6px;border-radius:4px;background:#D9E0EA;margin-top:10px;overflow:hidden"><div style="height:100%;background:#1E40AF;border-radius:4px;width:${Math.min(100,wtPct)}%"></div></div>`:''}
     </div>` : '';
     if(!rtBox&&!wtBox)return'';
-    return `<div style="display:flex;gap:16px;margin-bottom:4px">${rtBox}${wtBox}</div>`;
+    return `<div style="display:flex;gap:16px;margin-bottom:16px">${rtBox}${wtBox}</div>`;
   })()}
 
-  <hr style="border:0;border-top:1.5px solid #D9E0EA;margin:22px 0">
+  <!-- 과제/재시험 현황: 2개씩 한 줄로 -->
+  ${(()=>{
+    const hwItem=(label,value,done)=>`<div style="border:1.5px solid #D9E0EA;border-radius:10px;padding:10px 12px;background:#fff;display:flex;flex-direction:column;gap:5px;min-width:0">
+      <span style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:#57616F;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${ic('book')}${esc(label)}</span>
+      <span style="font-size:13px;font-weight:800;${done===true?'color:#146C43':done===false?'color:#B3261E':'color:#8C93A0'}">${esc(value)}</span>
+    </div>`;
+    const items=[hwItem(rec.hwName1||sc?.hw1||'숙제1', rec.hw1||rec.homework||'-', (rec.hw1||rec.homework)?((rec.hw1||rec.homework)==='완료'):null)];
+    if(!hw2SkipForWeek) items.push(hwItem(rec.hwName2||sc?.hw2||'숙제2', rec.hw2||'-', rec.hw2?(rec.hw2==='완료'):null));
+    items.push(`<div style="border:1.5px solid #D9E0EA;border-radius:10px;padding:10px 12px;background:#fff;display:flex;flex-direction:column;gap:5px;min-width:0">
+      <span style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:#57616F;white-space:nowrap">${ic('clock')}재시험</span>
+      <span style="font-size:13px;font-weight:800;${rec.retestTime?'color:#B3261E':'color:#8C93A0'}">${esc(rec.retestTime||'없음')}</span>
+    </div>`);
+    return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">${items.join('')}</div>`;
+  })()}
 
   <!-- 선생님 메시지 -->
   ${(notice||rec.comment)?`<div style="border:1.5px solid #D9E0EA;border-radius:12px;padding:15px 16px;margin-bottom:20px;display:flex;flex-direction:column;gap:14px;background:#fff">
@@ -1481,23 +1583,6 @@ function rReport(recs){
       <div style="font-size:13.5px;line-height:1.65;color:#2B3341;white-space:pre-wrap">${esc(rec.comment)}</div>
     </div>`:''}
   </div>`:''}
-
-  <!-- 과제 현황 -->
-  <div style="display:flex;flex-direction:column;margin-bottom:22px">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:12px 2px;border-top:1.5px solid #D9E0EA;font-size:13.5px;font-weight:600;color:#57616F">
-      <span style="display:flex;align-items:center;gap:7px;white-space:nowrap;flex-shrink:0">${ic('book')}${rec.hwName1||sc?.hw1||'숙제1'}</span>
-      <span style="font-weight:800;font-size:12.5px;padding:3px 9px;border-radius:7px;text-align:right;max-width:65%;${(rec.hw1||rec.homework)==='완료'?'color:#146C43;background:#E8F5EC':(rec.hw1||rec.homework)?'color:#B3261E;background:#FCEAEA':'color:#8C93A0;background:#EEF1F5'}">${rec.hw1||rec.homework||'-'}</span>
-    </div>
-    ${!(sc?.hwNames&&sc.hwNames[rec.month+'_'+rec.week]?sc.hwNames[rec.month+'_'+rec.week].hw2Skip:sc?.hw2Skip)?`<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:12px 2px;border-top:1.5px solid #D9E0EA;font-size:13.5px;font-weight:600;color:#57616F">
-      <span style="display:flex;align-items:center;gap:7px;white-space:nowrap;flex-shrink:0">${ic('book')}${rec.hwName2||sc?.hw2||'숙제2'}</span>
-      <span style="font-weight:800;font-size:12.5px;padding:3px 9px;border-radius:7px;text-align:right;max-width:65%;${rec.hw2==='완료'?'color:#146C43;background:#E8F5EC':rec.hw2?'color:#B3261E;background:#FCEAEA':'color:#8C93A0;background:#EEF1F5'}">${rec.hw2||'-'}</span>
-    </div>`:''}
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:12px 2px;border-top:1.5px solid #D9E0EA;font-size:13.5px;font-weight:600;color:#57616F">
-      <span style="display:flex;align-items:center;gap:7px;white-space:nowrap;flex-shrink:0">${ic('clock')}재시험</span>
-      <span style="font-weight:800;font-size:12.5px;padding:3px 9px;border-radius:7px;text-align:right;max-width:65%;line-height:1.5;${rec.retestTime?'color:#B3261E;background:#FCEAEA':'color:#8C93A0;background:#EEF1F5'}">${rec.retestTime||'없음'}</span>
-    </div>
-  </div>
-  </div>
   <button id="btn-save-report-img" class="no-print rpt-focus" style="width:100%;padding:12px;background:#fff;border:1.5px solid #D9E0EA;border-radius:10px;font-size:13px;font-weight:700;color:#1E40AF;cursor:pointer;margin-bottom:16px;display:flex;align-items:center;justify-content:center;gap:7px">${ic('camera')}성적표 이미지 저장</button>
 
     <!-- 성적 추이 차트 3종 -->
@@ -2041,12 +2126,11 @@ function rBulk(sc){
   const hw1=hwEntry.hw1||sc.hw1||'숙제1';
   const hw2=hwEntry.hw2||sc.hw2||'숙제2';
   const hw2Skip=hwEntry.hw2Skip!==undefined?hwEntry.hw2Skip:(sc.hw2Skip||false);
-  const ATT_OPTS=[{v:'',l:'-',c:'#C4C9D4'},{v:'현강',l:'현강(O)',c:'#00897B'},{v:'인강',l:'인강',c:'#1D4ED8'},{v:'결석',l:'결석',c:'#E53935'}];
   const rows=sc.students.map(s=>{
     const ex=sc.records.find(r=>r.sid===s.id&&r.month===mon&&r.week===wk)||{};
     const rtSkipped=!!ex.rtSkip;const wtSkipped=!!ex.wtSkip;
     const attVal=ex.attendType||'';
-    const attColor=ATT_OPTS.find(o=>o.v===attVal)?.c||'#C4C9D4';
+    const attColor=attColorFor(attVal);
     return`<tr data-sid="${s.id}" data-rtskip="${rtSkipped?'1':'0'}" data-wtskip="${wtSkipped?'1':'0'}">
       <td class="sn">${esc(s.name)}</td>
       <td><input class="ci inp-rt" type="number" min="0" max="100" value="${rtSkipped||ex.rtScore==null?'':ex.rtScore}"${rtSkipped?' disabled':''}></td>
@@ -2060,7 +2144,7 @@ function rBulk(sc){
       <td><select class="cs inp-hw1">${HW.map(o=>`<option ${(ex.hw1||ex.homework)===o?'selected':''}>${o}</option>`).join('')}</select></td>
       <td><select class="cs inp-hw2" ${hw2Skip?'disabled style=\"opacity:0.35\"':''}>${HW.map(o=>`<option ${ex.hw2===o?'selected':''}>${o}</option>`).join('')}</select></td>
       <td><input class="ci inp-rt2" value="${ex.retestTime||''}" list="retest-list" style="min-width:70px" autocomplete="off"></td>
-      <td><select class="cs att-sel" data-sid="${s.id}" style="font-weight:700;color:${attColor}">${ATT_OPTS.map(o=>`<option value="${o.v}" ${o.v===attVal?'selected':''}>${o.l}</option>`).join('')}</select></td>
+      <td><select class="cs att-sel" data-sid="${s.id}" style="font-weight:700;color:${attColor}">${attOptionsHtml(attVal)}</select></td>
     </tr>`;}).join('');
   const draft=loadDraft(sc,mon,wk);
   return`
@@ -2205,11 +2289,12 @@ function rNotices(sc){
 
 function rStudentMgmt(sc){
   const autoId=nextStudentId(sc);
+  const isLecture=sc.type==='lecture';
   return`
   <div class="section-card">
     <div class="section-ttl">📤 엑셀/CSV 일괄 등록</div>
     <div style="background:#F0F9FF;border:1.5px solid #BAE6FD;border-radius:12px;padding:14px 16px;margin-bottom:14px;font-size:12px;color:#0C4A6E">
-      이름,전화번호,학부모전화번호,구분<br>홍길동,010-1234-5678,010-8765-4321,재학
+      ${isLecture?'이름,전화번호,학부모전화번호,구분,고등학교<br>홍길동,010-1234-5678,010-8765-4321,재학,고양외고':'이름,전화번호,학부모전화번호,구분<br>홍길동,010-1234-5678,010-8765-4321,재학'}
     </div>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
       <label style="display:flex;align-items:center;gap:8px;padding:10px 16px;background:#1A237E;color:#fff;border-radius:9px;cursor:pointer;font-size:13px;font-weight:600">
@@ -2232,6 +2317,7 @@ function rStudentMgmt(sc){
       <div class="fgrp"><label class="flbl">구분</label>
         <select class="finp" id="ns-type"><option value="regular">재학생</option><option value="new">신규생</option><option value="transfer">전입생</option></select>
       </div>
+      ${isLecture?'<div class="fgrp"><label class="flbl">고등학교</label><input class="finp" id="ns-hs" placeholder="예: 고양외고"/></div>':''}
     </div>
     <div class="fgrp" style="margin-bottom:14px"><label class="flbl">수강계기</label><input class="finp" id="ns-reason" placeholder="예: 블로그, 추천(선배)" style="width:100%"/></div>
     <button class="abtn abtn-green" id="btn-ns">학생 추가</button>
@@ -2275,15 +2361,17 @@ function renderStudentTable(sc){
   const typeMap={new:'🆕 신규',transfer:'🔄 전입',regular:'재학'};
   const typeColor={new:'background:#FFF7ED;color:#C2410C',transfer:'background:#EFF6FF;color:#1D4ED8',regular:'background:#F1F3F5;color:#6B7280'};
   const cp='padding:7px 8px'; // 압축된 셀 여백 — 끝에 수강계기 입력칸을 넣기 위해 나머지 칸을 좁힘
+  const isLecture=sc.type==='lecture';
   wrap.innerHTML = `<table class="rec-tbl">
       <thead><tr>
         <th style="${cp}"><input type="checkbox" id="stu-select-all" style="width:15px;height:15px;cursor:pointer;accent-color:#1A237E"></th>
-        <th style="${cp}">ID</th><th style="${cp}">이름</th><th style="${cp}">구분</th><th style="${cp}">전화번호</th><th style="${cp}">학부모</th><th style="${cp}">비번</th><th style="${cp}">등록일</th><th style="${cp}">수강계기</th><th style="${cp}"></th>
+        <th style="${cp}">ID</th><th style="${cp}">이름</th>${isLecture?`<th style="${cp}">고등학교</th>`:''}<th style="${cp}">구분</th><th style="${cp}">전화번호</th><th style="${cp}">학부모</th><th style="${cp}">비번</th><th style="${cp}">등록일</th><th style="${cp}">수강계기</th><th style="${cp}"></th>
       </tr></thead>
       <tbody>${filtered.map(s=>`<tr>
           <td style="${cp}"><input type="checkbox" class="stu-select" data-sid="${s.id}" style="width:15px;height:15px;cursor:pointer;accent-color:#1A237E"></td>
           <td style="${cp};font-family:monospace;font-size:10.5px;color:#6B7280">${esc(s.id)}</td>
           <td style="${cp};font-weight:700;color:#1A237E">${esc(s.name)}</td>
+          ${isLecture?`<td style="${cp}"><input data-hs-id="${s.id}" value="${esc(s.highSchool)||''}" placeholder="고등학교" style="width:90px;padding:5px 8px;border:1.5px solid #E8ECF0;border-radius:7px;font-size:11.5px;outline:none;font-family:inherit"></td>`:''}
           <td style="${cp}"><span style="padding:2px 7px;border-radius:20px;font-size:10.5px;font-weight:600;${typeColor[s.type||'regular']||typeColor.regular}">${typeMap[s.type||'regular']}</span></td>
           <td style="${cp};font-size:11.5px">${esc(s.phone)||'-'}</td><td style="${cp};font-size:11.5px">${esc(s.parentPhone)||'-'}</td>
           <td style="${cp};font-family:monospace;font-size:10.5px">${s.pwd?esc(s.pwd):`<button class="abtn" data-reset-pwd="${s.id}" style="font-size:10px;padding:3px 7px;color:#1A237E">🔑</button>`}</td>
@@ -2299,6 +2387,13 @@ function renderStudentTable(sc){
         </tr>`).join('')}
       </tbody>
     </table>`;
+  wrap.querySelectorAll('[data-hs-id]').forEach(inp=>{
+    inp.onchange=()=>{
+      const s=sc.students.find(x=>x.id===inp.dataset.hsId);if(!s)return;
+      s.highSchool=inp.value.trim();
+      saveDB();
+    };
+  });
   wrap.querySelectorAll('[data-edit-id]').forEach(b=>{ b.onclick=()=>openEditStudent(sc, b.dataset.editId); });
   wrap.querySelectorAll('[data-ppurio-id]').forEach(b=>{
     b.onclick=()=>{const s=sc.students.find(x=>x.id===b.dataset.ppurioId);if(s)sendPpurioIdPw(sc,s);};
@@ -2373,14 +2468,13 @@ function rWithdrawn(sc){
 function rAttendance(sc){
   const mon = ST.attMon || curMonWk().mon;
   const monIdx = MONTHS.indexOf(mon);
-  const ATT_OPTS=[{v:'',l:'-',c:'#C4C9D4'},{v:'현강',l:'현강(O)',c:'#00897B'},{v:'인강',l:'인강',c:'#1D4ED8'},{v:'결석',l:'결석',c:'#E53935'}];
   const rows = sc.students.map(s=>{
     const cells = WEEKS.map(wk=>{
       const rec = sc.records.find(r=>r.sid===s.id&&r.month===mon&&r.week===wk);
       const val = rec?.attendType || '';
-      const color = ATT_OPTS.find(o=>o.v===val)?.c || '#C4C9D4';
+      const color = attColorFor(val);
       return`<td style="padding:4px"><select data-att-sid="${s.id}" data-att-wk="${wk}" style="width:100%;padding:6px 4px;border:1.5px solid #E8ECF0;border-radius:7px;font-size:11px;text-align:center;font-weight:700;color:${color};background:#fff;outline:none;cursor:pointer">
-        ${ATT_OPTS.map(o=>`<option value="${o.v}" ${o.v===val?'selected':''}>${o.l}</option>`).join('')}
+        ${attOptionsHtml(val)}
       </select></td>`;
     }).join('');
     return`<tr><td style="padding:8px 10px"><button data-goto-student="${s.id}" style="background:none;border:none;padding:0;font-weight:700;color:#1A237E;white-space:nowrap;cursor:pointer;text-decoration:underline;text-underline-offset:2px;font-size:inherit;font-family:inherit">${esc(s.name)}</button></td>${cells}</tr>`;
@@ -2510,6 +2604,14 @@ function rSchoolSettings(sc){return`
     <div class="form2" style="margin-bottom:14px">
       <div class="fgrp"><label class="flbl">학교 이름</label><input class="finp" id="ss-name" value="${sc.name}"></div>
       <div class="fgrp"><label class="flbl">학년</label><input class="finp" id="ss-grade" value="${sc.grade}"></div>
+    </div>
+    <div class="fgrp" style="margin-bottom:14px">
+      <label class="flbl">구분</label>
+      <select class="finp" id="ss-type">
+        <option value="regular" ${sc.type!=='lecture'?'selected':''}>정규반 (학교 단위)</option>
+        <option value="lecture" ${sc.type==='lecture'?'selected':''}>특강 (여러 학교 학생 혼합)</option>
+      </select>
+      <div style="font-size:11px;color:#9BA3AF;margin-top:5px">특강으로 바꾸면 학생 등록/목록/CSV/엑셀에 "고등학교" 입력칸이 추가돼요.</div>
     </div>
     <div class="section-ttl" style="margin-top:4px">📋 숙제 기본 이름 <span style="font-size:11px;color:#9BA3AF;font-weight:400">(주차별로 성적 입력 화면에서 변경 가능)</span></div>
     <div class="form2" style="margin-bottom:14px">
@@ -2683,6 +2785,7 @@ function bAdmin(){
       const gr=document.getElementById('ss-grade').value.trim();
       if(!nm){alert('학교명을 입력하세요');return;}
       sc.name=nm;sc.grade=gr;
+      sc.type=document.getElementById('ss-type')?.value==='lecture'?'lecture':'regular';
       sc.hw1=document.getElementById('ss-hw1')?.value.trim()||'숙제1';
       sc.hw2=document.getElementById('ss-hw2')?.value.trim()||'숙제2';
       sc.kakaoChannel=document.getElementById('ss-kakao')?.value.trim()||'';
@@ -2724,7 +2827,7 @@ function bAdmin(){
       if(DB.schools.some(s=>s.students.some(st=>st.id.toLowerCase()===id.toLowerCase()))){msg.textContent='이미 사용 중인 ID입니다';msg.style.color='#E53935';return;}
       const sType=document.getElementById('ns-type')?.value||'regular';
       const today=new Date().toISOString().slice(0,10);
-      const newSt={id,name,pwd:pw,phone:document.getElementById('ns-ph').value,parentPhone:document.getElementById('ns-pph').value,type:sType,reason:document.getElementById('ns-reason')?.value.trim()||'',createdAt:today};
+      const newSt={id,name,pwd:pw,phone:document.getElementById('ns-ph').value,parentPhone:document.getElementById('ns-pph').value,type:sType,reason:document.getElementById('ns-reason')?.value.trim()||'',highSchool:document.getElementById('ns-hs')?.value.trim()||'',createdAt:today};
       sc.students.push(newSt);
       saveDB();msg.textContent=`✓ ${name} 추가 완료!`;msg.style.color='#00897B';render();
       // 카카오 ID/비번 발송은 강제하지 않고 선택 — "취소"하면 나중에 일괄 발송으로 보낼 수 있음
@@ -2746,13 +2849,13 @@ function bAdmin(){
           if(!parsed.length){msg.textContent='등록할 데이터가 없습니다';msg.style.color='#E53935';return;}
           const today=new Date().toISOString().slice(0,10);
           let added=0;
-          parsed.forEach(p=>{if(!p.name)return;const newId=nextStudentId(sc);sc.students.push({id:newId,name:p.name,pwd:'1234',phone:p.phone||'',parentPhone:p.parentPhone||'',type:p.type||'regular',createdAt:today});added++;});
+          parsed.forEach(p=>{if(!p.name)return;const newId=nextStudentId(sc);sc.students.push({id:newId,name:p.name,pwd:'1234',phone:p.phone||'',parentPhone:p.parentPhone||'',type:p.type||'regular',highSchool:p.highSchool||'',createdAt:today});added++;});
           saveDB();msg.textContent=`✓ ${added}명 등록 완료`;msg.style.color='#00897B';setTimeout(()=>render(),800);
         }catch(err){msg.textContent='오류: '+err.message;msg.style.color='#E53935';}
       };
       reader.readAsText(fi.files[0],'UTF-8');
     };}
-    const tplBtn=document.getElementById('btn-csv-template');if(tplBtn)tplBtn.onclick=()=>downloadCSVTemplate();
+    const tplBtn=document.getElementById('btn-csv-template');if(tplBtn)tplBtn.onclick=()=>downloadCSVTemplate(sc);
     const exportStudBtn=document.getElementById('btn-export-excel');if(exportStudBtn)exportStudBtn.onclick=()=>exportStudentsExcel(sc);
     const ppurioAllBtn=document.getElementById('btn-ppurio-all-idpw');if(ppurioAllBtn)ppurioAllBtn.onclick=()=>sendPpurioAllIdPw(sc);
     document.getElementById('btn-ppurio-selected-idpw')?.addEventListener('click',()=>{
@@ -2796,10 +2899,7 @@ function bAdmin(){
       const i=MONTHS.indexOf(ST.attMon||curMonWk().mon);if(i<MONTHS.length-1){ST.attMon=MONTHS[i+1];render();}
     });
     document.querySelectorAll('[data-att-sid]').forEach(sel=>{
-      sel.onchange=()=>{
-        setAttendance(sc, sel.dataset.attSid, ST.attMon||curMonWk().mon, sel.dataset.attWk, sel.value);
-        sel.style.color=({'':'#C4C9D4','현강':'#00897B','인강':'#1D4ED8','결석':'#E53935'})[sel.value]||'#C4C9D4';
-      };
+      bindAttSelect(sel, sc, sel.dataset.attSid, ST.attMon||curMonWk().mon, sel.dataset.attWk);
     });
     document.querySelectorAll('[data-goto-student]').forEach(b=>{
       b.onclick=()=>{
@@ -3164,10 +3264,7 @@ function bAdmin(){
   document.getElementById('thr-rt')?.addEventListener('input',()=>{recalc();scheduleDraftSave();});
   document.getElementById('thr-wt')?.addEventListener('input',()=>{recalc();scheduleDraftSave();});
   document.querySelectorAll('.att-sel').forEach(sel=>{
-    sel.onchange=()=>{
-      setAttendance(sc, sel.dataset.sid, ST.bMon||curMonWk().mon, ST.bWk||curMonWk().wk, sel.value);
-      sel.style.color=({'':'#C4C9D4','현강':'#00897B','인강':'#1D4ED8','결석':'#E53935'})[sel.value]||'#C4C9D4';
-    };
+    bindAttSelect(sel, sc, sel.dataset.sid, ST.bMon||curMonWk().mon, ST.bWk||curMonWk().wk);
   });
   recalc();
   document.getElementById('btn-save').onclick=async()=>{
@@ -4140,6 +4237,11 @@ function openEditStudent(sc, sid){
             <option value="transfer" ${s.type==='transfer'?'selected':''}>전입생</option>
           </select>
         </div>
+        ${sc.type==='lecture'?`<div>
+          <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">고등학교</label>
+          <input id="edit-hs" value="${esc(s.highSchool)||''}" placeholder="예: 고양외고" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit"
+            onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">
+        </div>`:''}
         <div>
           <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">수강계기</label>
           <input id="edit-reason" value="${esc(s.reason)||''}" placeholder="예: 블로그, 추천(선배)" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit"
@@ -4180,6 +4282,7 @@ function openEditStudent(sc, sid){
     s.parentPhone = pphone;
     s.type = type;
     s.reason = reason;
+    if(sc.type==='lecture') s.highSchool = document.getElementById('edit-hs')?.value.trim()||'';
     saveDB();
 
     msg.textContent = '✓ 저장 완료!'; msg.style.color = '#00897B';
@@ -4432,13 +4535,16 @@ function parseCSV(text){
     const cols=line.split(',').map(s=>s.trim().replace(/^"|"$/g,''));
     if(!cols[0])return;
     const typeMap={'재학':'regular','신규':'new','전입':'transfer'};
-    results.push({name:cols[0]||'',phone:cols[1]||'',parentPhone:cols[2]||'',type:typeMap[cols[3]]||'regular'});
+    results.push({name:cols[0]||'',phone:cols[1]||'',parentPhone:cols[2]||'',type:typeMap[cols[3]]||'regular',highSchool:cols[4]||''});
   });
   return results;
 }
 
-function downloadCSVTemplate(){
-  const rows=['이름,전화번호,학부모전화번호,구분','홍길동,010-1234-5678,010-8765-4321,재학','김영희,010-2222-3333,,신규','이철수,,,전입'];
+function downloadCSVTemplate(sc){
+  const isLecture=sc?.type==='lecture';
+  const rows=isLecture
+    ?['이름,전화번호,학부모전화번호,구분,고등학교','홍길동,010-1234-5678,010-8765-4321,재학,고양외고','김영희,010-2222-3333,,신규,운정고','이철수,,,전입,고양국제고']
+    :['이름,전화번호,학부모전화번호,구분','홍길동,010-1234-5678,010-8765-4321,재학','김영희,010-2222-3333,,신규','이철수,,,전입'];
   const blob=new Blob(['\uFEFF'+rows.join('\n')],{type:'text/csv;charset=utf-8;'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;a.download='학생등록_템플릿.csv';
@@ -4446,10 +4552,12 @@ function downloadCSVTemplate(){
 }
 
 function exportStudentsExcel(sc){
-  const rows=[['ID','이름','구분','전화번호','학부모전화','비밀번호','등록일']];
+  const isLecture=sc.type==='lecture';
+  const rows=[[...(isLecture?['ID','이름','고등학교','구분']:['ID','이름','구분']),'전화번호','학부모전화','비밀번호','등록일']];
   sc.students.forEach(s=>{
     const typeMap={new:'신규',transfer:'전입',regular:'재학'};
-    rows.push([s.id,s.name,typeMap[s.type||'regular']||'재학',s.phone||'',s.parentPhone||'',s.pwd||'(재설정 필요)',s.createdAt||'']);
+    const base=isLecture?[s.id,s.name,s.highSchool||'',typeMap[s.type||'regular']||'재학']:[s.id,s.name,typeMap[s.type||'regular']||'재학'];
+    rows.push([...base,s.phone||'',s.parentPhone||'',s.pwd||'(재설정 필요)',s.createdAt||'']);
   });
   const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});

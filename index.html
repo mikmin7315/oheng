@@ -1201,19 +1201,21 @@ function bLogin(){
   };
 }
 
-function rSchoolSelect(){
-  const listSrc=(ST.serverAdminSession&&ST.schoolsSummary)?ST.schoolsSummary:DB.schools;
-  const cards=listSrc.map(sc=>{
-    const isLecture=sc.type==='lecture';
-    return`
+function schoolCardHtml(sc){
+  const isLecture=sc.type==='lecture';
+  return`
     <div class="school-card" data-sch="${sc.id}" style="transition:all 0.18s">
       <button class="school-card-del" data-del="${sc.id}" title="학교 삭제" aria-label="${sc.name} 학교 삭제">✕</button>
       <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,${isLecture?'#7B1FA2,#AB47BC':'#1A237E,#3949AB'});display:flex;align-items:center;justify-content:center;font-size:22px;margin:0 auto 12px">${isLecture?'📚':'🏫'}</div>
       ${isLecture?'<div style="font-size:10.5px;font-weight:700;color:#7B1FA2;background:#F3E5F5;border-radius:20px;padding:2px 8px;display:inline-block;margin-bottom:4px">특강</div>':''}
-      <div class="school-card-name">${sc.name}</div>
-      <div class="school-card-grade">${sc.grade}</div>
+      <div class="school-card-name">${esc(sc.name)}</div>
+      <div class="school-card-grade">${esc(sc.grade)}</div>
       <div class="school-card-count">학생 ${sc.students?.length??sc.studentCount??0}명 · 성적 ${sc.records?.length??sc.recordCount??0}건</div>
-    </div>`;}).join('');
+    </div>`;
+}
+function rSchoolSelect(){
+  const typeFilter=ST.schoolTypeFilter||'';
+  const sortMode=ST.schoolSort||'count';
   return`
   <div class="top-nav">
     <div class="nav-logo"><span style="font-size:18px;font-weight:800;color:#fff;letter-spacing:-0.5px"><span style="color:#FFB300">OH</span>ENG</span></div>
@@ -1226,7 +1228,19 @@ function rSchoolSelect(){
         <div class="school-title">관리 학교 선택</div>
         <div class="school-sub">수업할 학교를 선택하면 해당 학교 전용 관리 화면으로 이동합니다</div>
       </div>
-      <div class="school-grid">${cards}</div>
+      <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap">
+        <input id="sch-search" value="${esc(ST.schoolSearch||'')}" placeholder="🔍 학교명 검색" style="flex:1;min-width:160px;padding:9px 12px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px;outline:none;font-family:inherit">
+        <select id="sch-filter-type" style="padding:9px 12px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px;background:#fff;color:#0D1117;outline:none">
+          <option value="" ${!typeFilter?'selected':''}>전체</option>
+          <option value="regular" ${typeFilter==='regular'?'selected':''}>정규반</option>
+          <option value="lecture" ${typeFilter==='lecture'?'selected':''}>특강</option>
+        </select>
+        <select id="sch-sort" style="padding:9px 12px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px;background:#fff;color:#0D1117;outline:none">
+          <option value="count" ${sortMode==='count'?'selected':''}>학생 많은 순</option>
+          <option value="name" ${sortMode==='name'?'selected':''}>가나다순</option>
+        </select>
+      </div>
+      <div id="school-grid-wrap"></div>
       <button class="school-add-btn" id="btn-add-toggle">+ 새 학교 추가</button>
       ${ST.showAddSchool?`<div class="add-school-form" style="margin-top:12px">
         <input id="ns-sname" placeholder="학교 이름">
@@ -1242,8 +1256,41 @@ function rSchoolSelect(){
     </div>
   </div>`;}
 
-function bSchoolSelect(){
-  document.getElementById('btn-alo-main').onclick=doLogout;
+// 검색어/구분 필터/정렬만 바뀔 때는 검색창을 포함한 전체 화면을 다시 그리지 않고
+// #school-grid-wrap 안쪽만 갱신 — 매 타이핑마다 render()를 부르면 input이 통째로
+// 재생성되어 커서/포커스가 날아가기 때문.
+function renderSchoolGrid(){
+  const wrap=document.getElementById('school-grid-wrap');
+  if(!wrap)return;
+  const listSrc=(ST.serverAdminSession&&ST.schoolsSummary)?ST.schoolsSummary:DB.schools;
+  const q=(document.getElementById('sch-search')?.value||'').trim().toLowerCase();
+  const typeFilter=document.getElementById('sch-filter-type')?.value||'';
+  const sortMode=document.getElementById('sch-sort')?.value||'count';
+  ST.schoolSearch=document.getElementById('sch-search')?.value||'';
+  ST.schoolTypeFilter=typeFilter;
+  ST.schoolSort=sortMode;
+  const countOf=sc=>sc.students?.length??sc.studentCount??0;
+  const cmp=(a,b)=>sortMode==='name'?a.name.localeCompare(b.name,'ko'):countOf(b)-countOf(a);
+  let filtered=listSrc.filter(sc=>!q||sc.name.toLowerCase().includes(q));
+  if(typeFilter)filtered=filtered.filter(sc=>(sc.type==='lecture'?'lecture':'regular')===typeFilter);
+  const empty=filtered.filter(sc=>countOf(sc)===0).sort(cmp);
+  const active=filtered.filter(sc=>countOf(sc)>0);
+  const regularList=active.filter(sc=>sc.type!=='lecture').sort(cmp);
+  const lectureList=active.filter(sc=>sc.type==='lecture').sort(cmp);
+  const sectionHtml=(title,list)=>!list.length?'':`
+    <div style="font-size:13px;font-weight:700;color:#9BA3AF;margin:4px 2px 10px">${title} (${list.length})</div>
+    <div class="school-grid">${list.map(schoolCardHtml).join('')}</div>`;
+  const noResult=!regularList.length&&!lectureList.length&&!empty.length;
+  wrap.innerHTML=(noResult?`<div style="text-align:center;padding:30px 0;color:#9BA3AF;font-size:13px">조건에 맞는 학교가 없습니다</div>`:'')
+    +sectionHtml('정규반',regularList)
+    +sectionHtml('특강 · 프로그램',lectureList)
+    +(empty.length?`<button id="btn-toggle-inactive" style="width:100%;display:flex;align-items:center;justify-content:space-between;background:transparent;border:1.5px dashed var(--bd1);border-radius:10px;padding:10px 16px;color:var(--tx2);font-size:12.5px;cursor:pointer;margin-bottom:20px">
+        <span>미개설 · 학생 0명 (${empty.length}건)</span><span>${ST.showInactiveSchools?'▲ 접기':'▼ 펼치기'}</span>
+      </button>${ST.showInactiveSchools?`<div class="school-grid" style="margin-top:-10px;margin-bottom:20px">${empty.map(schoolCardHtml).join('')}</div>`:''}`:'');
+  bindSchoolCardHandlers();
+  document.getElementById('btn-toggle-inactive')?.addEventListener('click',()=>{ST.showInactiveSchools=!ST.showInactiveSchools;renderSchoolGrid();});
+}
+function bindSchoolCardHandlers(){
   document.querySelectorAll('[data-sch]').forEach(card=>{
     card.onclick=async()=>{
       const id=card.dataset.sch;
@@ -1281,9 +1328,17 @@ function bSchoolSelect(){
         saveDB();
       }
       if(ST.school===id)ST.school=null;
-      render();
+      renderSchoolGrid();
     };
   });
+}
+
+function bSchoolSelect(){
+  document.getElementById('btn-alo-main').onclick=doLogout;
+  renderSchoolGrid();
+  document.getElementById('sch-search').oninput=()=>renderSchoolGrid();
+  document.getElementById('sch-filter-type').onchange=()=>renderSchoolGrid();
+  document.getElementById('sch-sort').onchange=()=>renderSchoolGrid();
   document.getElementById('btn-add-toggle').onclick=()=>{ST.showAddSchool=!ST.showAddSchool;render();};
   if(ST.showAddSchool){
     document.getElementById('btn-cancel-add').onclick=()=>{ST.showAddSchool=false;render();};

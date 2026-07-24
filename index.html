@@ -118,6 +118,7 @@ body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-s
 .bulk-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
 .bulk-toolbar select{padding:7px 10px;border:0.5px solid var(--bd1);border-radius:7px;font-size:13px;background:var(--bg1);color:var(--tx1)}
 .bulk-toolbar label{font-size:13px;color:var(--tx2)}
+#bk-editable.bk-locked{opacity:0.4;pointer-events:none;user-select:none}
 .abtn{padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid #E8ECF0;background:#fff;color:#5C6470;transition:all 0.15s;font-family:inherit}
 .abtn:hover{background:#F7F8FA;border-color:#C4C9D4}
 .abtn-blue{background:#1A237E;color:#fff;border-color:#1A237E;box-shadow:0 2px 8px rgba(26,35,126,0.2)}.abtn-blue:hover{background:#121858;box-shadow:0 4px 12px rgba(26,35,126,0.3)}
@@ -917,6 +918,33 @@ async function init(){
     errDiv.appendChild(btn);
     document.getElementById('app').appendChild(errDiv);
   }
+  startVersionCheck();
+}
+
+// 배포될 때마다 Vercel이 새로 채워주는 커밋 SHA를 주기적으로 비교 — 새 배포가 감지되면
+// 새로고침 안내 배너를 띄운다 (오래 켜둔 탭이 옛날 JS로 계속 동작하다가 서버 데이터 버전과
+// 어긋나는 문제를 예방하기 위함).
+let _appBuildSha=null;
+async function checkAppVersion(){
+  try{
+    const res=await fetch('/api/version');
+    if(!res.ok)return;
+    const d=await res.json();
+    if(_appBuildSha===null){_appBuildSha=d.sha;return;}
+    if(d.sha&&d.sha!==_appBuildSha&&!document.getElementById('update-banner'))showUpdateBanner();
+  }catch(e){}
+}
+function showUpdateBanner(){
+  const b=document.createElement('div');
+  b.id='update-banner';
+  b.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:99999;background:#1A237E;color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:center;gap:12px;font-size:13px;font-weight:600;box-shadow:0 -2px 12px rgba(0,0,0,0.15);flex-wrap:wrap;text-align:center';
+  b.innerHTML='<span>🔄 새 업데이트가 있습니다. 최신 상태로 이용하려면 새로고침 해주세요.</span><button id="update-banner-btn" style="padding:6px 14px;background:#FFB300;color:#1A237E;border:none;border-radius:7px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit">새로고침</button>';
+  document.body.appendChild(b);
+  document.getElementById('update-banner-btn').onclick=()=>location.reload();
+}
+function startVersionCheck(){
+  checkAppVersion();
+  setInterval(checkAppVersion,5*60*1000);
 }
 function render(){
   const app=document.getElementById('app');
@@ -2163,7 +2191,9 @@ function rBulk(sc){
     <label>월</label><select id="bk-mon">${MONTHS.map(m=>`<option ${m===mon?'selected':''}>${m}</option>`).join('')}</select>
     <label>주차</label><select id="bk-wk">${WEEKS.map(w=>`<option ${w===wk?'selected':''}>${w}</option>`).join('')}</select>
     <button class="abtn abtn-blue" id="btn-load">불러오기</button>
+    <span id="bk-week-warn" style="display:none;font-size:12px;font-weight:700;color:#B3261E;align-items:center;gap:5px">⚠️ 선택한 주차가 아직 안 불러와졌습니다 — 불러오기를 먼저 눌러주세요</span>
   </div>
+  <div id="bk-editable">
   <div class="thr-box">
     <div class="thr-box-title"><span>⚠️</span>이번 주 합격 기준점수 <span style="font-size:11px;font-weight:400;color:#bf360c;margin-left:6px">매주 직접 입력 · 이 주차에만 적용</span></div>
     <div class="thr-grid">
@@ -2232,6 +2262,7 @@ function rBulk(sc){
     <div id="save-msg" style="font-size:13px;font-weight:600"></div>
   </div>
   <div style="font-size:11px;color:#9BA3AF;margin-top:8px">※ 초록 배경 칸은 자동계산 · 저장 버튼으로 영구보관</div>
+  </div>
   <div style="margin-top:24px" id="saved-result-section">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <div>
@@ -3223,6 +3254,22 @@ function bAdmin(){
   }
   // records 탭
   document.getElementById('btn-load').onclick=()=>{ST.bMon=document.getElementById('bk-mon').value;ST.bWk=document.getElementById('bk-wk').value;render();};
+  // 월/주차 드롭다운을 바꾸고 "불러오기"를 안 누르면, 아래 입력칸들이 실제로는 다른(이전) 주차를
+  // 편집하고 있는 상태라 실수로 엉뚱한 주차에 입력하는 사고가 날 수 있음 — 그래서 드롭다운이
+  // 현재 로드된 주차와 달라지는 순간 입력 영역을 잠그고 안내 문구를 보여준다.
+  (()=>{
+    const loadedMon=ST.bMon||curMonWk().mon, loadedWk=ST.bWk||curMonWk().wk;
+    const bkMonEl=document.getElementById('bk-mon'), bkWkEl=document.getElementById('bk-wk');
+    const editableEl=document.getElementById('bk-editable');
+    const warnEl=document.getElementById('bk-week-warn');
+    const checkWeekMatch=()=>{
+      const mismatch=bkMonEl.value!==loadedMon||bkWkEl.value!==loadedWk;
+      if(editableEl)editableEl.classList.toggle('bk-locked',mismatch);
+      if(warnEl)warnEl.style.display=mismatch?'flex':'none';
+    };
+    bkMonEl?.addEventListener('change',checkWeekMatch);
+    bkWkEl?.addEventListener('change',checkWeekMatch);
+  })();
   const exportScoresBtn=document.getElementById('btn-export-scores');if(exportScoresBtn)exportScoresBtn.onclick=()=>exportScoresExcel(sc);
   const hwSaveBtn=document.getElementById('btn-hw-name-save');
   if(hwSaveBtn){hwSaveBtn.onclick=()=>{

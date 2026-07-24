@@ -2550,6 +2550,14 @@ function rSchoolSettings(sc){return`
       <div class="fgrp"><label class="flbl">학교 이름</label><input class="finp" id="ss-name" value="${sc.name}"></div>
       <div class="fgrp"><label class="flbl">학년</label><input class="finp" id="ss-grade" value="${sc.grade}"></div>
     </div>
+    <div class="fgrp" style="margin-bottom:14px">
+      <label class="flbl">구분</label>
+      <select class="finp" id="ss-type">
+        <option value="regular" ${sc.type!=='lecture'?'selected':''}>정규반 (학교 단위)</option>
+        <option value="lecture" ${sc.type==='lecture'?'selected':''}>특강 (여러 학교 학생 혼합)</option>
+      </select>
+      <div style="font-size:11px;color:#9BA3AF;margin-top:5px">특강으로 바꾸면 학생 등록/목록/CSV/엑셀에 "고등학교" 입력칸이 추가돼요.</div>
+    </div>
     <div class="section-ttl" style="margin-top:4px">📋 숙제 기본 이름 <span style="font-size:11px;color:#9BA3AF;font-weight:400">(주차별로 성적 입력 화면에서 변경 가능)</span></div>
     <div class="form2" style="margin-bottom:14px">
       <div class="fgrp"><label class="flbl">숙제1 이름</label><input class="finp" id="ss-hw1" value="${sc.hw1||'숙제1'}" placeholder="예: 수능감잡기"></div>
@@ -2722,6 +2730,7 @@ function bAdmin(){
       const gr=document.getElementById('ss-grade').value.trim();
       if(!nm){alert('학교명을 입력하세요');return;}
       sc.name=nm;sc.grade=gr;
+      sc.type=document.getElementById('ss-type')?.value==='lecture'?'lecture':'regular';
       sc.hw1=document.getElementById('ss-hw1')?.value.trim()||'숙제1';
       sc.hw2=document.getElementById('ss-hw2')?.value.trim()||'숙제2';
       sc.kakaoChannel=document.getElementById('ss-kakao')?.value.trim()||'';

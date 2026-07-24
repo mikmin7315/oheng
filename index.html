@@ -701,14 +701,18 @@ function migrateAvgs(sc){
     else rec.totalScore=(rec.rtSkip?0:(rec.rtScore||0))+(rec.wtSkip?0:(rec.wtScore||0));
   });
   const weeks=[...new Set(sc.records.map(r=>r.month+'_'+r.week))];
+  const avg=arr=>arr.length?Math.round(arr.reduce((a,b)=>a+b,0)/arr.length*10)/10:null;
   weeks.forEach(wk=>{
     const[mon,week]=wk.split('_');
     const wkRecs=sc.records.filter(r=>r.month===mon&&r.week===week);
     const valid=wkRecs.filter(r=>r.totalScore!=null);
     const sorted=[...valid].sort((a,b)=>b.totalScore-a.totalScore);
     let rk=1;sorted.forEach((r,i)=>{if(i>0&&sorted[i-1].totalScore===r.totalScore)r.totalRank=sorted[i-1].totalRank;else{r.totalRank=rk;}rk++;});
-    const avg=valid.length?Math.round(valid.reduce((s,r)=>s+r.totalScore,0)/valid.length*10)/10:null;
-    wkRecs.forEach(r=>{r.totalAvg=avg;});
+    const totAvg=avg(valid.map(r=>r.totalScore));
+    // 총점 평균뿐 아니라 RT/WT 개별 반평균도 recalc()와 동일한 기준(생략·미입력 제외)으로 다시 계산
+    const rvAvg=avg(wkRecs.filter(r=>!r.rtSkip&&r.rtScore!=null).map(r=>r.rtScore));
+    const wtAvg=avg(wkRecs.filter(r=>!r.wtSkip&&r.wtScore!=null).map(r=>r.wtScore));
+    wkRecs.forEach(r=>{r.totalAvg=totAvg;r.rvAvg=rvAvg;r.wtAvg=wtAvg;});
   });
   saveDB();
 }

@@ -1282,8 +1282,8 @@ function renderSchoolGrid(){
     <div class="school-grid">${list.map(schoolCardHtml).join('')}</div>`;
   const noResult=!regularList.length&&!lectureList.length&&!empty.length;
   wrap.innerHTML=(noResult?`<div style="text-align:center;padding:30px 0;color:#9BA3AF;font-size:13px">조건에 맞는 학교가 없습니다</div>`:'')
-    +sectionHtml('정규반',regularList)
     +sectionHtml('특강 · 프로그램',lectureList)
+    +sectionHtml('정규반',regularList)
     +(empty.length?`<button id="btn-toggle-inactive" style="width:100%;display:flex;align-items:center;justify-content:space-between;background:transparent;border:1.5px dashed var(--bd1);border-radius:10px;padding:10px 16px;color:var(--tx2);font-size:12.5px;cursor:pointer;margin-bottom:20px">
         <span>미개설 · 학생 0명 (${empty.length}건)</span><span>${ST.showInactiveSchools?'▲ 접기':'▼ 펼치기'}</span>
       </button>${ST.showInactiveSchools?`<div class="school-grid" style="margin-top:-10px;margin-bottom:20px">${empty.map(schoolCardHtml).join('')}</div>`:''}`:'');

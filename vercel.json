@@ -1,9 +1,5 @@
 {
   "crons": [
     { "path": "/api/admin/backup-run", "schedule": "0 19 * * 0" }
-  ],
-  "rewrites": [
-    { "source": "/", "has": [{ "type": "host", "value": "oheng.co.kr" }], "destination": "/lecture.html" },
-    { "source": "/", "has": [{ "type": "host", "value": "www.oheng.co.kr" }], "destination": "/lecture.html" }
   ]
 }

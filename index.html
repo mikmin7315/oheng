@@ -3319,11 +3319,18 @@ function bAdmin(){
     function onScoreChange(e){const t=e.target;if(t.classList.contains('inp-rt')||t.classList.contains('inp-wt'))recalc();}
     tbody.addEventListener('input',onScoreChange);tbody.addEventListener('change',onScoreChange);
     tbody.addEventListener('input',scheduleDraftSave);tbody.addEventListener('change',scheduleDraftSave);
+    // 탭/엔터를 누르면 같은 행의 다음 칸(가로)이 아니라 같은 칸의 다음 학생(세로·아래)으로 이동 —
+    // 학생 수가 많을 때 한 항목씩 쭉 훑어 입력하는 방식이 더 편해서 그렇게 변경.
     tbody.addEventListener('keydown',e=>{
-      if(e.key!=='Enter')return;e.preventDefault();
-      const CI_SELS=['.inp-rt','.inp-wt','.inp-rt2'];
-      const allInps=[...tbody.querySelectorAll(CI_SELS.join(','))].filter(el=>!el.disabled);
-      const idx=allInps.indexOf(e.target);if(idx>=0&&idx<allInps.length-1)allInps[idx+1].focus();
+      if(e.key!=='Enter'&&e.key!=='Tab')return;
+      const t=e.target;
+      const COL_CLASSES=['inp-rt','inp-wt','inp-hw1','inp-hw2','inp-rt2','att-sel'];
+      const col=COL_CLASSES.find(c=>t.classList.contains(c));
+      if(!col)return;
+      e.preventDefault();
+      const colInps=[...tbody.querySelectorAll('.'+col)].filter(el=>!el.disabled);
+      const idx=colInps.indexOf(t);
+      if(idx>=0&&idx<colInps.length-1)colInps[idx+1].focus();
     });
   }
   document.getElementById('thr-rt')?.addEventListener('input',()=>{recalc();scheduleDraftSave();});

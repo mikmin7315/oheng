@@ -3,8 +3,9 @@ import {
   getSessionToken, getSession, deleteSession, clearSessionCookie, requireMemberSession,
 } from '../_lib/auth.js';
 import { generateOtpCode, storeOtp, verifyOtp } from '../_lib/otp.js';
-import { findOrCreateMemberByPhone, updateMemberName, getMember } from '../_lib/member.js';
+import { findOrCreateMemberByPhone, findOrCreateMemberByGoogle, updateMemberName, getMember } from '../_lib/member.js';
 import { sendPlainSms } from '../_lib/sms.js';
+import { createOauthState, consumeOauthState, buildGoogleAuthUrl, exchangeGoogleCode, fetchGoogleProfile } from '../_lib/google-oauth.js';
 
 function normalizePhone(raw) {
   return String(raw || '').replace(/[^0-9]/g, '');
@@ -56,6 +57,34 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true, isNew, name: member.name || '' });
   }
 
+  if (action === 'google-start') {
+    if (req.method !== 'GET') return res.status(405).end();
+    if (!process.env.GOOGLE_CLIENT_ID) return res.status(503).send('구글 로그인이 아직 설정되지 않았습니다');
+    const state = await createOauthState();
+    return res.redirect(302, buildGoogleAuthUrl(req, state));
+  }
+
+  if (action === 'google-callback') {
+    if (req.method !== 'GET') return res.status(405).end();
+    const { code, state, error } = req.query;
+    const fail = (msg) => res.redirect(302, '/lecture.html?google_error=' + encodeURIComponent(msg));
+    if (error) return fail('로그인이 취소되었습니다');
+    const stateOk = await consumeOauthState(state);
+    if (!stateOk || !code) return fail('인증 상태가 유효하지 않습니다. 다시 시도해주세요');
+    try {
+      const tokenData = await exchangeGoogleCode(req, code);
+      const profile = await fetchGoogleProfile(tokenData.access_token);
+      if (!profile.googleId) throw new Error('구글 계정 정보를 확인할 수 없습니다');
+      const { member } = await findOrCreateMemberByGoogle(profile.googleId, profile.email, profile.name);
+      const { token, maxAge } = await createSession({ role: 'member', memberId: member.id });
+      setSessionCookie(res, token, maxAge);
+    } catch (e) {
+      console.error('google-callback failed:', e?.message || e);
+      return fail('구글 로그인에 실패했습니다');
+    }
+    return res.redirect(302, '/lecture.html');
+  }
+
   if (action === 'profile') {
     if (req.method !== 'POST') return res.status(405).end();
     if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
@@ -73,7 +102,7 @@ export default async function handler(req, res) {
     if (!session) return res.status(401).json({ success: false, message: 'Unauthorized' });
     const member = await getMember(session.memberId);
     if (!member) return res.status(404).json({ success: false, message: '회원 정보를 찾을 수 없습니다' });
-    return res.status(200).json({ success: true, member: { id: member.id, phone: member.phone, name: member.name } });
+    return res.status(200).json({ success: true, member: { id: member.id, phone: member.phone, email: member.email || '', name: member.name } });
   }
 
   if (action === 'logout') {

@@ -3,6 +3,7 @@ import { getRedis } from './redis.js';
 const MEMBER_PREFIX = 'member:';
 const MEMBER_INDEX_KEY = 'member:index';
 const PHONE_INDEX_PREFIX = 'member:phone:';
+const GOOGLE_INDEX_PREFIX = 'member:google:';
 
 export async function getMember(id) {
   const redis = getRedis();
@@ -12,6 +13,13 @@ export async function getMember(id) {
 export async function findMemberByPhone(phone) {
   const redis = getRedis();
   const id = await redis.get(PHONE_INDEX_PREFIX + phone);
+  if (!id) return null;
+  return await getMember(id);
+}
+
+export async function findMemberByGoogleId(googleId) {
+  const redis = getRedis();
+  const id = await redis.get(GOOGLE_INDEX_PREFIX + googleId);
   if (!id) return null;
   return await getMember(id);
 }
@@ -47,6 +55,33 @@ export async function findOrCreateMemberByPhone(phone) {
       // 선점한 쪽이 인덱스만 쓰고 아직 자기 member 레코드를 다 쓰기 전인 극히 짧은 순간일 수 있음 — 한 번 더 시도
       await new Promise(r => setTimeout(r, 50));
       existing = await findMemberByPhone(phone);
+    }
+    if (!existing) throw new Error('회원 조회 중 오류가 발생했습니다. 다시 시도해주세요');
+    return { member: existing, isNew: false };
+  }
+
+  await addToMemberIndex(newId);
+  return { member, isNew: true };
+}
+
+// 구글은 최초 로그인 시점에 이미 이름/이메일을 받으므로, 전화번호 가입과 달리
+// otp-name 단계(별도 이름 입력) 없이 바로 완성된 회원 레코드를 만든다.
+export async function findOrCreateMemberByGoogle(googleId, email, name) {
+  const redis = getRedis();
+  const newId = 'mem' + Date.now() + Math.floor(Math.random() * 1000);
+  const member = {
+    id: newId, googleId, email, phone: '', name: name || '', createdAt: new Date().toISOString(),
+    entitlements: [], linkedSchoolId: null, linkedStudentId: null,
+  };
+  await redis.set(MEMBER_PREFIX + newId, member);
+  const claimed = await redis.set(GOOGLE_INDEX_PREFIX + googleId, newId, { nx: true });
+
+  if (!claimed) {
+    await redis.del(MEMBER_PREFIX + newId);
+    let existing = await findMemberByGoogleId(googleId);
+    if (!existing) {
+      await new Promise(r => setTimeout(r, 50));
+      existing = await findMemberByGoogleId(googleId);
     }
     if (!existing) throw new Error('회원 조회 중 오류가 발생했습니다. 다시 시도해주세요');
     return { member: existing, isNew: false };

@@ -124,6 +124,11 @@ async function loadPublicCourses(){
 }
 
 async function boot(){
+  const qs=new URLSearchParams(location.search);
+  if(qs.has('google_error')){
+    ST.googleError=qs.get('google_error');
+    history.replaceState(null,'',location.pathname);
+  }
   const studentOk=await checkStudentSession();
   if(studentOk){
     const me=await loadStudentMe();
@@ -224,7 +229,7 @@ function topBar(){
   if(['loading','browse','otp-phone','otp-code','otp-name','student-login'].includes(ST.screen))return'';
   const who=ST.mode==='student'
     ?`${esc(ST.student?.student?.name||'')} · ${esc(ST.student?.school?.name||'')}`
-    :`${esc(ST.member?.name||'')} · ${esc(ST.member?.phone||'')}`;
+    :`${esc(ST.member?.name||'')} · ${esc(ST.member?.phone||ST.member?.email||'')}`;
   return`<div class="top">
     <div class="brand"><span class="dot"></span>OHENG 인강</div>
     <div style="display:flex;align-items:center;gap:12px">
@@ -243,10 +248,13 @@ function browseScreen(){
         <div class="course-meta"><span>영상 ${c.videoCount}개 · 수강기간 ${c.durationDays}일</span><span class="course-price">${won(c.price)}</span></div>
       </div>`).join('')
     :`<div class="empty"><div class="ic">🎬</div><div style="font-size:14px;font-weight:600;color:#C8CFDD;margin-bottom:6px">아직 등록된 강좌가 없습니다</div></div>`;
+  const errBox=ST.googleError?`<div class="login-err" style="margin:0 0 14px">${esc(ST.googleError)}</div>`:'';
   return`<div class="intro">
       <div class="intro-title">OHENG 인강</div>
       <div class="intro-sub">휴대폰 번호로 3초 만에 가입하고 바로 학습을 시작하세요</div>
+      ${errBox}
       <button class="btn btn-primary" id="btn-start" style="padding:12px 24px">휴대폰 인증하고 시작하기</button>
+      <button class="btn" id="btn-google" style="padding:12px 24px;margin-top:8px">Google로 계속하기</button>
       <div class="login-foot"><button class="link-btn" id="btn-student-link">학원 학생이신가요? 학생 로그인</button></div>
     </div>
     ${list}`;
@@ -365,6 +373,7 @@ function render(){
 
 function wireBrowse(){
   document.getElementById('btn-start').addEventListener('click',()=>{ST.screen='otp-phone';render();});
+  document.getElementById('btn-google').addEventListener('click',()=>{location.href='/api/member-auth/google-start';});
   document.getElementById('btn-student-link').addEventListener('click',()=>{ST.screen='student-login';render();});
 }
 

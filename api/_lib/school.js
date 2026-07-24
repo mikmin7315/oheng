@@ -39,10 +39,10 @@ export async function deleteSchool(id) {
   await removeFromSchoolIndex(id);
 }
 
-export async function createSchool(name, grade) {
+export async function createSchool(name, grade, type) {
   const id = 'sch' + Date.now();
   const school = {
-    id, name, grade: grade || '1학년',
+    id, name, grade: grade || '1학년', type: type === 'lecture' ? 'lecture' : 'regular',
     students: [], records: [], notices: {}, suggestions: [], withdrawnStudents: [], inquiries: [], sendLogs: [], saveLogs: [],
     hw1: '숙제1', hw2: '숙제2', hw2Skip: false, hwNames: {}, kakaoChannel: '',
     version: 1,
@@ -93,6 +93,7 @@ export function normalizeSchoolForWrite(incoming, existing) {
     id: existing?.id || incoming.id,
     name: incoming.name,
     grade: incoming.grade,
+    type: incoming.type === 'lecture' ? 'lecture' : (existing?.type === 'lecture' ? 'lecture' : 'regular'),
     students,
     records: Array.isArray(incoming.records) ? incoming.records : [],
     notices: incoming.notices || {},
@@ -123,6 +124,7 @@ export function hashSchoolForMigration(school) {
     id: school.id,
     name: school.name,
     grade: school.grade,
+    type: school.type === 'lecture' ? 'lecture' : 'regular',
     students,
     records: Array.isArray(school.records) ? school.records : [],
     notices: school.notices || {},

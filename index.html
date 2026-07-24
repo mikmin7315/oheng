@@ -11,6 +11,15 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OHENG">
 <link rel="apple-touch-icon" href="/icons/icon.svg">
+<script>
+// oheng.co.kr(및 www) 루트는 인강(강좌) 랜딩페이지로 보낸다.
+// vercel.json rewrites/미들웨어 둘 다 루트에 실제 index.html 파일이 있으면
+// 파일시스템 라우팅이 항상 우선이라 서버 단에서 이 분기를 걸 수 없어(Vercel 플랫폼 제약),
+// 무거운 리소스(Chart.js 등)를 내려받기 전에 최대한 일찍 클라이언트에서 분기한다.
+if(location.pathname==='/'&&(location.hostname==='oheng.co.kr'||location.hostname==='www.oheng.co.kr')){
+  location.replace('/lecture.html'+location.search);
+}
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.4/kakao.min.js" crossorigin="anonymous"></script>
 <style>

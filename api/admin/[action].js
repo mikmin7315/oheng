@@ -374,7 +374,14 @@ export default async function handler(req, res) {
       return res.status(500).json({ success: false, message: '기존 데이터 백업 중 오류: ' + e.message });
     }
 
-    await redis.set('admin:auth', { id: (adminId || 'admin').toLowerCase(), pwdHash: hashPassword(adminPwd || 'oheng2024') });
+    const nowIso = new Date().toISOString();
+    await redis.set('admin:auth', {
+      version: 1,
+      accounts: [{
+        id: (adminId || 'admin').toLowerCase(), name: '원장님', pwdHash: hashPassword(adminPwd || 'oheng2024'),
+        isMaster: true, createdAt: nowIso, updatedAt: nowIso, passwordChangedAt: nowIso,
+      }],
+    });
     for (const sc of schools) {
       await putSchoolRaw(sc);
     }

@@ -769,11 +769,12 @@ function recomputeWeekAggregates(sc,mon,week){
   });
 }
 
-// 이번 주 성적(RT/WT점수·재시험)만 지움 — 숙제/코멘트/출석은 건드리지 않음
+// 이번 주 입력분(성적·숙제·코멘트·출석) 전체를 지움
 function clearWeekScores(sc,mon,week){
   const wkRecs=sc.records.filter(r=>r.month===mon&&r.week===week);
   wkRecs.forEach(r=>{
     r.rtScore=null;r.wtScore=null;r.retestTime='';
+    r.hw1='';r.hw2='';r.homework='';r.comment='';r.attendType='';
   });
   recomputeWeekAggregates(sc,mon,week);
   const dirtyKeys=new Set(wkRecs.map(r=>r.sid+'|'+r.month+'|'+r.week));
@@ -3396,9 +3397,9 @@ function bAdmin(){
   };
   document.getElementById('btn-clear-week').onclick=()=>{
     const curMon=ST.bMon||curMonWk().mon,curWk=ST.bWk||curMonWk().wk;
-    const cnt=sc.records.filter(r=>r.month===curMon&&r.week===curWk&&(r.rtScore!=null||r.wtScore!=null||r.retestTime)).length;
-    if(!cnt){alert(`${curMon} ${curWk}에 지울 성적이 없습니다.`);return;}
-    if(!confirm(`${curMon} ${curWk}에 입력된 성적(RT/WT점수·재시험)을 전부 지웁니다. (${cnt}명 대상)\n\n숙제·코멘트·출석은 지워지지 않습니다. 이 작업은 되돌릴 수 없습니다.\n\n계속하시겠습니까?`))return;
+    const cnt=sc.records.filter(r=>r.month===curMon&&r.week===curWk&&(r.rtScore!=null||r.wtScore!=null||r.retestTime||r.hw1||r.hw2||r.comment||r.attendType)).length;
+    if(!cnt){alert(`${curMon} ${curWk}에 지울 내용이 없습니다.`);return;}
+    if(!confirm(`${curMon} ${curWk}에 입력된 내용(성적·숙제·코멘트·출석)을 전부 지웁니다. (${cnt}명 대상)\n\n이 작업은 되돌릴 수 없습니다.\n\n계속하시겠습니까?`))return;
     clearWeekScores(sc,curMon,curWk);
     render();
   };

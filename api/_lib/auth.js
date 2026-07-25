@@ -140,6 +140,56 @@ export async function checkLoginRateLimit(key) {
   return checkRateLimit('login', key, 10, 60); // 1분에 10회 초과 시 차단
 }
 
+// ── 관리자 계정 목록 (다중 계정, v2) ──
+// admin:auth는 원래 단일 객체({id,pwdHash})였다가 다중 계정 지원을 위해
+// {version, accounts:[{id,name,pwdHash,isMaster,...}]} 구조로 바뀌었다.
+// 이 함수들이 v1/v2 차이를 흡수해서, 호출부는 항상 v2 모양만 다루면 된다.
+export function normalizeAdminAccounts(raw) {
+  if (!raw) return { version: 0, accounts: [] };
+  if (Array.isArray(raw.accounts)) {
+    return { version: raw.version || 0, accounts: raw.accounts };
+  }
+  if (raw.id && raw.pwdHash) {
+    // v1: 단일 계정 객체 — 마스터 계정 하나로 승격
+    const now = new Date().toISOString();
+    return {
+      version: 0,
+      accounts: [{
+        id: raw.id, name: raw.name || '원장님', pwdHash: raw.pwdHash, isMaster: true,
+        createdAt: raw.createdAt || now, updatedAt: raw.updatedAt || now, passwordChangedAt: raw.passwordChangedAt || now,
+      }],
+    };
+  }
+  return { version: 0, accounts: [] };
+}
+
+export async function getAdminAccounts() {
+  const redis = getRedis();
+  const raw = await redis.get('admin:auth');
+  return normalizeAdminAccounts(raw);
+}
+
+// 쓰기 직전 현재 버전을 다시 읽어 expectedVersion과 비교 — 다르면 예외를 던져 호출부가
+// 실패 처리하게 한다. 조교 계정 관리는 빈도가 낮아 낙관적 락 하나로 충분(별도 Redis
+// hash/트랜잭션 도입은 하지 않음 — YAGNI).
+export async function setAdminAccounts(accounts, expectedVersion) {
+  const redis = getRedis();
+  const current = normalizeAdminAccounts(await redis.get('admin:auth'));
+  if (current.version !== expectedVersion) {
+    const err = new Error('admin accounts version conflict');
+    err.code = 'VERSION_CONFLICT';
+    throw err;
+  }
+  const next = { version: expectedVersion + 1, accounts };
+  await redis.set('admin:auth', next);
+  return next;
+}
+
+export function findAdminAccount(accounts, id) {
+  const norm = String(id || '').trim().toLowerCase();
+  return accounts.find(a => a.id === norm) || null;
+}
+
 // 요청 쿠키의 세션이 유효한 관리자 세션인지 확인 — 아니면 null
 export async function requireAdminSession(req) {
   const token = getSessionToken(req);
@@ -173,6 +223,27 @@ export async function requireAdminSessionOrApiToken(req) {
     return { role: 'admin', viaApiToken: true };
   }
   return null;
+}
+
+// 마스터 전용 액션에서 사용 — 세션에 박제된 isMaster 값만 믿지 않고, Redis의 현재 계정
+// 목록에서 실제로 그 계정이 존재하고 아직 isMaster인지 다시 확인한다(계정 삭제/권한
+// 변경 이후에도 오래된 세션이 유효할 수 있으므로).
+export async function requireMasterAdminSession(req) {
+  const session = await requireAdminSession(req);
+  if (!session || session.isMaster !== true || !session.actorId) return null;
+  const { accounts } = await getAdminAccounts();
+  const account = findAdminAccount(accounts, session.actorId);
+  if (!account || account.isMaster !== true) return null;
+  return session;
+}
+
+// API_AUTH_TOKEN 보유자는 이미 credentials/migrate 등 다른 모든 관리자 액션을 무제한으로
+// 쓸 수 있으므로, 조교 계정 관리도 동일하게 마스터 권한과 동등하게 취급한다.
+export async function requireMasterAdminSessionOrApiToken(req) {
+  if (process.env.API_AUTH_TOKEN && req.headers['x-api-token'] === process.env.API_AUTH_TOKEN) {
+    return { role: 'admin', viaApiToken: true, isMaster: true };
+  }
+  return requireMasterAdminSession(req);
 }
 
 export function getClientIp(req) {

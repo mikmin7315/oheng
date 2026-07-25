@@ -727,6 +727,97 @@ function migrateAvgs(sc){
   saveDB();
 }
 
+// 특정 주차만 totalScore/등수/합격여부/반평균을 recalc()와 동일한 기준으로 다시 계산
+// (성적 지우기·다른 주차로 복사 후 그 주차 값을 정합성 있게 맞추기 위해 사용)
+function recomputeWeekAggregates(sc,mon,week){
+  const wkRecs=sc.records.filter(r=>r.month===mon&&r.week===week);
+  const avg=arr=>arr.length?Math.round(arr.reduce((a,b)=>a+b,0)/arr.length*10)/10:null;
+  const rankMap=items=>{
+    const valid=items.filter(x=>!x.skip&&x.v!=null).sort((a,b)=>b.v-a.v);
+    const m={};let rk=1;
+    valid.forEach((x,i)=>{if(i>0&&valid[i-1].v===x.v)m[x.key]=m[valid[i-1].key];else m[x.key]=rk;rk++;});
+    return m;
+  };
+  wkRecs.forEach(r=>{
+    const rsk=!!r.rtSkip,wsk=!!r.wtSkip;
+    const rtOk=rsk||r.rtScore!=null,wtOk=wsk||r.wtScore!=null;
+    const hasAny=(!rsk&&r.rtScore!=null)||(!wsk&&r.wtScore!=null);
+    r.totalScore=(rtOk&&wtOk&&hasAny)?(rsk?0:(r.rtScore||0))+(wsk?0:(r.wtScore||0)):null;
+  });
+  const rtRankMap=rankMap(wkRecs.map(r=>({key:r.sid,skip:!!r.rtSkip,v:r.rtScore})));
+  const wtRankMap=rankMap(wkRecs.map(r=>({key:r.sid,skip:!!r.wtSkip,v:r.wtScore})));
+  const totRankMap=rankMap(wkRecs.map(r=>({key:r.sid,skip:false,v:r.totalScore})));
+  const rvAvg=avg(wkRecs.filter(r=>!r.rtSkip&&r.rtScore!=null).map(r=>r.rtScore));
+  const wtAvg=avg(wkRecs.filter(r=>!r.wtSkip&&r.wtScore!=null).map(r=>r.wtScore));
+  const totAvg=avg(wkRecs.filter(r=>r.totalScore!=null).map(r=>r.totalScore));
+  wkRecs.forEach(r=>{
+    const rsk=!!r.rtSkip,wsk=!!r.wtSkip;
+    r.rvRank=rsk?null:(rtRankMap[r.sid]??null);
+    r.wtRank=wsk?null:(wtRankMap[r.sid]??null);
+    r.totalRank=r.totalScore!=null?(totRankMap[r.sid]??null):null;
+    r.rtPass=(rsk||r.thrRt==null||r.rtScore==null)?null:(r.rtScore>=r.thrRt);
+    r.wtPass=(wsk||r.thrWt==null||r.wtScore==null)?null:(r.wtScore>=r.thrWt);
+    r.rvAvg=rvAvg;r.wtAvg=wtAvg;r.totalAvg=totAvg;
+  });
+}
+
+// 이번 주 성적(RT/WT점수·재시험)만 지움 — 숙제/코멘트/출석은 건드리지 않음
+function clearWeekScores(sc,mon,week){
+  sc.records.filter(r=>r.month===mon&&r.week===week).forEach(r=>{
+    r.rtScore=null;r.wtScore=null;r.retestTime='';
+  });
+  recomputeWeekAggregates(sc,mon,week);
+  saveDB();
+}
+
+// srcMon/srcWk의 성적·과제 데이터를 destMon/destWk로 복사(원본은 그대로 유지) — 학생 식별(sid)만
+// 맞춰서 나머지 필드를 통째로 옮기고, 대상 주차 기준으로 등수·반평균을 새로 계산
+function copyWeekTo(sc,srcMon,srcWk,destMon,destWk){
+  const srcRecs=sc.records.filter(r=>r.month===srcMon&&r.week===srcWk);
+  srcRecs.forEach(src=>{
+    let dest=sc.records.find(r=>r.sid===src.sid&&r.month===destMon&&r.week===destWk);
+    if(!dest){dest={sid:src.sid,month:destMon,week:destWk};sc.records.push(dest);}
+    const {sid,month,week,...fields}=src;
+    Object.assign(dest,fields);
+    dest.sid=src.sid;dest.month=destMon;dest.week=destWk;
+  });
+  recomputeWeekAggregates(sc,destMon,destWk);
+  saveDB();
+}
+
+function showCopyWeekPopup(sc,srcMon,srcWk){
+  document.querySelector('.copy-week-popup')?.remove();
+  const popup=document.createElement('div');
+  popup.className='copy-week-popup';
+  popup.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center';
+  popup.innerHTML=`
+    <div style="background:#fff;border-radius:16px;padding:24px;max-width:360px;width:92%;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+      <div style="font-size:15px;font-weight:800;color:#1A237E;margin-bottom:4px">📋 다른 주차로 복사</div>
+      <div style="font-size:12px;color:#9BA3AF;margin-bottom:16px">${srcMon} ${srcWk}의 성적·과제를 아래 주차로 복사합니다(원본은 그대로 유지). 대상 주차에 이미 데이터가 있으면 덮어씌워집니다.</div>
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <select id="copy-target-mon" style="flex:1;padding:8px 10px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px">${MONTHS.map(m=>`<option ${m===srcMon?'selected':''}>${m}</option>`).join('')}</select>
+        <select id="copy-target-wk" style="flex:1;padding:8px 10px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px">${WEEKS.map(w=>`<option ${w===srcWk?'selected':''}>${w}</option>`).join('')}</select>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button id="copy-week-cancel" class="abtn abtn-gray" style="flex:1">취소</button>
+        <button id="copy-week-confirm" class="abtn abtn-blue" style="flex:1">복사</button>
+      </div>
+    </div>`;
+  document.body.appendChild(popup);
+  popup.onclick=e=>{if(e.target===popup)popup.remove();};
+  document.getElementById('copy-week-cancel').onclick=()=>popup.remove();
+  document.getElementById('copy-week-confirm').onclick=()=>{
+    const destMon=document.getElementById('copy-target-mon').value;
+    const destWk=document.getElementById('copy-target-wk').value;
+    if(destMon===srcMon&&destWk===srcWk){alert('원본과 같은 주차입니다. 다른 주차를 선택해주세요.');return;}
+    if(!confirm(`${srcMon} ${srcWk} 데이터를 ${destMon} ${destWk}에 복사합니다.\n\n${destMon} ${destWk}에 이미 입력된 데이터가 있다면 덮어씌워집니다. 계속하시겠습니까?`))return;
+    copyWeekTo(sc,srcMon,srcWk,destMon,destWk);
+    popup.remove();
+    alert(`${destMon} ${destWk}로 복사 완료했습니다.`);
+    render();
+  };
+}
+
 function moI(m){return MONTHS.indexOf(m)}
 function wkI(w){return WEEKS.indexOf(w)}
 function esc(str){return String(str??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -2272,6 +2363,8 @@ function rBulk(sc){
   <div style="display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap">
     <button class="abtn abtn-green" id="btn-save" style="padding:11px 28px;font-size:14px;font-weight:700">💾 전체 저장</button>
     <button class="abtn abtn-gray" id="btn-export-scores" style="padding:11px 18px;font-size:13px">📊 성적 엑셀 내보내기</button>
+    <button class="abtn abtn-gray" id="btn-copy-week" style="padding:11px 18px;font-size:13px">📋 다른 주차로 복사</button>
+    <button class="abtn" id="btn-clear-week" style="padding:11px 18px;font-size:13px;background:#FFEBEE;color:#E53935;border-color:#FFCDD2">🗑️ 이번 주 성적 지우기</button>
     <div id="save-msg" style="font-size:13px;font-weight:600"></div>
   </div>
   <div style="font-size:11px;color:#9BA3AF;margin-top:8px">※ 초록 배경 칸은 자동계산 · 저장 버튼으로 영구보관</div>
@@ -3285,6 +3378,18 @@ function bAdmin(){
     bkWkEl?.addEventListener('change',checkWeekMatch);
   })();
   const exportScoresBtn=document.getElementById('btn-export-scores');if(exportScoresBtn)exportScoresBtn.onclick=()=>exportScoresExcel(sc);
+  document.getElementById('btn-copy-week').onclick=()=>{
+    const curMon=ST.bMon||curMonWk().mon,curWk=ST.bWk||curMonWk().wk;
+    showCopyWeekPopup(sc,curMon,curWk);
+  };
+  document.getElementById('btn-clear-week').onclick=()=>{
+    const curMon=ST.bMon||curMonWk().mon,curWk=ST.bWk||curMonWk().wk;
+    const cnt=sc.records.filter(r=>r.month===curMon&&r.week===curWk&&(r.rtScore!=null||r.wtScore!=null||r.retestTime)).length;
+    if(!cnt){alert(`${curMon} ${curWk}에 지울 성적이 없습니다.`);return;}
+    if(!confirm(`${curMon} ${curWk}에 입력된 성적(RT/WT점수·재시험)을 전부 지웁니다. (${cnt}명 대상)\n\n숙제·코멘트·출석은 지워지지 않습니다. 이 작업은 되돌릴 수 없습니다.\n\n계속하시겠습니까?`))return;
+    clearWeekScores(sc,curMon,curWk);
+    render();
+  };
   const hwSaveBtn=document.getElementById('btn-hw-name-save');
   if(hwSaveBtn){hwSaveBtn.onclick=()=>{
     const h1=(document.getElementById('hw1-name')?.value||'').trim()||'숙제1';

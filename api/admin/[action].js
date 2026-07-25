@@ -3,6 +3,7 @@ import {
   isSameOrigin, verifyPassword, hashPassword, encryptPwd,
   getAdminAccounts, setAdminAccounts, findAdminAccount,
   checkRateLimit, getClientIp,
+  createSession, setSessionCookie, getSessionToken, deleteSession,
 } from '../_lib/auth.js';
 import { getRedis } from '../_lib/redis.js';
 import {
@@ -160,6 +161,20 @@ export default async function handler(req, res) {
     } catch (e) {
       return res.status(409).json({ success: false, message: '다른 변경과 충돌했습니다. 다시 시도해주세요' });
     }
+
+    // 쿠키 세션으로 로그인한 경우, 세션 레코드가 여전히 옛 actorId/actorName/isMaster를 들고 있어
+    // (특히 아이디를 바꿨을 때) 이후 ta-list 등 마스터 전용 액션이 전부 막히고 credentials 재호출도
+    // "비밀번호 틀림"으로 잘못 안내되는 문제가 생김 — 갱신된 계정 정보로 세션을 즉시 재발급해 방지
+    // (API 토큰 경로는 session.actorId가 없어 이 블록을 자연스럽게 건너뜀)
+    if (session.actorId) {
+      const oldToken = getSessionToken(req);
+      if (oldToken) await deleteSession(oldToken);
+      const { token, maxAge } = await createSession({
+        role: 'admin', actorId: target.id, actorName: target.name, isMaster: target.isMaster === true,
+      });
+      setSessionCookie(res, token, maxAge);
+    }
+
     return res.status(200).json({ success: true, id: target.id });
   }
 

@@ -1,4 +1,8 @@
-import { requireAdminSessionOrApiToken, isSameOrigin, verifyPassword, hashPassword, encryptPwd } from '../_lib/auth.js';
+import {
+  requireAdminSessionOrApiToken,
+  isSameOrigin, verifyPassword, hashPassword, encryptPwd,
+  getAdminAccounts, setAdminAccounts, findAdminAccount,
+} from '../_lib/auth.js';
 import { getRedis } from '../_lib/redis.js';
 import {
   getSchoolIndex, getSchool, createSchool, putSchoolRaw,
@@ -119,26 +123,43 @@ export default async function handler(req, res) {
   if (action === 'credentials') {
     if (req.method !== 'POST') return res.status(405).end();
     if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
-    const { currentPw, newId, newPw } = req.body || {};
+    const { currentPw, newId, newName, newPw } = req.body || {};
     if (!currentPw) return res.status(400).json({ success: false, message: '현재 비밀번호를 입력하세요' });
 
-    const redis = getRedis();
-    const admin = await redis.get('admin:auth');
-    if (!admin || !verifyPassword(currentPw, admin.pwdHash)) {
+    const { version, accounts } = await getAdminAccounts();
+    // 쿠키 세션이면 본인 계정(actorId), API 토큰 경로면 유일한 마스터 계정을 "본인"으로 취급
+    // (이 시스템에서 마스터 계정은 항상 정확히 1개 — ta-create는 조교만 만들 수 있음)
+    const targetId = session.actorId || accounts.find(a => a.isMaster === true)?.id;
+    const target = findAdminAccount(accounts, targetId);
+    if (!target || !verifyPassword(currentPw, target.pwdHash)) {
       return res.status(400).json({ success: false, message: '현재 비밀번호가 틀렸습니다' });
     }
-    const next = { ...admin };
+
+    const isMaster = target.isMaster === true;
+    if (!isMaster && (newId || newName)) {
+      return res.status(400).json({ success: false, message: '아이디/이름 변경은 원장님 계정만 가능합니다' });
+    }
     if (newId) {
       const id = String(newId).trim().toLowerCase();
       if (id.length < 4 || /\s/.test(id)) return res.status(400).json({ success: false, message: '아이디는 공백 없이 4자 이상이어야 합니다' });
-      next.id = id;
+      if (accounts.some(a => a.id === id && a.id !== target.id)) {
+        return res.status(400).json({ success: false, message: '이미 사용 중인 아이디입니다' });
+      }
+      target.id = id;
     }
+    if (newName) target.name = String(newName).trim();
     if (newPw) {
       if (String(newPw).length < 4) return res.status(400).json({ success: false, message: '비밀번호는 4자 이상이어야 합니다' });
-      next.pwdHash = hashPassword(newPw);
+      target.pwdHash = hashPassword(newPw);
+      target.passwordChangedAt = new Date().toISOString();
     }
-    await redis.set('admin:auth', next);
-    return res.status(200).json({ success: true, id: next.id });
+    target.updatedAt = new Date().toISOString();
+    try {
+      await setAdminAccounts(accounts, version);
+    } catch (e) {
+      return res.status(409).json({ success: false, message: '다른 변경과 충돌했습니다. 다시 시도해주세요' });
+    }
+    return res.status(200).json({ success: true, id: target.id });
   }
 
   if (action === 'reset-student-password') {

@@ -582,11 +582,16 @@ function loadDB(){
   }catch(e){console.warn('loadDB 오류(무시):', e);}
 }
 // 현재 선택된 학교 blob을 서버에 백그라운드로 저장 (버전 충돌 시 최신 데이터로 교체 후 재렌더링)
-// 버전 충돌(409) 시 기존엔 로컬 변경사항을 통째로 버리고 서버 최신본으로 덮어써서, 방금 입력한
-// 내용(예: 성적 일괄 입력)이 조용히 사라지는 버그가 있었음. 이제는 로컬 sc.records에 있는 항목(=방금
-// 만졌던 레코드)은 그대로 유지하고, 나머지(다른 주차/다른 학생 변경분)만 서버 최신본으로 채운 뒤 재시도한다.
-async function syncSchoolToServer(sc,attempt){
+// 버전 충돌(409) 시 예전엔 "로컬 sc.records에 있는 항목은 전부 방금 만졌던 레코드"라고 가정하고
+// 그대로 되살렸는데, 이게 조교 여러 명이 같은 로그인을 공유할 때 사고를 냈다: 내 브라우저에 남아있는
+// 다른 주차의 '오래된 캐시'가, 다른 조교가 방금 막 저장한 최신 데이터를 조용히 덮어써버렸다(입력이 섞임).
+// 이제는 저장을 호출하는 쪽이 "이번 저장에서 실제로 의도한 레코드 키(sid|month|week)"를
+// intent.dirtyKeys(수정/추가)·intent.deletedKeys(삭제)로 명시하고, 그 외 레코드는 충돌 시
+// 무조건 서버 최신본을 따르게 한다. intent를 안 넘기면(레코드를 안 건드리는 저장) 안전하게 전부 서버 우선.
+async function syncSchoolToServer(sc,attempt,intent){
   attempt=attempt||0;
+  const dirtyKeys=intent?.dirtyKeys||new Set();
+  const deletedKeys=intent?.deletedKeys||new Set();
   try{
     const res=await fetch('/api/admin/school/'+encodeURIComponent(sc.id),{
       method:'PUT',credentials:'include',headers:{'Content-Type':'application/json'},
@@ -604,10 +609,13 @@ async function syncSchoolToServer(sc,attempt){
         sc.kakaoChannel=latest.kakaoChannel??sc.kakaoChannel;
         const key=r=>r.sid+'|'+r.month+'|'+r.week;
         const localMap=new Map(sc.records.map(r=>[key(r),r]));
-        const mergedRecords=(latest.records||[]).map(r=>localMap.has(key(r))?localMap.get(key(r)):r);
+        const mergedRecords=(latest.records||[])
+          .filter(r=>!deletedKeys.has(key(r)))
+          .map(r=>{const k=key(r);return(dirtyKeys.has(k)&&localMap.has(k))?localMap.get(k):r;});
         const latestKeys=new Set((latest.records||[]).map(key));
-        sc.records=[...mergedRecords,...sc.records.filter(r=>!latestKeys.has(key(r)))];
-        return await syncSchoolToServer(sc,attempt+1);
+        const newLocalDirty=[...localMap.entries()].filter(([k])=>dirtyKeys.has(k)&&!latestKeys.has(k)).map(([,r])=>r);
+        sc.records=[...mergedRecords,...newLocalDirty];
+        return await syncSchoolToServer(sc,attempt+1,intent);
       }
       if(data.school){
         const idx=DB.schools.findIndex(s=>s.id===sc.id);
@@ -625,12 +633,12 @@ async function syncSchoolToServer(sc,attempt){
     }
   }catch(e){console.warn('서버 저장 실패(로컬엔 저장됨):',e);}
 }
-function saveDB(){
+function saveDB(intent){
   try{localStorage.setItem(SKEY,JSON.stringify({...DB,adminPwd:ADMIN_PWD,adminId:ADMIN_ID}));}
   catch(e){console.warn('saveDB 오류(무시):', e);}
   if(ST.role==='admin'&&ST.serverAdminSession&&ST.school){
     const sc=DB.schools.find(s=>s.id===ST.school);
-    if(sc)return syncSchoolToServer(sc); // 호출부에서 await하면 서버 반영 확인 후 성공 메시지를 띄울 수 있음(선택)
+    if(sc)return syncSchoolToServer(sc,0,intent); // 호출부에서 await하면 서버 반영 확인 후 성공 메시지를 띄울 수 있음(선택)
   }
   return Promise.resolve();
 }
@@ -763,26 +771,30 @@ function recomputeWeekAggregates(sc,mon,week){
 
 // 이번 주 성적(RT/WT점수·재시험)만 지움 — 숙제/코멘트/출석은 건드리지 않음
 function clearWeekScores(sc,mon,week){
-  sc.records.filter(r=>r.month===mon&&r.week===week).forEach(r=>{
+  const wkRecs=sc.records.filter(r=>r.month===mon&&r.week===week);
+  wkRecs.forEach(r=>{
     r.rtScore=null;r.wtScore=null;r.retestTime='';
   });
   recomputeWeekAggregates(sc,mon,week);
-  saveDB();
+  const dirtyKeys=new Set(wkRecs.map(r=>r.sid+'|'+r.month+'|'+r.week));
+  saveDB({dirtyKeys});
 }
 
 // srcMon/srcWk의 성적·과제 데이터를 destMon/destWk로 복사(원본은 그대로 유지) — 학생 식별(sid)만
 // 맞춰서 나머지 필드를 통째로 옮기고, 대상 주차 기준으로 등수·반평균을 새로 계산
 function copyWeekTo(sc,srcMon,srcWk,destMon,destWk){
   const srcRecs=sc.records.filter(r=>r.month===srcMon&&r.week===srcWk);
+  const dirtyKeys=new Set();
   srcRecs.forEach(src=>{
     let dest=sc.records.find(r=>r.sid===src.sid&&r.month===destMon&&r.week===destWk);
     if(!dest){dest={sid:src.sid,month:destMon,week:destWk};sc.records.push(dest);}
     const {sid,month,week,...fields}=src;
     Object.assign(dest,fields);
     dest.sid=src.sid;dest.month=destMon;dest.week=destWk;
+    dirtyKeys.add(dest.sid+'|'+destMon+'|'+destWk);
   });
   recomputeWeekAggregates(sc,destMon,destWk);
-  saveDB();
+  saveDB({dirtyKeys});
 }
 
 function showCopyWeekPopup(sc,srcMon,srcWk){
@@ -873,7 +885,7 @@ function setAttendance(sc, sid, month, week, val){
     sc.records.push(rec);
   }
   rec.attendType = val || '';
-  saveDB();
+  saveDB({dirtyKeys:new Set([sid+'|'+month+'|'+week])});
 }
 function curSch(){return DB.schools.find(s=>s.id===ST.school)||DB.schools[0]}
 function sRecs(sid,sc){const s=sc||(ST.role==='admin'?curSch():ST.userSchool);if(!s)return[];return s.records.filter(r=>r.sid===sid).sort((a,b)=>moI(a.month)-moI(b.month)||wkI(a.week)-wkI(b.week));}
@@ -3494,12 +3506,13 @@ function bAdmin(){
       if(existingIdx>=0)sc.records[existingIdx]=rec;else sc.records.push(rec);saved++;savedSids.push(sid);
     });
     addLog(sc,mon,wk,saved,thrRt,thrWt);
-    await saveDB();
+    const dirtyKeys=new Set(savedSids.map(sid=>sid+'|'+mon+'|'+wk));
+    await saveDB({dirtyKeys});
     clearDraft(sc,mon,wk);
     ST._dirty=false;
     saveBtn.disabled=false;
     const srEl=document.getElementById('saved-result-table');
-    if(srEl){srEl.innerHTML=renderSavedTable(sc,mon,wk);srEl.querySelectorAll('[data-dr]').forEach(function(b){b.onclick=function(){sc.records.splice(parseInt(b.dataset.dr),1);saveDB();srEl.innerHTML=renderSavedTable(sc,ST.bMon,ST.bWk);wireCommentBtns(srEl,sc);};});wireCommentBtns(srEl,sc);}
+    if(srEl){srEl.innerHTML=renderSavedTable(sc,mon,wk);srEl.querySelectorAll('[data-dr]').forEach(function(b){b.onclick=function(){const _i=parseInt(b.dataset.dr);const _r=sc.records[_i];sc.records.splice(_i,1);saveDB(_r?{deletedKeys:new Set([_r.sid+'|'+_r.month+'|'+_r.week])}:undefined);srEl.innerHTML=renderSavedTable(sc,ST.bMon,ST.bWk);wireCommentBtns(srEl,sc);};});wireCommentBtns(srEl,sc);}
     renderScoreDropAlert(sc, mon, wk);
     const msg=document.getElementById('save-msg');
     msg.innerHTML=`✓ ${saved}명 저장 완료${ST.serverAdminSession?'(서버 반영 확인됨)':''} &nbsp;<span style="color:#E65100;font-weight:700;cursor:pointer;text-decoration:underline" onclick="const b=document.getElementById('btn-ppurio-notify');if(b){b.scrollIntoView({behavior:'smooth',block:'center'});b.style.outline='3px solid #FFB300';setTimeout(()=>b.style.outline='',2000);}">💬 알림톡 발송 →</span>`;
@@ -3507,7 +3520,7 @@ function bAdmin(){
     pushStudents(sc,savedSids,'📊 성적이 등록됐어요',`${mon} ${wk} 성적을 확인해보세요`,'/');
     recalc();
   };
-  document.querySelectorAll('[data-dr]').forEach(b=>{b.onclick=()=>{sc.records.splice(parseInt(b.dataset.dr),1);saveDB();const se=document.getElementById('saved-result-table');if(se){se.innerHTML=renderSavedTable(sc,ST.bMon,ST.bWk);wireCommentBtns(se,sc);}};});
+  document.querySelectorAll('[data-dr]').forEach(b=>{b.onclick=()=>{const _i=parseInt(b.dataset.dr);const _r=sc.records[_i];sc.records.splice(_i,1);saveDB(_r?{deletedKeys:new Set([_r.sid+'|'+_r.month+'|'+_r.week])}:undefined);const se=document.getElementById('saved-result-table');if(se){se.innerHTML=renderSavedTable(sc,ST.bMon,ST.bWk);wireCommentBtns(se,sc);}};});
   const savedTblEl=document.getElementById('saved-result-table');
   if(savedTblEl)wireCommentBtns(savedTblEl,sc);
   const ppurioNotifyBtn=document.getElementById('btn-ppurio-notify');
@@ -3667,10 +3680,10 @@ function wireCommentBtns(root,sc){
       const val=prompt('선생님 코멘트 (성적표에 표시됩니다, 비워두면 숨김)',rec.comment||'');
       if(val===null)return;
       rec.comment=val.trim();
-      saveDB();
+      saveDB({dirtyKeys:new Set([rec.sid+'|'+rec.month+'|'+rec.week])});
       root.innerHTML=renderSavedTable(sc,rec.month,rec.week);
       wireCommentBtns(root,sc);
-      root.querySelectorAll('[data-dr]').forEach(db=>{db.onclick=()=>{sc.records.splice(parseInt(db.dataset.dr),1);saveDB();root.innerHTML=renderSavedTable(sc,ST.bMon,ST.bWk);wireCommentBtns(root,sc);};});
+      root.querySelectorAll('[data-dr]').forEach(db=>{db.onclick=()=>{const _i=parseInt(db.dataset.dr);const _r=sc.records[_i];sc.records.splice(_i,1);saveDB(_r?{deletedKeys:new Set([_r.sid+'|'+_r.month+'|'+_r.week])}:undefined);root.innerHTML=renderSavedTable(sc,ST.bMon,ST.bWk);wireCommentBtns(root,sc);};});
     };
   });
   // 체크박스로 고른 학생만 골라 성적 알림 발송 — "전체 선택" 헤더 체크박스와 연동

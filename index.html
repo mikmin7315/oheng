@@ -2790,6 +2790,10 @@ function rAdminSettings(sc){
   const backupWarn=!lastBackup||((Date.now()-new Date(lastBackup).getTime())>7*24*60*60*1000);
   const recCount=sc.records.length;
   const weekSet=[...new Set(sc.records.map(r=>r.month+'_'+r.week))];
+  if(ST.isMaster&&ST.taAccounts===undefined){
+    ST.taAccounts=null;
+    fetchTaAccounts();
+  }
   return`
   <div class="section-card">
     <div class="section-ttl">🔔 선생님 알림 설정</div>
@@ -2797,16 +2801,16 @@ function rAdminSettings(sc){
     <button id="btn-admin-push-sub" style="padding:11px 24px;background:#1A237E;color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">🔔 알림 허용하기</button>
     <div id="admin-push-msg" style="font-size:12px;margin-top:8px;min-height:18px"></div>
   </div>
-  <div class="section-card">
+  ${ST.isMaster?`<div class="section-card">
     <div class="section-ttl">관리자 아이디 변경</div>
     <div style="font-size:12px;color:#9BA3AF;margin-bottom:12px">현재 아이디: <strong style="color:#1A237E;font-family:monospace">${ADMIN_ID}</strong></div>
     <div style="margin-bottom:12px"><label class="flbl">현재 비밀번호</label><input class="finp" type="password" id="aid-cur"></div>
     <div style="margin-bottom:14px"><label class="flbl">새 아이디</label><input class="finp" type="text" id="aid-new" placeholder="영문/숫자 4자 이상"></div>
     <button class="abtn abtn-blue" id="btn-aid-save">변경</button>
     <div id="aid-msg" style="font-size:12px;margin-top:8px"></div>
-  </div>
+  </div>`:''}
   <div class="section-card">
-    <div class="section-ttl">관리자 비밀번호 변경</div>
+    <div class="section-ttl">비밀번호 변경</div>
     <div style="margin-bottom:12px"><label class="flbl">현재 비밀번호</label><input class="finp" type="password" id="apw-cur"></div>
     <div style="margin-bottom:12px"><label class="flbl">새 비밀번호</label><input class="finp" type="password" id="apw-new" placeholder="4자 이상"></div>
     <div style="margin-bottom:14px"><label class="flbl">새 비밀번호 확인</label><input class="finp" type="password" id="apw-con"></div>
@@ -2814,6 +2818,19 @@ function rAdminSettings(sc){
     <div id="apw-msg" style="font-size:12px;margin-top:8px"></div>
     <div style="font-size:11px;color:#B0B3BF;margin-top:10px;line-height:1.6">아이디·비밀번호는 알림톡 발송과는 별개로 동작해서, 자유롭게 바꾸셔도 알림톡 발송에는 영향이 없습니다.</div>
   </div>
+  ${ST.isMaster?`<div class="section-card">
+    <div class="section-ttl">👥 조교 계정 관리</div>
+    <div style="font-size:12px;color:#9BA3AF;margin-bottom:14px">조교별로 별도 아이디를 만들어주면, 이후 누가 언제 뭘 했는지 구분할 수 있게 됩니다.</div>
+    ${ST.taAccounts===null?`<div style="font-size:13px;color:#9BA3AF">불러오는 중...</div>`:renderTaList(ST.taAccounts||[])}
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid #EEF0F4">
+      <div style="font-weight:700;font-size:13px;margin-bottom:10px">새 조교 추가</div>
+      <div style="margin-bottom:10px"><label class="flbl">이름</label><input class="finp" type="text" id="ta-new-name" placeholder="예: 김민지"></div>
+      <div style="margin-bottom:10px"><label class="flbl">아이디</label><input class="finp" type="text" id="ta-new-id" placeholder="영문/숫자 4자 이상"></div>
+      <div style="margin-bottom:14px"><label class="flbl">임시 비밀번호</label><input class="finp" type="password" id="ta-new-pw" placeholder="4자 이상"></div>
+      <button class="abtn abtn-blue" id="btn-ta-create">추가</button>
+      <div id="ta-create-msg" style="font-size:12px;margin-top:8px"></div>
+    </div>
+  </div>`:''}
   <div class="section-card">
     <div class="section-ttl">데이터 백업 / 복원</div>
     ${backupWarn?`<div style="background:#FFF8E1;border:1.5px solid #FFE082;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#E65100;font-weight:600">
@@ -2867,6 +2884,24 @@ function rAdminSettings(sc){
     <button class="abtn" id="btn-new-semester" style="background:#E53935;color:#fff;border-color:#E53935;padding:10px 20px;font-weight:700">🔄 새 학기 시작 (성적 초기화)</button>
     <div id="semester-msg" style="font-size:12px;margin-top:8px;min-height:18px"></div>
   </div>`;}
+function renderTaList(accounts){
+  if(!accounts.length)return'<div style="font-size:13px;color:#9BA3AF">등록된 조교 계정이 없습니다.</div>';
+  return'<table style="width:100%;border-collapse:collapse;font-size:13px">'+
+    accounts.map(a=>`<tr style="border-bottom:1px solid #F0F1F5">
+      <td style="padding:8px 4px">${a.name}${a.isMaster?' <span style="color:#1A237E;font-size:11px;font-weight:700">(원장님)</span>':''}</td>
+      <td style="padding:8px 4px;font-family:monospace;color:#5C6470">${a.id}</td>
+      <td style="padding:8px 4px;text-align:right">${a.isMaster?'':`<button class="abtn abtn-gray" data-ta-reset="${a.id}" style="padding:6px 12px;font-size:12px;margin-right:6px">비번 재설정</button><button class="abtn abtn-red" data-ta-del="${a.id}" style="padding:6px 12px;font-size:12px">삭제</button>`}</td>
+    </tr>`).join('')+
+    '</table>';
+}
+async function fetchTaAccounts(){
+  try{
+    const res=await fetch('/api/admin/ta-list',{credentials:'include'});
+    const data=await res.json();
+    ST.taAccounts=data.success?data.accounts:[];
+  }catch(e){ST.taAccounts=[];}
+  render();
+}
 
 function rLogs(sc){
   try{
@@ -3214,6 +3249,46 @@ function bAdmin(){
         ADMIN_PWD=nw;saveDB();
       }
       msg.textContent='✓ 변경 완료';msg.style.color='#00897B';
+    });
+    document.getElementById('btn-ta-create')?.addEventListener('click',async()=>{
+      const name=document.getElementById('ta-new-name')?.value.trim();
+      const id=document.getElementById('ta-new-id')?.value.trim();
+      const pw=document.getElementById('ta-new-pw')?.value;
+      const msg=document.getElementById('ta-create-msg');
+      if(!name){msg.textContent='이름을 입력하세요';msg.style.color='#E53935';return;}
+      try{
+        const res=await fetch('/api/admin/ta-create',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,name,pw})});
+        const data=await res.json();
+        if(!res.ok||!data.success){msg.textContent=data.message||'추가 실패';msg.style.color='#E53935';return;}
+      }catch(e){msg.textContent='오류: '+e.message;msg.style.color='#E53935';return;}
+      msg.textContent='✓ 추가 완료';msg.style.color='#00897B';
+      ST.taAccounts=undefined;
+      setTimeout(()=>render(),600);
+    });
+    document.querySelectorAll('[data-ta-reset]').forEach(b=>{
+      b.onclick=async()=>{
+        const id=b.dataset.taReset;
+        if(!confirm(`${id} 계정의 비밀번호를 재설정합니다. 계속하시겠습니까?`))return;
+        try{
+          const res=await fetch('/api/admin/ta-reset-password',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+          const data=await res.json();
+          if(!res.ok||!data.success){alert(data.message||'재설정 실패');return;}
+          alert(`새 임시 비밀번호: ${data.password}\n조교에게 전달해주세요.`);
+        }catch(e){alert('오류: '+e.message);}
+      };
+    });
+    document.querySelectorAll('[data-ta-del]').forEach(b=>{
+      b.onclick=async()=>{
+        const id=b.dataset.taDel;
+        if(!confirm(`${id} 계정을 삭제합니다. 되돌릴 수 없습니다. 계속하시겠습니까?`))return;
+        try{
+          const res=await fetch('/api/admin/ta-delete',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+          const data=await res.json();
+          if(!res.ok||!data.success){alert(data.message||'삭제 실패');return;}
+        }catch(e){alert('오류: '+e.message);return;}
+        ST.taAccounts=undefined;
+        render();
+      };
     });
     // 새 학기 시작
     document.getElementById('btn-migrate-avg')?.addEventListener('click',()=>{

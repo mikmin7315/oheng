@@ -1012,6 +1012,7 @@ async function init(){
       const data=await res.json();
       if(data.role==='admin'){
         ST.loggedIn=true;ST.role='admin';ST.school=null;ST.serverAdminSession=true;
+        ST.isMaster=!!data.isMaster;ST.actorName=data.actorName||'';
         await loadServerSchoolsList();
       } else if(data.role==='student'){
         const ok=await loadServerStudentData();
@@ -1287,6 +1288,7 @@ function doLogout(){
     fetch('/api/auth/logout',{method:'POST',credentials:'include'}).catch(()=>{});
   }
   ST.loggedIn=false;ST.serverAdminSession=false;ST.serverStudentSession=false;
+  ST.isMaster=false;ST.actorName='';ST.taAccounts=undefined;
   render();
 }
 // 관리자 학교 목록/개별 학교 데이터를 서버에서 불러오는 헬퍼 (서버 세션 확립 후 사용)
@@ -1321,6 +1323,7 @@ async function attemptAdminLogin(id,pw){
     const data=await res.json();
     if(!data.success)return false;
     ST.loggedIn=true;ST.role='admin';ST.school=null;ST.serverAdminSession=true;
+    ST.isMaster=!!data.isMaster;ST.actorName=data.actorName||'';
     await loadServerSchoolsList();
     return true;
   }catch(e){return false;}

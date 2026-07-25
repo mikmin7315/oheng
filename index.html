@@ -2888,9 +2888,9 @@ function renderTaList(accounts){
   if(!accounts.length)return'<div style="font-size:13px;color:#9BA3AF">등록된 조교 계정이 없습니다.</div>';
   return'<table style="width:100%;border-collapse:collapse;font-size:13px">'+
     accounts.map(a=>`<tr style="border-bottom:1px solid #F0F1F5">
-      <td style="padding:8px 4px">${a.name}${a.isMaster?' <span style="color:#1A237E;font-size:11px;font-weight:700">(원장님)</span>':''}</td>
-      <td style="padding:8px 4px;font-family:monospace;color:#5C6470">${a.id}</td>
-      <td style="padding:8px 4px;text-align:right">${a.isMaster?'':`<button class="abtn abtn-gray" data-ta-reset="${a.id}" style="padding:6px 12px;font-size:12px;margin-right:6px">비번 재설정</button><button class="abtn abtn-red" data-ta-del="${a.id}" style="padding:6px 12px;font-size:12px">삭제</button>`}</td>
+      <td style="padding:8px 4px">${esc(a.name)}${a.isMaster?' <span style="color:#1A237E;font-size:11px;font-weight:700">(원장님)</span>':''}</td>
+      <td style="padding:8px 4px;font-family:monospace;color:#5C6470">${esc(a.id)}</td>
+      <td style="padding:8px 4px;text-align:right">${a.isMaster?'':`<button class="abtn abtn-gray" data-ta-reset="${esc(a.id)}" style="padding:6px 12px;font-size:12px;margin-right:6px">비번 재설정</button><button class="abtn abtn-red" data-ta-del="${esc(a.id)}" style="padding:6px 12px;font-size:12px">삭제</button>`}</td>
     </tr>`).join('')+
     '</table>';
 }

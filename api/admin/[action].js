@@ -1,7 +1,8 @@
 import {
-  requireAdminSessionOrApiToken,
+  requireAdminSessionOrApiToken, requireMasterAdminSessionOrApiToken,
   isSameOrigin, verifyPassword, hashPassword, encryptPwd,
   getAdminAccounts, setAdminAccounts, findAdminAccount,
+  checkRateLimit, getClientIp,
 } from '../_lib/auth.js';
 import { getRedis } from '../_lib/redis.js';
 import {
@@ -179,6 +180,107 @@ export default async function handler(req, res) {
     sc.version = (sc.version || 0) + 1;
     await getRedis().set('school:' + schoolId, sc);
     return res.status(200).json({ success: true, password: pwd, studentId });
+  }
+
+  if (action === 'ta-list') {
+    if (req.method !== 'GET') return res.status(405).end();
+    const masterCheck = await requireMasterAdminSessionOrApiToken(req);
+    if (!masterCheck) return res.status(403).json({ success: false, message: '원장님 계정만 볼 수 있습니다' });
+    const { accounts } = await getAdminAccounts();
+    return res.status(200).json({
+      success: true,
+      accounts: accounts.map(a => ({
+        id: a.id, name: a.name, isMaster: a.isMaster === true,
+        createdAt: a.createdAt, updatedAt: a.updatedAt, passwordChangedAt: a.passwordChangedAt,
+      })),
+    });
+  }
+
+  if (action === 'ta-create') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    const masterCheck = await requireMasterAdminSessionOrApiToken(req);
+    if (!masterCheck) return res.status(403).json({ success: false, message: '원장님 계정만 가능합니다' });
+
+    const rlOk = await checkRateLimit('ta-create', getClientIp(req), 10, 60);
+    if (!rlOk) return res.status(429).json({ success: false, message: '잠시 후 다시 시도해주세요' });
+
+    const { id: rawId, name, pw } = req.body || {};
+    const id = String(rawId || '').trim().toLowerCase();
+    if (id.length < 4 || /\s/.test(id)) return res.status(400).json({ success: false, message: '아이디는 공백 없이 4자 이상이어야 합니다' });
+    if (!name || !String(name).trim()) return res.status(400).json({ success: false, message: '이름을 입력하세요' });
+    if (!pw || String(pw).length < 4) return res.status(400).json({ success: false, message: '비밀번호는 4자 이상이어야 합니다' });
+
+    const { version, accounts } = await getAdminAccounts();
+    if (accounts.some(a => a.id === id)) return res.status(400).json({ success: false, message: '이미 사용 중인 아이디입니다' });
+
+    const now = new Date().toISOString();
+    accounts.push({
+      id, name: String(name).trim(), pwdHash: hashPassword(pw), isMaster: false,
+      createdAt: now, updatedAt: now, passwordChangedAt: now,
+    });
+    try {
+      await setAdminAccounts(accounts, version);
+    } catch (e) {
+      return res.status(409).json({ success: false, message: '다른 변경과 충돌했습니다. 다시 시도해주세요' });
+    }
+    return res.status(200).json({ success: true, id, name: String(name).trim() });
+  }
+
+  if (action === 'ta-reset-password') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    const masterCheck = await requireMasterAdminSessionOrApiToken(req);
+    if (!masterCheck) return res.status(403).json({ success: false, message: '원장님 계정만 가능합니다' });
+
+    const rlOk = await checkRateLimit('ta-reset-password', getClientIp(req), 5, 60);
+    if (!rlOk) return res.status(429).json({ success: false, message: '잠시 후 다시 시도해주세요' });
+
+    const { id: rawId, newPw } = req.body || {};
+    const id = String(rawId || '').trim().toLowerCase();
+    const { version, accounts } = await getAdminAccounts();
+    const target = findAdminAccount(accounts, id);
+    if (!target) return res.status(404).json({ success: false, message: '계정을 찾을 수 없습니다' });
+
+    const pwd = (newPw && String(newPw).trim().length >= 4) ? String(newPw).trim() : String(Math.floor(1000 + Math.random() * 9000));
+    target.pwdHash = hashPassword(pwd);
+    target.passwordChangedAt = new Date().toISOString();
+    target.updatedAt = new Date().toISOString();
+    try {
+      await setAdminAccounts(accounts, version);
+    } catch (e) {
+      return res.status(409).json({ success: false, message: '다른 변경과 충돌했습니다. 다시 시도해주세요' });
+    }
+    return res.status(200).json({ success: true, id: target.id, password: pwd });
+  }
+
+  if (action === 'ta-delete') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    const masterCheck = await requireMasterAdminSessionOrApiToken(req);
+    if (!masterCheck) return res.status(403).json({ success: false, message: '원장님 계정만 가능합니다' });
+
+    const rlOk = await checkRateLimit('ta-delete', getClientIp(req), 5, 60);
+    if (!rlOk) return res.status(429).json({ success: false, message: '잠시 후 다시 시도해주세요' });
+
+    const { id: rawId } = req.body || {};
+    const id = String(rawId || '').trim().toLowerCase();
+    const { version, accounts } = await getAdminAccounts();
+    const target = findAdminAccount(accounts, id);
+    if (!target) return res.status(404).json({ success: false, message: '계정을 찾을 수 없습니다' });
+
+    const remainingMasters = accounts.filter(a => a.isMaster === true && a.id !== id).length;
+    if (target.isMaster === true && remainingMasters < 1) {
+      return res.status(400).json({ success: false, message: '마지막 원장님 계정은 삭제할 수 없습니다' });
+    }
+
+    const next = accounts.filter(a => a.id !== id);
+    try {
+      await setAdminAccounts(next, version);
+    } catch (e) {
+      return res.status(409).json({ success: false, message: '다른 변경과 충돌했습니다. 다시 시도해주세요' });
+    }
+    return res.status(200).json({ success: true, id });
   }
 
   if (action === 'append-save-log') {

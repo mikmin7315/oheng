@@ -9,6 +9,7 @@ import { getRedis } from '../_lib/redis.js';
 import {
   getSchoolIndex, getSchool, createSchool, putSchoolRaw,
 } from '../_lib/school.js';
+import { getMessageHistory } from '../_lib/sms.js';
 
 const MAX_BODY_CHARS = 5_000_000; // 5MB — 마이그레이션 업로드용 상한
 
@@ -107,6 +108,24 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, school: { id: school.id, name: school.name, grade: school.grade, type: school.type, studentCount: 0, recordCount: 0 } });
     }
     return res.status(405).end();
+  }
+
+  // 문자 발송 API 호출이 200(접수 성공)이어도 실제 통신사 배달까지 성공했다는 보장은 아니라서,
+  // 배달 상태/실패 사유를 나중에 조회할 수 있게 하는 디버깅용 엔드포인트.
+  if (action === 'sms-status') {
+    if (req.method !== 'GET') return res.status(405).end();
+    const phone = String(req.query.phone || '').replace(/[^0-9]/g, '');
+    if (phone.length < 10) return res.status(400).json({ success: false, message: '휴대폰 번호를 확인해주세요' });
+    try {
+      const result = await getMessageHistory(phone, 10);
+      const messages = (result?.messageList ? Object.values(result.messageList) : []).map(m => ({
+        to: m.to, status: m.status, statusCode: m.statusCode, reason: m.reason,
+        networkName: m.networkName, dateCreated: m.dateCreated, dateReported: m.dateReported,
+      }));
+      return res.status(200).json({ success: true, messages });
+    } catch (e) {
+      return res.status(500).json({ success: false, message: e.message });
+    }
   }
 
   if (action === 'next-student-id') {

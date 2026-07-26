@@ -13,3 +13,10 @@ export async function sendPlainSms(to, text) {
   const phone = String(to).replace(/[^0-9]/g, '');
   return messageService.send({ to: phone, from: SENDER, text });
 }
+
+// 발송 자체(send)는 성공해도 실제 통신사 배달까지 성공했다는 보장은 아님 —
+// 배달 상태(성공/실패 사유)를 나중에 조회해 디버깅할 때 사용.
+export async function getMessageHistory(to, limit = 10) {
+  const phone = String(to).replace(/[^0-9]/g, '');
+  return messageService.getMessages({ to: phone, limit });
+}

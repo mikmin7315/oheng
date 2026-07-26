@@ -4,7 +4,7 @@ import {
 } from '../_lib/auth.js';
 import { generateOtpCode, storeOtp, verifyOtp } from '../_lib/otp.js';
 import { findOrCreateMemberByPhone, findOrCreateMemberByGoogle, updateMemberName, getMember } from '../_lib/member.js';
-import { sendPlainSms } from '../_lib/sms.js';
+import { sendOtpMessage } from '../_lib/sms.js';
 import { createOauthState, consumeOauthState, buildGoogleAuthUrl, exchangeGoogleCode, fetchGoogleProfile } from '../_lib/google-oauth.js';
 
 function normalizePhone(raw) {
@@ -27,10 +27,10 @@ export default async function handler(req, res) {
     const code = generateOtpCode();
     await storeOtp(phone, code);
     try {
-      await sendPlainSms(phone, `[OHENG] 인증번호는 ${code} 입니다. 3분 내에 입력해주세요.`);
+      await sendOtpMessage(phone, code);
     } catch (e) {
       const detail = e?.failedMessageList?.[0]?.statusMessage || e?.message || String(e);
-      console.error('sendPlainSms failed:', detail);
+      console.error('sendOtpMessage failed:', detail);
       return res.status(500).json({ success: false, message: '인증번호 발송에 실패했습니다' });
     }
     return res.status(200).json({ success: true });

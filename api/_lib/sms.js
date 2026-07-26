@@ -6,11 +6,29 @@ const messageService = new SolapiMessageService(
 );
 
 const SENDER = process.env.SOLAPI_SENDER || '01090080851';
+const PFID = process.env.SOLAPI_PFID;
+const OTP_TEMPLATE_ID = process.env.SOLAPI_OTP_TEMPLATE_ID;
 
 // 알림톡 템플릿(api/send.js)과 달리 kakaoOptions 없이 호출하면 일반 SMS/LMS로 즉시 발송된다
 // (솔라피가 텍스트 길이 보고 SMS/LMS 자동 판단, 사전 템플릿 승인 불필요).
 export async function sendPlainSms(to, text) {
   const phone = String(to).replace(/[^0-9]/g, '');
+  return messageService.send({ to: phone, from: SENDER, text });
+}
+
+// 인증번호 발송 전용 — SOLAPI_OTP_TEMPLATE_ID가 설정되면 카카오 알림톡으로 먼저 시도하고
+// (disableSms:false라 실패 시 자동으로 문자로 대체발송됨), 템플릿이 아직 없으면(승인 전)
+// 지금처럼 일반 문자로 바로 보낸다 — 템플릿 승인 후 환경변수만 추가하면 배포 없이 전환된다.
+// 일반 SMS는 발신번호 스팸 필터링으로 배달이 조용히 실패하는 경우가 있어 알림톡이 더 안정적.
+export async function sendOtpMessage(to, code) {
+  const phone = String(to).replace(/[^0-9]/g, '');
+  const text = `[OHENG] 인증번호는 ${code} 입니다. 3분 내에 입력해주세요.`;
+  if (OTP_TEMPLATE_ID && PFID) {
+    return messageService.send({
+      to: phone, from: SENDER, text,
+      kakaoOptions: { pfId: PFID, templateId: OTP_TEMPLATE_ID, variables: { '#{인증번호}': code }, disableSms: false },
+    });
+  }
   return messageService.send({ to: phone, from: SENDER, text });
 }
 

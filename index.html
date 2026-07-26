@@ -834,6 +834,14 @@ function showCopyWeekPopup(sc,srcMon,srcWk){
 function moI(m){return MONTHS.indexOf(m)}
 function wkI(w){return WEEKS.indexOf(w)}
 function esc(str){return String(str??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+// esc()로 이스케이프된 문자열 안의 URL을 클릭 가능한 링크로 바꿈 — 반드시 esc() 결과에만 적용
+function linkify(escapedHtml){
+  return escapedHtml.replace(/(https?:\/\/[^\s<]+)/g,url=>{
+    let trail='';let u=url;
+    while(u&&/[.,)\]!?;:]$/.test(u)){trail=u.slice(-1)+trail;u=u.slice(0,-1);}
+    return `<a href="${u}" target="_blank" rel="noopener noreferrer" style="color:#1A73E8;text-decoration:underline;word-break:break-all">${u}</a>${trail}`;
+  });
+}
 function ic(name){
   const m={
     notice:'<path d="M3 8h3l5-4v12l-5-4H3z"/><path d="M13 7c1 1 1 5 0 6"/>',
@@ -1723,7 +1731,7 @@ function rReport(recs){
   ${(notice||rec.comment)?`<div style="border:1.5px solid #D9E0EA;border-radius:12px;padding:15px 16px;margin-bottom:20px;display:flex;flex-direction:column;gap:14px;background:#fff">
     ${notice?`<div>
       <div style="display:flex;align-items:center;gap:7px;font-size:11px;font-weight:800;letter-spacing:0.6px;text-transform:uppercase;color:#B45309;margin-bottom:6px">${ic('notice')}우리 반 공지</div>
-      <div style="font-size:13.5px;line-height:1.65;color:#2B3341;white-space:pre-wrap">${esc(notice)}</div>
+      <div style="font-size:13.5px;line-height:1.65;color:#2B3341;white-space:pre-wrap">${linkify(esc(notice))}</div>
     </div>`:''}
     ${notice&&rec.comment?'<div style="border-top:1.5px solid #D9E0EA"></div>':''}
     ${rec.comment?`<div>
@@ -2419,7 +2427,7 @@ function rNotices(sc){
       return`<div style="background:#F7F8FA;border-radius:10px;padding:12px 14px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
         <div style="flex:1;min-width:0">
           <div style="font-size:12px;font-weight:700;color:#1A237E;margin-bottom:4px">${m} ${w}</div>
-          <div style="font-size:12px;color:#5C6470;line-height:1.6;word-break:break-word;white-space:pre-wrap">${esc(txt)}</div>
+          <div style="font-size:12px;color:#5C6470;line-height:1.6;word-break:break-word;white-space:pre-wrap">${linkify(esc(txt))}</div>
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0">
           <button onclick="document.getElementById('nc-mon').value='${m}';document.getElementById('nc-wk').value='${w}';document.getElementById('nc-txt').value=decodeURIComponent('${encodeURIComponent(txt)}')" style="padding:4px 10px;background:#EEF0FB;color:#1A237E;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">수정</button>

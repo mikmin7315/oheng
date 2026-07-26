@@ -2637,7 +2637,12 @@ function rNotices(sc){
   </div>`;}
 
 function rStudentMgmt(sc){
-  const autoId=nextStudentId(sc);
+  if(ST.suggestedStudentId===undefined){
+    ST.suggestedStudentId=null;
+    nextStudentId().then(id=>{ST.suggestedStudentId=id;render();});
+  }
+  const autoId=ST.suggestedStudentId||'';
+  const autoPwd=String(Math.floor(1000+Math.random()*9000));
   const isLecture=sc.type==='lecture';
   return`
   <div class="section-card">
@@ -2660,7 +2665,7 @@ function rStudentMgmt(sc){
     <div class="form3" style="margin-bottom:14px">
       <div class="fgrp"><label class="flbl">이름</label><input class="finp" id="ns-name"/></div>
       <div class="fgrp"><label class="flbl">학생 ID</label><input class="finp" id="ns-id" value="${autoId}"/></div>
-      <div class="fgrp"><label class="flbl">초기 비밀번호</label><input class="finp" id="ns-pw" value="1234"/></div>
+      <div class="fgrp"><label class="flbl">초기 비밀번호</label><input class="finp" id="ns-pw" value="${autoPwd}"/></div>
       <div class="fgrp"><label class="flbl">학생 전화번호</label><input class="finp" id="ns-ph" placeholder="010-0000-0000" oninput="autoHyphen(this)" maxlength="13"/></div>
       <div class="fgrp"><label class="flbl">학부모 전화번호</label><input class="finp" id="ns-pph" placeholder="010-0000-0000" oninput="autoHyphen(this)" maxlength="13"/></div>
       <div class="fgrp"><label class="flbl">구분</label>
@@ -2723,7 +2728,7 @@ function renderStudentTable(sc){
           ${isLecture?`<td style="${cp}"><input data-hs-id="${s.id}" value="${esc(s.highSchool)||''}" placeholder="고등학교" style="width:90px;padding:5px 8px;border:1.5px solid #E8ECF0;border-radius:7px;font-size:11.5px;outline:none;font-family:inherit"></td>`:''}
           <td style="${cp}"><span style="padding:2px 7px;border-radius:20px;font-size:10.5px;font-weight:600;${typeColor[s.type||'regular']||typeColor.regular}">${typeMap[s.type||'regular']}</span></td>
           <td style="${cp};font-size:11.5px">${esc(s.phone)||'-'}</td><td style="${cp};font-size:11.5px">${esc(s.parentPhone)||'-'}</td>
-          <td style="${cp};font-family:monospace;font-size:10.5px">${s.pwd?esc(s.pwd):`<button class="abtn" data-reset-pwd="${s.id}" style="font-size:10px;padding:3px 7px;color:#1A237E">🔑</button>`}</td>
+          <td style="${cp};font-family:monospace;font-size:10.5px">${s.pwd?esc(s.pwd)+' ':''}<button class="abtn" data-reset-pwd="${s.id}" style="font-size:10px;padding:3px 7px;color:#1A237E" title="비밀번호 랜덤 재발급">🔑</button></td>
           <td style="${cp};font-size:10.5px;color:#9BA3AF">${s.createdAt||'-'}</td>
           <td style="${cp};white-space:normal">
             <input data-reason-id="${s.id}" value="${esc(s.reason)||''}" placeholder="수강계기 입력" style="width:150px;padding:5px 8px;border:1.5px solid #E8ECF0;border-radius:7px;font-size:11.5px;outline:none;font-family:inherit">
@@ -3233,6 +3238,7 @@ function bAdmin(){
       const today=new Date().toISOString().slice(0,10);
       const newSt={id,name,pwd:pw,phone:document.getElementById('ns-ph').value,parentPhone:document.getElementById('ns-pph').value,type:sType,reason:document.getElementById('ns-reason')?.value.trim()||'',highSchool:document.getElementById('ns-hs')?.value.trim()||'',createdAt:today};
       sc.students.push(newSt);
+      ST.suggestedStudentId=undefined;
       saveDB();msg.textContent=`✓ ${name} 추가 완료!`;msg.style.color='#00897B';render();
       // 카카오 ID/비번 발송은 강제하지 않고 선택 — "취소"하면 나중에 일괄 발송으로 보낼 수 있음
       if((newSt.parentPhone||newSt.phone) && confirm(`${name} 학생 등록 완료!\n\n지금 바로 카카오 알림톡(ID/비번)을 보낼까요?\n\n"취소"를 누르면 지금은 보내지 않고, 나중에 "ID/비번 일괄 발송"에서 한 번에 보낼 수 있습니다.`)){
@@ -3247,13 +3253,16 @@ function bAdmin(){
       const msg=document.getElementById('csv-msg');
       if(!fi||!fi.files[0]){msg.textContent='CSV 파일을 먼저 선택해주세요';msg.style.color='#E53935';return;}
       const reader=new FileReader();
-      reader.onload=e=>{
+      reader.onload=async e=>{
         try{
           const parsed=parseCSV(e.target.result);
-          if(!parsed.length){msg.textContent='등록할 데이터가 없습니다';msg.style.color='#E53935';return;}
+          const validRows=parsed.filter(p=>p.name);
+          if(!validRows.length){msg.textContent='등록할 데이터가 없습니다';msg.style.color='#E53935';return;}
+          const ids=await nextStudentIds(validRows.length);
           const today=new Date().toISOString().slice(0,10);
           let added=0;
-          parsed.forEach(p=>{if(!p.name)return;const newId=nextStudentId(sc);sc.students.push({id:newId,name:p.name,pwd:'1234',phone:p.phone||'',parentPhone:p.parentPhone||'',type:p.type||'regular',highSchool:p.highSchool||'',createdAt:today});added++;});
+          validRows.forEach((p,i)=>{sc.students.push({id:ids[i],name:p.name,pwd:String(Math.floor(1000+Math.random()*9000)),phone:p.phone||'',parentPhone:p.parentPhone||'',type:p.type||'regular',highSchool:p.highSchool||'',createdAt:today});added++;});
+          ST.suggestedStudentId=undefined;
           saveDB();msg.textContent=`✓ ${added}명 등록 완료`;msg.style.color='#00897B';setTimeout(()=>render(),800);
         }catch(err){msg.textContent='오류: '+err.message;msg.style.color='#E53935';}
       };
@@ -4281,9 +4290,11 @@ function goToWeek(mon,wk){
   ST.bWk=wk;
   render();
 }
-function nextStudentId(sc){
+// 로컬에 로드된 학교 데이터만으로 다음 ID를 추정 — 정규/특강처럼 이번 세션에 아직 안 열어본
+// 학교가 있으면 그 학교의 ID를 못 보고 겹치는 ID를 낼 수 있음. 서버 세션이 없을 때(레거시
+// 로컬 모드)나 서버 호출이 실패했을 때만 쓰는 최후의 폴백.
+function guessNextStudentIds(count){
   const prefix='s';
-  // 전체 학교에서 가장 큰 ID 번호 찾기 (중복 방지)
   let maxNum=0;
   DB.schools.forEach(school=>{
     school.students.forEach(s=>{
@@ -4293,7 +4304,25 @@ function nextStudentId(sc){
       }
     });
   });
-  return prefix+String(maxNum+1).padStart(3,'0');
+  const ids=[];
+  for(let i=1;i<=count;i++)ids.push(prefix+String(maxNum+i).padStart(3,'0'));
+  return ids;
+}
+// 학생 ID는 서버의 Redis 원자적 카운터(cnt:studentId)로 발급 — 전체 학교(정규/특강 포함)를
+// 통틀어 절대 겹치지 않음. 로컬 스캔은 이번 세션에 로드 안 된 학교를 놓쳐 ID가 겹치는 문제가 있었음.
+async function nextStudentIds(count){
+  if(ST.serverAdminSession){
+    try{
+      const res=await fetch('/api/admin/next-student-id',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({count})});
+      const data=await res.json();
+      if(data.success&&Array.isArray(data.ids)&&data.ids.length===count)return data.ids;
+    }catch(e){}
+  }
+  return guessNextStudentIds(count);
+}
+async function nextStudentId(){
+  const ids=await nextStudentIds(1);
+  return ids[0];
 }
 /* ── 카카오톡 발송 ── */
 /* ── 발송 이력 저장/조회 ── */

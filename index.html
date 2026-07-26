@@ -3614,11 +3614,13 @@ function bAdmin(){
     const totSorted=[...totItems].filter(x=>x.v!==null).sort((a,b)=>b.v-a.v);let trk=1;totSorted.forEach((s,i)=>{if(i>0&&totSorted[i-1].v===s.v)s.rank=totSorted[i-1].rank;else{s.rank=trk;}trk++;});
     const totRankMap=Object.fromEntries(totSorted.map(s=>[s.sid,s.rank]));
     const totValMap=Object.fromEntries(totItems.map(s=>[s.sid,s.v]));
-    let saved=0;const savedSids=[];
+    let saved=0;const savedSids=[];const snapshot=[];
     rows.forEach(r=>{
       const sid=r.dataset.sid;if(!sid)return;
       const existingIdx=sc.records.findIndex(x=>x.sid===sid&&x.month===mon&&x.week===wk);
       const existingComment=existingIdx>=0?(sc.records[existingIdx].comment||''):'';
+      const wasNew=existingIdx<0;
+      snapshot.push({sid,wasNew,fields:wasNew?{}:snapshotRecord(sc.records[existingIdx])});
       const rsk=r.dataset.rtskip==='1';const wsk=r.dataset.wtskip==='1';
       const rtv=parseFloat(r.querySelector('.inp-rt').value);const wtv=parseFloat(r.querySelector('.inp-wt').value);
       const rec={sid,month:mon,week:wk,thrRt,thrWt,
@@ -3636,7 +3638,7 @@ function bAdmin(){
         retestTime:r.querySelector('.inp-rt2').value,comment:existingComment};
       if(existingIdx>=0)sc.records[existingIdx]=rec;else sc.records.push(rec);saved++;savedSids.push(sid);
     });
-    addLog(sc,mon,wk,saved,thrRt,thrWt);
+    addLog(sc,mon,wk,saved,thrRt,thrWt,snapshot);
     const dirtyKeys=new Set(savedSids.map(sid=>sid+'|'+mon+'|'+wk));
     await saveDB({dirtyKeys});
     clearDraft(sc,mon,wk);
@@ -4800,9 +4802,9 @@ function pushLogEntry(sc,entry){
     localStorage.setItem(key,JSON.stringify(logs.slice(-200)));
   }catch(e){console.warn('로그 기록 오류:',e);}
 }
-// 성적 일괄 저장 로그 — 기존 시그니처 그대로 유지(호출부 무수정)
-function addLog(sc,mon,wk,count,thrRt,thrWt){
-  pushLogEntry(sc,{type:'save',month:mon,week:wk,count,thrRt,thrWt,actorName:ST.actorName||'',savedAt:nowStamp()});
+// 성적 일괄 저장 로그 — snapshot은 선택값(안 넘기면 기존과 동일하게 동작, 하위호환)
+function addLog(sc,mon,wk,count,thrRt,thrWt,snapshot){
+  pushLogEntry(sc,{type:'save',month:mon,week:wk,count,thrRt,thrWt,actorName:ST.actorName||'',savedAt:nowStamp(),...(snapshot?{snapshot}:{})});
 }
 // 성적 지우기/다른 주차로 복사 등, save 외의 활동 로그 — entry에 type/month/week/count(+타입별 추가 필드)를 담아 호출
 function addActionLog(sc,entry){

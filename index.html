@@ -772,12 +772,14 @@ function recomputeWeekAggregates(sc,mon,week){
 // 이번 주 입력분(성적·숙제·코멘트·출석) 전체를 지움
 function clearWeekScores(sc,mon,week){
   const wkRecs=sc.records.filter(r=>r.month===mon&&r.week===week);
+  const clearedCount=wkRecs.filter(r=>r.rtScore!=null||r.wtScore!=null||r.retestTime||r.hw1||r.hw2||r.comment||r.attendType).length;
   wkRecs.forEach(r=>{
     r.rtScore=null;r.wtScore=null;r.retestTime='';
     r.hw1='';r.hw2='';r.homework='';r.comment='';r.attendType='';
   });
   recomputeWeekAggregates(sc,mon,week);
   const dirtyKeys=new Set(wkRecs.map(r=>r.sid+'|'+r.month+'|'+r.week));
+  addActionLog(sc,{type:'clear',month:mon,week:week,count:clearedCount});
   saveDB({dirtyKeys});
 }
 
@@ -795,6 +797,7 @@ function copyWeekTo(sc,srcMon,srcWk,destMon,destWk){
     dirtyKeys.add(dest.sid+'|'+destMon+'|'+destWk);
   });
   recomputeWeekAggregates(sc,destMon,destWk);
+  addActionLog(sc,{type:'copy',month:destMon,week:destWk,srcMonth:srcMon,srcWeek:srcWk,count:srcRecs.length});
   saveDB({dirtyKeys});
 }
 

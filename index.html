@@ -769,17 +769,47 @@ function recomputeWeekAggregates(sc,mon,week){
   });
 }
 
+// 되돌리기 스냅샷에 담는 "입력 필드" — 등수/평균 같은 계산 필드는 여기 없음(되돌린 뒤 recomputeWeekAggregates가 다시 채움)
+const RECORD_INPUT_FIELDS=['thrRt','thrWt','rtSkip','rtScore','wtSkip','wtScore','hw1','hw2','homework','hwName1','hwName2','retestTime','comment','attendType'];
+function snapshotRecord(rec){
+  const fields={};
+  RECORD_INPUT_FIELDS.forEach(f=>{fields[f]=rec[f]??null;});
+  return fields;
+}
+// entry.snapshot으로 그 행동을 되돌림 — wasNew면 레코드 자체를 삭제, 아니면 입력 필드를 복원 후 그 주차 전체를 재계산.
+// 되돌리기 자체도 새 로그(type:'undo')로 남기되, 그 항목은 스냅샷을 갖지 않음(다시 되돌릴 수 없음).
+function undoActionLog(sc,entry){
+  const {month,week,snapshot}=entry;
+  if(!Array.isArray(snapshot)||!snapshot.length)return;
+  snapshot.forEach(snap=>{
+    const idx=sc.records.findIndex(r=>r.sid===snap.sid&&r.month===month&&r.week===week);
+    if(snap.wasNew){
+      if(idx>=0)sc.records.splice(idx,1);
+    }else if(idx>=0){
+      Object.assign(sc.records[idx],snap.fields);
+    }else{
+      sc.records.push({sid:snap.sid,month,week,...snap.fields});
+    }
+  });
+  recomputeWeekAggregates(sc,month,week);
+  const dirtyKeys=new Set(),deletedKeys=new Set();
+  snapshot.forEach(s=>{const k=s.sid+'|'+month+'|'+week;(s.wasNew?deletedKeys:dirtyKeys).add(k);});
+  addActionLog(sc,{type:'undo',month,week,count:snapshot.length,undoneLogId:entry.id});
+  saveDB({dirtyKeys,deletedKeys});
+}
+
 // 이번 주 입력분(성적·숙제·코멘트·출석) 전체를 지움
 function clearWeekScores(sc,mon,week){
   const wkRecs=sc.records.filter(r=>r.month===mon&&r.week===week);
   const clearedCount=wkRecs.filter(r=>r.rtScore!=null||r.wtScore!=null||r.retestTime||r.hw1||r.hw2||r.comment||r.attendType).length;
+  const snapshot=wkRecs.map(r=>({sid:r.sid,wasNew:false,fields:snapshotRecord(r)}));
   wkRecs.forEach(r=>{
     r.rtScore=null;r.wtScore=null;r.retestTime='';
     r.hw1='';r.hw2='';r.homework='';r.comment='';r.attendType='';
   });
   recomputeWeekAggregates(sc,mon,week);
   const dirtyKeys=new Set(wkRecs.map(r=>r.sid+'|'+r.month+'|'+r.week));
-  addActionLog(sc,{type:'clear',month:mon,week:week,count:clearedCount});
+  addActionLog(sc,{type:'clear',month:mon,week:week,count:clearedCount,snapshot});
   saveDB({dirtyKeys});
 }
 
@@ -788,16 +818,19 @@ function clearWeekScores(sc,mon,week){
 function copyWeekTo(sc,srcMon,srcWk,destMon,destWk){
   const srcRecs=sc.records.filter(r=>r.month===srcMon&&r.week===srcWk);
   const dirtyKeys=new Set();
+  const snapshot=[];
   srcRecs.forEach(src=>{
     let dest=sc.records.find(r=>r.sid===src.sid&&r.month===destMon&&r.week===destWk);
+    const wasNew=!dest;
     if(!dest){dest={sid:src.sid,month:destMon,week:destWk};sc.records.push(dest);}
+    snapshot.push({sid:src.sid,wasNew,fields:wasNew?{}:snapshotRecord(dest)});
     const {sid,month,week,...fields}=src;
     Object.assign(dest,fields);
     dest.sid=src.sid;dest.month=destMon;dest.week=destWk;
     dirtyKeys.add(dest.sid+'|'+destMon+'|'+destWk);
   });
   recomputeWeekAggregates(sc,destMon,destWk);
-  addActionLog(sc,{type:'copy',month:destMon,week:destWk,srcMonth:srcMon,srcWeek:srcWk,count:srcRecs.length});
+  addActionLog(sc,{type:'copy',month:destMon,week:destWk,srcMonth:srcMon,srcWeek:srcWk,count:srcRecs.length,snapshot});
   saveDB({dirtyKeys});
 }
 
@@ -3087,6 +3120,17 @@ function rLogs(sc){
       const type=l.type||'save';
       const meta=TYPE_META[type]||TYPE_META.save;
       const titleText=type==='copy'?`${l.srcMonth} ${l.srcWeek} → ${l.month} ${l.week}`:`${l.month} ${l.week}`;
+      const isUndone=logs.some(e=>e.type==='undo'&&e.undoneLogId===l.id);
+      const canUndo=type!=='undo'&&Array.isArray(l.snapshot)&&l.snapshot.length>0&&!isUndone;
+      const footerRow=type==='undo'
+        ?`<div style="border-top:1px solid #F0F1F5;margin-top:10px;padding-top:10px;font-size:11.5px;color:#8E85B0;font-weight:600">↩ 되돌리기 기록</div>`
+        :canUndo
+          ?`<div style="border-top:1px solid #F0F1F5;margin-top:10px;padding-top:10px">
+              <button class="abtn abtn-gray" data-undo-log-id="${esc(l.id||'')}" style="padding:6px 14px;font-size:12px" onclick="event.stopPropagation()">↩ 되돌리기</button>
+            </div>`
+          :isUndone
+            ?`<div style="border-top:1px solid #F0F1F5;margin-top:10px;padding-top:10px;font-size:11.5px;color:#9BA3AF;font-weight:600">되돌려짐</div>`
+            :'';
       return`<div class="section-card" style="cursor:pointer;transition:box-shadow 0.15s"
         onmouseover="this.style.boxShadow='0 4px 20px rgba(26,35,126,0.15)'"
         onmouseout="this.style.boxShadow=''"
@@ -3111,6 +3155,7 @@ function rLogs(sc){
             <div style="font-size:20px;color:#C4C9D4">›</div>
           </div>
         </div>
+        ${footerRow}
       </div>`;
     }).join('');
   }catch(e){return`<div class="section-card">활동 로그를 불러올 수 없습니다.</div>`;}
@@ -3545,7 +3590,21 @@ function bAdmin(){
     });
     return;
   }
-  if(ST.atab==='logs'){return;}
+  if(ST.atab==='logs'){
+    document.querySelectorAll('[data-undo-log-id]').forEach(b=>{
+      b.onclick=(e)=>{
+        e.stopPropagation();
+        const logId=b.dataset.undoLogId;
+        const entry=(sc.saveLogs||[]).find(l=>l.id===logId);
+        if(!entry)return;
+        const typeLabel={save:'저장',clear:'지우기',copy:'복사'}[entry.type]||entry.type;
+        if(!confirm(`${entry.count}명의 ${typeLabel} 내용을 ${entry.savedAt} 상태로 되돌립니다.\n\n그 이후 이 주차에 다른 변경이 있었다면 그 변경도 함께 사라질 수 있습니다.\n\n계속하시겠습니까?`))return;
+        undoActionLog(sc,entry);
+        render();
+      };
+    });
+    return;
+  }
   if(ST.atab==='suggestions'){
     document.querySelectorAll('[data-sug-filter]').forEach(btn=>{
       btn.onclick=()=>{ST._sugCat=btn.dataset.sugFilter;render();};
@@ -3729,11 +3788,13 @@ function bAdmin(){
     const totSorted=[...totItems].filter(x=>x.v!==null).sort((a,b)=>b.v-a.v);let trk=1;totSorted.forEach((s,i)=>{if(i>0&&totSorted[i-1].v===s.v)s.rank=totSorted[i-1].rank;else{s.rank=trk;}trk++;});
     const totRankMap=Object.fromEntries(totSorted.map(s=>[s.sid,s.rank]));
     const totValMap=Object.fromEntries(totItems.map(s=>[s.sid,s.v]));
-    let saved=0;const savedSids=[];
+    let saved=0;const savedSids=[];const snapshot=[];
     rows.forEach(r=>{
       const sid=r.dataset.sid;if(!sid)return;
       const existingIdx=sc.records.findIndex(x=>x.sid===sid&&x.month===mon&&x.week===wk);
       const existingComment=existingIdx>=0?(sc.records[existingIdx].comment||''):'';
+      const wasNew=existingIdx<0;
+      snapshot.push({sid,wasNew,fields:wasNew?{}:snapshotRecord(sc.records[existingIdx])});
       const rsk=r.dataset.rtskip==='1';const wsk=r.dataset.wtskip==='1';
       const rtv=parseFloat(r.querySelector('.inp-rt').value);const wtv=parseFloat(r.querySelector('.inp-wt').value);
       const rec={sid,month:mon,week:wk,thrRt,thrWt,
@@ -3751,7 +3812,7 @@ function bAdmin(){
         retestTime:r.querySelector('.inp-rt2').value,comment:existingComment};
       if(existingIdx>=0)sc.records[existingIdx]=rec;else sc.records.push(rec);saved++;savedSids.push(sid);
     });
-    addLog(sc,mon,wk,saved,thrRt,thrWt);
+    addLog(sc,mon,wk,saved,thrRt,thrWt,snapshot);
     const dirtyKeys=new Set(savedSids.map(sid=>sid+'|'+mon+'|'+wk));
     await saveDB({dirtyKeys});
     clearDraft(sc,mon,wk);
@@ -4897,6 +4958,7 @@ function nowStamp(){
 }
 // 활동 로그 저장 공통 로직 — entry는 이미 완성된 로그 항목(actorName/savedAt 포함)
 function pushLogEntry(sc,entry){
+  entry.id=(crypto.randomUUID?crypto.randomUUID():(Date.now()+'-'+Math.random().toString(36).slice(2,10)));
   if(ST.serverAdminSession){
     sc.saveLogs=Array.isArray(sc.saveLogs)?sc.saveLogs:[];
     sc.saveLogs.push(entry);
@@ -4914,9 +4976,9 @@ function pushLogEntry(sc,entry){
     localStorage.setItem(key,JSON.stringify(logs.slice(-200)));
   }catch(e){console.warn('로그 기록 오류:',e);}
 }
-// 성적 일괄 저장 로그 — 기존 시그니처 그대로 유지(호출부 무수정)
-function addLog(sc,mon,wk,count,thrRt,thrWt){
-  pushLogEntry(sc,{type:'save',month:mon,week:wk,count,thrRt,thrWt,actorName:ST.actorName||'',savedAt:nowStamp()});
+// 성적 일괄 저장 로그 — snapshot은 선택값(안 넘기면 기존과 동일하게 동작, 하위호환)
+function addLog(sc,mon,wk,count,thrRt,thrWt,snapshot){
+  pushLogEntry(sc,{type:'save',month:mon,week:wk,count,thrRt,thrWt,actorName:ST.actorName||'',savedAt:nowStamp(),...(snapshot?{snapshot}:{})});
 }
 // 성적 지우기/다른 주차로 복사 등, save 외의 활동 로그 — entry에 type/month/week/count(+타입별 추가 필드)를 담아 호출
 function addActionLog(sc,entry){

@@ -4732,11 +4732,12 @@ function sendKakaoScoreNotify(sc, mon, wk){
 }
 
 // 서버 세션이면 저장 로그도 서버에 남겨 어느 기기에서든 확인 가능하게 함 (발송 이력과 동일한 방식)
-function addLog(sc,mon,wk,count,thrRt,thrWt){
-  const now=new Date();
-  const pad=n=>String(n).padStart(2,'0');
-  const entry={month:mon,week:wk,count,thrRt,thrWt,
-    savedAt:`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`};
+function nowStamp(){
+  const now=new Date();const pad=n=>String(n).padStart(2,'0');
+  return `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+// 활동 로그 저장 공통 로직 — entry는 이미 완성된 로그 항목(actorName/savedAt 포함)
+function pushLogEntry(sc,entry){
   if(ST.serverAdminSession){
     sc.saveLogs=Array.isArray(sc.saveLogs)?sc.saveLogs:[];
     sc.saveLogs.push(entry);
@@ -4744,7 +4745,7 @@ function addLog(sc,mon,wk,count,thrRt,thrWt){
     fetch('/api/admin/append-save-log',{
       method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({schoolId:sc.id,entry})
-    }).catch(e=>console.warn('저장 로그 서버 기록 실패(화면에는 반영됨):',e));
+    }).catch(e=>console.warn('활동 로그 서버 기록 실패(화면에는 반영됨):',e));
     return;
   }
   try{
@@ -4752,7 +4753,15 @@ function addLog(sc,mon,wk,count,thrRt,thrWt){
     const logs=JSON.parse(localStorage.getItem(key)||'[]');
     logs.push(entry);
     localStorage.setItem(key,JSON.stringify(logs.slice(-200)));
-  }catch(e){console.warn('addLog 오류:',e);}
+  }catch(e){console.warn('로그 기록 오류:',e);}
+}
+// 성적 일괄 저장 로그 — 기존 시그니처 그대로 유지(호출부 무수정)
+function addLog(sc,mon,wk,count,thrRt,thrWt){
+  pushLogEntry(sc,{type:'save',month:mon,week:wk,count,thrRt,thrWt,actorName:ST.actorName||'',savedAt:nowStamp()});
+}
+// 성적 지우기/다른 주차로 복사 등, save 외의 활동 로그 — entry에 type/month/week/count(+타입별 추가 필드)를 담아 호출
+function addActionLog(sc,entry){
+  pushLogEntry(sc,{...entry,actorName:ST.actorName||'',savedAt:nowStamp()});
 }
 function getSaveLogs(sc){
   if(ST.serverAdminSession)return Array.isArray(sc.saveLogs)?sc.saveLogs:[];

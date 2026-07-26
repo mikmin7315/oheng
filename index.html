@@ -1074,7 +1074,11 @@ function startVersionCheck(){
 function render(){
   const app=document.getElementById('app');
   if(!ST.loggedIn){app.innerHTML=rLogin();bLogin();return;}
-  if(ST.role==='admin'){if(!ST.school){app.innerHTML=rSchoolSelect();bSchoolSelect();return;}app.innerHTML=rAdmin();bAdmin();return;}
+  if(ST.role==='admin'){
+    if(ST.adminView==='courses'){app.innerHTML=rCourseAdmin();bCourseAdmin();return;}
+    if(!ST.school){app.innerHTML=rSchoolSelect();bSchoolSelect();return;}
+    app.innerHTML=rAdmin();bAdmin();return;
+  }
   app.innerHTML=rStudent();bStudent();
 }
 
@@ -1378,7 +1382,7 @@ function rSchoolSelect(){
   return`
   <div class="top-nav">
     <div class="nav-logo"><span style="font-size:18px;font-weight:800;color:#fff;letter-spacing:-0.5px"><span style="color:#FFB300">OH</span>ENG</span></div>
-    <div class="nav-right"><button class="nbtn" id="btn-alo-main">로그아웃</button></div>
+    <div class="nav-right"><button class="nbtn" id="btn-goto-courses">🎓 강좌 관리</button><button class="nbtn" id="btn-alo-main">로그아웃</button></div>
   </div>
   <div class="school-wrap">
     <div class="school-inner">
@@ -1494,6 +1498,7 @@ function bindSchoolCardHandlers(){
 
 function bSchoolSelect(){
   document.getElementById('btn-alo-main').onclick=doLogout;
+  document.getElementById('btn-goto-courses').onclick=()=>{ST.adminView='courses';render();};
   renderSchoolGrid();
   document.getElementById('sch-search').oninput=()=>renderSchoolGrid();
   document.getElementById('sch-filter-type').onchange=()=>renderSchoolGrid();
@@ -1523,6 +1528,148 @@ function bSchoolSelect(){
       ST.showAddSchool=false;render();
     };
   }
+}
+
+// 강좌는 특정 학교에 속하지 않는 전역 데이터라 학교 선택과는 별도의 최상위 화면으로 둔다
+// (render()에서 ST.adminView==='courses'일 때 school-select보다 먼저 분기됨).
+function courseFormHtml(course){
+  const isEdit=!!course;
+  const videos=ST.allVideos||[];
+  const selectedIds=new Set(course?.videoIds||[]);
+  return`
+  <div class="section-card" style="margin-top:12px;text-align:left">
+    <div class="section-ttl">${isEdit?'✏️ 강좌 수정':'➕ 새 강좌'}</div>
+    <div class="form2" style="margin-bottom:14px">
+      <div class="fgrp"><label class="flbl">강좌명</label><input class="finp" id="crs-title" value="${isEdit?esc(course.title):''}" placeholder="예: 여름특강 문법 완성"></div>
+      <div class="fgrp"><label class="flbl">가격(원)</label><input class="finp" id="crs-price" type="number" min="0" value="${isEdit?course.price:0}"></div>
+    </div>
+    <div class="fgrp" style="margin-bottom:14px"><label class="flbl">설명</label><textarea class="finp" id="crs-desc" rows="3" style="width:100%;resize:vertical">${isEdit?esc(course.description):''}</textarea></div>
+    <div class="form2" style="margin-bottom:14px">
+      <div class="fgrp"><label class="flbl">수강기간(일)</label><input class="finp" id="crs-duration" type="number" min="1" value="${isEdit?course.durationDays:30}"></div>
+      <div class="fgrp"><label class="flbl" style="display:flex;align-items:center;gap:6px;margin-top:22px;cursor:pointer"><input type="checkbox" id="crs-published" ${isEdit&&course.published?'checked':''} style="width:16px;height:16px"> 공개(비로그인 목록에 표시)</label></div>
+    </div>
+    <div style="margin-bottom:14px">
+      <label class="flbl">포함 영상 (${selectedIds.size}개 선택됨)</label>
+      <div style="max-height:200px;overflow-y:auto;border:1.5px solid #E8ECF0;border-radius:9px;padding:10px;margin-top:6px">
+        ${videos.length?videos.map(v=>`<label style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;cursor:pointer">
+          <input type="checkbox" class="crs-video-chk" value="${v.id}" ${selectedIds.has(v.id)?'checked':''} style="width:15px;height:15px">
+          ${esc(v.title)} ${v.month?`<span style="color:#9BA3AF;font-size:11px">${esc(v.month)} ${esc(v.week||'')}</span>`:''}
+        </label>`).join(''):'<div style="color:#9BA3AF;font-size:12px">등록된 영상이 없습니다. "영상 관리"에서 먼저 영상을 추가하세요.</div>'}
+      </div>
+    </div>
+    <button class="abtn abtn-green" id="btn-course-save" data-edit-id="${isEdit?course.id:''}">저장</button>
+    <button class="abtn abtn-gray" id="btn-course-cancel" style="margin-left:8px">취소</button>
+    <div id="course-form-msg" style="font-size:12px;margin-top:8px"></div>
+  </div>`;
+}
+
+function rCourseAdmin(){
+  const editing=ST.editCourseId?(ST.adminCourses||[]).find(c=>c.id===ST.editCourseId):null;
+  return`
+  <div class="top-nav">
+    <div class="nav-logo"><span style="font-size:18px;font-weight:800;color:#fff;letter-spacing:-0.5px"><span style="color:#FFB300">OH</span>ENG</span></div>
+    <div class="nav-right"><button class="nbtn" id="btn-back-schools">‹ 학교 선택으로</button><button class="nbtn" id="btn-alo-main2">로그아웃</button></div>
+  </div>
+  <div class="school-wrap">
+    <div class="school-inner" style="max-width:760px">
+      <div style="text-align:center;margin-bottom:32px">
+        <div style="width:60px;height:60px;border-radius:18px;background:linear-gradient(135deg,#7B1FA2,#AB47BC);display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 14px;box-shadow:0 8px 24px rgba(123,31,162,0.25)">🎓</div>
+        <div class="school-title">강좌 관리</div>
+        <div class="school-sub">oheng.co.kr 인강 사이트에 공개할 강좌를 등록하고 관리합니다</div>
+      </div>
+      <button class="school-add-btn" id="btn-course-add-toggle">${ST.showAddCourse?'취소':'+ 새 강좌 추가'}</button>
+      ${ST.showAddCourse?courseFormHtml(editing):''}
+      <div id="course-list-wrap" style="margin-top:20px"></div>
+    </div>
+  </div>`;
+}
+
+async function renderCourseList(){
+  const wrap=document.getElementById('course-list-wrap');
+  if(!wrap)return;
+  if(ST.adminCourses===undefined){
+    wrap.innerHTML='<div style="text-align:center;padding:30px 0;color:#9BA3AF;font-size:13px">불러오는 중...</div>';
+    try{
+      const res=await fetch('/api/courses/admin-list',{credentials:'include'});
+      const data=await res.json();
+      ST.adminCourses=data.success?data.courses:[];
+    }catch(e){ST.adminCourses=[];}
+    renderCourseList();
+    return;
+  }
+  const courses=ST.adminCourses;
+  if(!courses.length){wrap.innerHTML='<div style="text-align:center;padding:40px 0;color:#9BA3AF;font-size:13px">등록된 강좌가 없습니다</div>';return;}
+  wrap.innerHTML=courses.map(c=>`
+    <div class="school-card" style="text-align:left;cursor:default;padding:18px 20px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+        <div>
+          <div style="font-weight:700;color:#1A237E;font-size:15px">${esc(c.title)} ${c.published?'<span style="font-size:10.5px;font-weight:700;color:#00897B;background:#E0F2E9;border-radius:20px;padding:2px 8px;margin-left:6px">공개</span>':'<span style="font-size:10.5px;font-weight:700;color:#9BA3AF;background:#F1F3F5;border-radius:20px;padding:2px 8px;margin-left:6px">비공개</span>'}</div>
+          <div style="font-size:12px;color:#9BA3AF;margin-top:4px">${esc(c.description||'')}</div>
+          <div style="font-size:12px;color:#5C6470;margin-top:6px">영상 ${(c.videoIds||[]).length}개 · 수강기간 ${c.durationDays}일 · ${(c.price||0).toLocaleString()}원</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="abtn abtn-blue" data-edit-course="${c.id}" style="font-size:11px;padding:6px 10px">✏️ 수정</button>
+          <button class="abtn abtn-red" data-del-course="${c.id}" style="font-size:11px;padding:6px 10px">🗑️ 삭제</button>
+        </div>
+      </div>
+    </div>`).join('');
+  wrap.querySelectorAll('[data-edit-course]').forEach(b=>{
+    b.onclick=()=>{ST.editCourseId=b.dataset.editCourse;ST.showAddCourse=true;render();};
+  });
+  wrap.querySelectorAll('[data-del-course]').forEach(b=>{
+    b.onclick=async()=>{
+      const c=courses.find(x=>x.id===b.dataset.delCourse);
+      if(!confirm(`[${c?.title||'이 강좌'}]를 삭제할까요?\n되돌릴 수 없습니다.`))return;
+      b.disabled=true;
+      try{
+        const res=await fetch('/api/courses/delete',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:b.dataset.delCourse})});
+        const data=await res.json();
+        if(!res.ok||!data.success){alert(data.message||'삭제 실패');b.disabled=false;return;}
+      }catch(e){alert('오류: '+e.message);b.disabled=false;return;}
+      ST.adminCourses=undefined;
+      renderCourseList();
+    };
+  });
+}
+
+function bCourseAdmin(){
+  document.getElementById('btn-alo-main2').onclick=doLogout;
+  document.getElementById('btn-back-schools').onclick=()=>{
+    ST.adminView=null;ST.adminCourses=undefined;ST.allVideos=undefined;ST.showAddCourse=false;ST.editCourseId=null;render();
+  };
+  if(ST.allVideos===undefined){
+    ST.allVideos=null;
+    fetch('/api/videos/list',{credentials:'include'}).then(r=>r.json()).then(d=>{ST.allVideos=d.success?d.videos:[];render();}).catch(()=>{ST.allVideos=[];render();});
+  }
+  const toggleBtn=document.getElementById('btn-course-add-toggle');
+  if(toggleBtn)toggleBtn.onclick=()=>{ST.showAddCourse=!ST.showAddCourse;ST.editCourseId=null;render();};
+  if(ST.showAddCourse){
+    document.getElementById('btn-course-cancel').onclick=()=>{ST.showAddCourse=false;ST.editCourseId=null;render();};
+    document.getElementById('btn-course-save').onclick=async()=>{
+      const btn=document.getElementById('btn-course-save');
+      const msg=document.getElementById('course-form-msg');
+      const title=document.getElementById('crs-title').value.trim();
+      if(!title){msg.textContent='강좌명을 입력하세요';msg.style.color='#E53935';return;}
+      const body={
+        id:btn.dataset.editId||undefined,
+        title,
+        description:document.getElementById('crs-desc').value.trim(),
+        price:parseInt(document.getElementById('crs-price').value,10)||0,
+        durationDays:parseInt(document.getElementById('crs-duration').value,10)||30,
+        published:document.getElementById('crs-published').checked,
+        videoIds:[...document.querySelectorAll('.crs-video-chk:checked')].map(c=>c.value),
+      };
+      btn.disabled=true;
+      try{
+        const res=await fetch('/api/courses/save',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        const data=await res.json();
+        if(!res.ok||!data.success){msg.textContent=data.message||'저장 실패';msg.style.color='#E53935';btn.disabled=false;return;}
+      }catch(e){msg.textContent='오류: '+e.message;msg.style.color='#E53935';btn.disabled=false;return;}
+      ST.adminCourses=undefined;ST.showAddCourse=false;ST.editCourseId=null;
+      render();
+    };
+  }
+  renderCourseList();
 }
 
 function rStudent(){

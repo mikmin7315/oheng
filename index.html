@@ -792,9 +792,10 @@ function undoActionLog(sc,entry){
     }
   });
   recomputeWeekAggregates(sc,month,week);
-  const dirtyKeys=new Set(snapshot.map(s=>s.sid+'|'+month+'|'+week));
+  const dirtyKeys=new Set(),deletedKeys=new Set();
+  snapshot.forEach(s=>{const k=s.sid+'|'+month+'|'+week;(s.wasNew?deletedKeys:dirtyKeys).add(k);});
   addActionLog(sc,{type:'undo',month,week,count:snapshot.length,undoneLogId:entry.id});
-  saveDB({dirtyKeys});
+  saveDB({dirtyKeys,deletedKeys});
 }
 
 // 이번 주 입력분(성적·숙제·코멘트·출석) 전체를 지움

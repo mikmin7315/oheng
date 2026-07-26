@@ -769,6 +769,34 @@ function recomputeWeekAggregates(sc,mon,week){
   });
 }
 
+// 되돌리기 스냅샷에 담는 "입력 필드" — 등수/평균 같은 계산 필드는 여기 없음(되돌린 뒤 recomputeWeekAggregates가 다시 채움)
+const RECORD_INPUT_FIELDS=['thrRt','thrWt','rtSkip','rtScore','wtSkip','wtScore','hw1','hw2','homework','hwName1','hwName2','retestTime','comment','attendType'];
+function snapshotRecord(rec){
+  const fields={};
+  RECORD_INPUT_FIELDS.forEach(f=>{fields[f]=rec[f]??null;});
+  return fields;
+}
+// entry.snapshot으로 그 행동을 되돌림 — wasNew면 레코드 자체를 삭제, 아니면 입력 필드를 복원 후 그 주차 전체를 재계산.
+// 되돌리기 자체도 새 로그(type:'undo')로 남기되, 그 항목은 스냅샷을 갖지 않음(다시 되돌릴 수 없음).
+function undoActionLog(sc,entry){
+  const {month,week,snapshot}=entry;
+  if(!Array.isArray(snapshot)||!snapshot.length)return;
+  snapshot.forEach(snap=>{
+    const idx=sc.records.findIndex(r=>r.sid===snap.sid&&r.month===month&&r.week===week);
+    if(snap.wasNew){
+      if(idx>=0)sc.records.splice(idx,1);
+    }else if(idx>=0){
+      Object.assign(sc.records[idx],snap.fields);
+    }else{
+      sc.records.push({sid:snap.sid,month,week,...snap.fields});
+    }
+  });
+  recomputeWeekAggregates(sc,month,week);
+  const dirtyKeys=new Set(snapshot.map(s=>s.sid+'|'+month+'|'+week));
+  addActionLog(sc,{type:'undo',month,week,count:snapshot.length,undoneLogId:entry.id});
+  saveDB({dirtyKeys});
+}
+
 // 이번 주 입력분(성적·숙제·코멘트·출석) 전체를 지움
 function clearWeekScores(sc,mon,week){
   const wkRecs=sc.records.filter(r=>r.month===mon&&r.week===week);
@@ -4750,6 +4778,7 @@ function nowStamp(){
 }
 // 활동 로그 저장 공통 로직 — entry는 이미 완성된 로그 항목(actorName/savedAt 포함)
 function pushLogEntry(sc,entry){
+  entry.id=(crypto.randomUUID?crypto.randomUUID():(Date.now()+'-'+Math.random().toString(36).slice(2,10)));
   if(ST.serverAdminSession){
     sc.saveLogs=Array.isArray(sc.saveLogs)?sc.saveLogs:[];
     sc.saveLogs.push(entry);

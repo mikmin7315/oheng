@@ -2972,6 +2972,17 @@ function rLogs(sc){
       const type=l.type||'save';
       const meta=TYPE_META[type]||TYPE_META.save;
       const titleText=type==='copy'?`${l.srcMonth} ${l.srcWeek} → ${l.month} ${l.week}`:`${l.month} ${l.week}`;
+      const isUndone=logs.some(e=>e.type==='undo'&&e.undoneLogId===l.id);
+      const canUndo=type!=='undo'&&Array.isArray(l.snapshot)&&l.snapshot.length>0&&!isUndone;
+      const footerRow=type==='undo'
+        ?`<div style="border-top:1px solid #F0F1F5;margin-top:10px;padding-top:10px;font-size:11.5px;color:#8E85B0;font-weight:600">↩ 되돌리기 기록</div>`
+        :canUndo
+          ?`<div style="border-top:1px solid #F0F1F5;margin-top:10px;padding-top:10px">
+              <button class="abtn abtn-gray" data-undo-log-id="${esc(l.id||'')}" style="padding:6px 14px;font-size:12px" onclick="event.stopPropagation()">↩ 되돌리기</button>
+            </div>`
+          :isUndone
+            ?`<div style="border-top:1px solid #F0F1F5;margin-top:10px;padding-top:10px;font-size:11.5px;color:#9BA3AF;font-weight:600">되돌려짐</div>`
+            :'';
       return`<div class="section-card" style="cursor:pointer;transition:box-shadow 0.15s"
         onmouseover="this.style.boxShadow='0 4px 20px rgba(26,35,126,0.15)'"
         onmouseout="this.style.boxShadow=''"
@@ -2996,6 +3007,7 @@ function rLogs(sc){
             <div style="font-size:20px;color:#C4C9D4">›</div>
           </div>
         </div>
+        ${footerRow}
       </div>`;
     }).join('');
   }catch(e){return`<div class="section-card">활동 로그를 불러올 수 없습니다.</div>`;}
@@ -3430,7 +3442,21 @@ function bAdmin(){
     });
     return;
   }
-  if(ST.atab==='logs'){return;}
+  if(ST.atab==='logs'){
+    document.querySelectorAll('[data-undo-log-id]').forEach(b=>{
+      b.onclick=(e)=>{
+        e.stopPropagation();
+        const logId=b.dataset.undoLogId;
+        const entry=(sc.saveLogs||[]).find(l=>l.id===logId);
+        if(!entry)return;
+        const typeLabel={save:'저장',clear:'지우기',copy:'복사'}[entry.type]||entry.type;
+        if(!confirm(`${entry.count}명의 ${typeLabel} 내용을 ${entry.savedAt} 상태로 되돌립니다.\n\n그 이후 이 주차에 다른 변경이 있었다면 그 변경도 함께 사라질 수 있습니다.\n\n계속하시겠습니까?`))return;
+        undoActionLog(sc,entry);
+        render();
+      };
+    });
+    return;
+  }
   if(ST.atab==='suggestions'){
     document.querySelectorAll('[data-sug-filter]').forEach(btn=>{
       btn.onclick=()=>{ST._sugCat=btn.dataset.sugFilter;render();};

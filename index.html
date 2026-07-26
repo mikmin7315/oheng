@@ -801,13 +801,14 @@ function undoActionLog(sc,entry){
 function clearWeekScores(sc,mon,week){
   const wkRecs=sc.records.filter(r=>r.month===mon&&r.week===week);
   const clearedCount=wkRecs.filter(r=>r.rtScore!=null||r.wtScore!=null||r.retestTime||r.hw1||r.hw2||r.comment||r.attendType).length;
+  const snapshot=wkRecs.map(r=>({sid:r.sid,wasNew:false,fields:snapshotRecord(r)}));
   wkRecs.forEach(r=>{
     r.rtScore=null;r.wtScore=null;r.retestTime='';
     r.hw1='';r.hw2='';r.homework='';r.comment='';r.attendType='';
   });
   recomputeWeekAggregates(sc,mon,week);
   const dirtyKeys=new Set(wkRecs.map(r=>r.sid+'|'+r.month+'|'+r.week));
-  addActionLog(sc,{type:'clear',month:mon,week:week,count:clearedCount});
+  addActionLog(sc,{type:'clear',month:mon,week:week,count:clearedCount,snapshot});
   saveDB({dirtyKeys});
 }
 
@@ -816,16 +817,19 @@ function clearWeekScores(sc,mon,week){
 function copyWeekTo(sc,srcMon,srcWk,destMon,destWk){
   const srcRecs=sc.records.filter(r=>r.month===srcMon&&r.week===srcWk);
   const dirtyKeys=new Set();
+  const snapshot=[];
   srcRecs.forEach(src=>{
     let dest=sc.records.find(r=>r.sid===src.sid&&r.month===destMon&&r.week===destWk);
+    const wasNew=!dest;
     if(!dest){dest={sid:src.sid,month:destMon,week:destWk};sc.records.push(dest);}
+    snapshot.push({sid:src.sid,wasNew,fields:wasNew?{}:snapshotRecord(dest)});
     const {sid,month,week,...fields}=src;
     Object.assign(dest,fields);
     dest.sid=src.sid;dest.month=destMon;dest.week=destWk;
     dirtyKeys.add(dest.sid+'|'+destMon+'|'+destWk);
   });
   recomputeWeekAggregates(sc,destMon,destWk);
-  addActionLog(sc,{type:'copy',month:destMon,week:destWk,srcMonth:srcMon,srcWeek:srcWk,count:srcRecs.length});
+  addActionLog(sc,{type:'copy',month:destMon,week:destWk,srcMonth:srcMon,srcWeek:srcWk,count:srcRecs.length,snapshot});
   saveDB({dirtyKeys});
 }
 

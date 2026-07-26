@@ -306,8 +306,11 @@ export default async function handler(req, res) {
 
     const sc = await getSchool(schoolId);
     if (!sc) return res.status(404).json({ success: false, message: '학교를 찾을 수 없습니다' });
+    // "누가"는 클라이언트 값을 신뢰하지 않고 서버가 세션에서 읽은 이름으로 덮어씀
+    // (viaApiToken 경로는 session.actorName이 없으므로 클라이언트가 보낸 값이 그대로 쓰임 — 운영 호출용)
+    const stampedEntry = { ...entry, actorName: session.actorName || entry.actorName || '' };
     sc.saveLogs = Array.isArray(sc.saveLogs) ? sc.saveLogs : [];
-    sc.saveLogs.push(entry);
+    sc.saveLogs.push(stampedEntry);
     if (sc.saveLogs.length > 200) sc.saveLogs = sc.saveLogs.slice(-200);
     sc.version = (sc.version || 0) + 1;
     await getRedis().set('school:' + schoolId, sc);

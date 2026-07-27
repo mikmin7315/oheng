@@ -328,6 +328,49 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true, id });
   }
 
+  // 조교 공지사항: 학교 데이터와 무관한 전역 게시판. 작성은 원장님만, 열람은 모든 관리자 계정 가능.
+  if (action === 'ta-notice-list') {
+    if (req.method !== 'GET') return res.status(405).end();
+    const redis = getRedis();
+    const notices = (await redis.get('ta:notices')) || [];
+    return res.status(200).json({ success: true, notices });
+  }
+
+  if (action === 'ta-notice-post') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    const masterCheck = await requireMasterAdminSessionOrApiToken(req);
+    if (!masterCheck) return res.status(403).json({ success: false, message: '원장님 계정만 작성할 수 있습니다' });
+
+    const rlOk = await checkRateLimit('ta-notice-post', getClientIp(req), 10, 60);
+    if (!rlOk) return res.status(429).json({ success: false, message: '잠시 후 다시 시도해주세요' });
+
+    const text = String(req.body?.text || '').trim();
+    if (!text) return res.status(400).json({ success: false, message: '내용을 입력하세요' });
+    if (text.length > 500) return res.status(400).json({ success: false, message: '500자 이내로 입력해주세요' });
+
+    const redis = getRedis();
+    const notices = (await redis.get('ta:notices')) || [];
+    const entry = { id: 'tn' + Date.now(), text, authorName: session.actorName || masterCheck.actorName || '원장님', createdAt: new Date().toISOString() };
+    notices.unshift(entry);
+    await redis.set('ta:notices', notices.slice(0, 50));
+    return res.status(200).json({ success: true, notice: entry });
+  }
+
+  if (action === 'ta-notice-delete') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    const masterCheck = await requireMasterAdminSessionOrApiToken(req);
+    if (!masterCheck) return res.status(403).json({ success: false, message: '원장님 계정만 가능합니다' });
+
+    const { id } = req.body || {};
+    const redis = getRedis();
+    const notices = (await redis.get('ta:notices')) || [];
+    const next = notices.filter(n => n.id !== id);
+    await redis.set('ta:notices', next);
+    return res.status(200).json({ success: true });
+  }
+
   if (action === 'append-save-log') {
     if (req.method !== 'POST') return res.status(405).end();
     if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });

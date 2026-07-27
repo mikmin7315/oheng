@@ -565,6 +565,25 @@ const APP_URL='https://oheng.vercel.app';
 const KAKAO_APP_KEY='';  // TODO: Kakao Developers → 앱 키 → JavaScript 키 입력
 const KAKAO_CHANNEL_ID='_QXNZX';
 const VAPID_PUBLIC_KEY='BClrX5_mErAwCfnxMnn7JxqUECaVChgQ8zTADG7HWfg8vCcNTGE2Xx0vzX-Gl3UE6lhj6RZgJYxCu6cjjVcgIHg';
+// 관리 학교 선택 화면에 표시할 업데이트 내역 — 배포할 때마다 최신 항목을 맨 위에 직접 추가
+const CHANGELOG=[
+  {date:'2026-07-27',items:[
+    '학생 목록에서 여러 명을 선택해 한 번에 탈퇴 처리하는 기능 추가',
+    '학생 ID 발급 카운터 자가 복구 + 비밀번호 숫자 전용 입력 제한',
+    '성적표에 숙제 2주 연속 미완료 시 경고 표시 추가',
+  ]},
+  {date:'2026-07-26',items:[
+    '학생 ID 발급을 서버가 직접 관리하도록 전환 (정규/특강 아이디 겹침 방지)',
+    '학생 비밀번호 랜덤 생성 + 관리자 비밀번호 재발급 버튼 복구',
+    '인강 알림톡 발신 채널을 기존 학원 알림과 분리',
+    '성적 저장·지우기·복사를 실수했을 때 되돌리는 기능 추가',
+    "'저장 이력' 화면을 성적 저장·지우기·복사까지 모두 남기는 활동 로그로 확장",
+    '인강(동영상 강좌) 관리 화면 추가',
+    '성적표에 지난주 대비 10점 이상 하락 시 경고(🚨) 표시 추가',
+    '공지사항 속 링크를 눌러서 바로 이동할 수 있도록 개선',
+    '조교 여러 명이 각자 계정으로 동시에 작업할 수 있는 다중 계정 시스템 추가',
+  ]},
+];
 let DB={schools:INIT_SCHOOLS.map(s=>({...s,students:[...s.students],records:[...s.records],notices:{...s.notices}}))};
 let ST={loggedIn:false,role:null,user:null,userSchool:null,school:null,
   tab:'report',atab:'dashboard',lmode:'student',
@@ -1336,7 +1355,7 @@ function doLogout(){
     fetch('/api/auth/logout',{method:'POST',credentials:'include'}).catch(()=>{});
   }
   ST.loggedIn=false;ST.serverAdminSession=false;ST.serverStudentSession=false;
-  ST.isMaster=false;ST.actorName='';ST.taAccounts=undefined;
+  ST.isMaster=false;ST.actorName='';ST.taAccounts=undefined;ST.taNotices=undefined;
   render();
 }
 // 관리자 학교 목록/개별 학교 데이터를 서버에서 불러오는 헬퍼 (서버 세션 확립 후 사용)
@@ -1417,38 +1436,59 @@ function rSchoolSelect(){
     <div class="nav-logo"><span style="font-size:18px;font-weight:800;color:#fff;letter-spacing:-0.5px"><span style="color:#FFB300">OH</span>ENG</span></div>
     <div class="nav-right"><button class="nbtn" id="btn-goto-courses">🎓 강좌 관리</button><button class="nbtn" id="btn-alo-main">로그아웃</button></div>
   </div>
-  <div class="school-wrap">
-    <div class="school-inner">
-      <div style="text-align:center;margin-bottom:32px">
-        <div style="width:60px;height:60px;border-radius:18px;background:linear-gradient(135deg,#1A237E,#3949AB);display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 14px;box-shadow:0 8px 24px rgba(26,35,126,0.25)">🏫</div>
-        <div class="school-title">관리 학교 선택</div>
-        <div class="school-sub">수업할 학교를 선택하면 해당 학교 전용 관리 화면으로 이동합니다</div>
+  <div class="school-wrap" style="align-items:flex-start;padding-top:40px">
+    <div class="school-inner" style="max-width:1080px;display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1.3;min-width:320px">
+        <div style="text-align:center;margin-bottom:32px">
+          <div style="width:60px;height:60px;border-radius:18px;background:linear-gradient(135deg,#1A237E,#3949AB);display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 14px;box-shadow:0 8px 24px rgba(26,35,126,0.25)">🏫</div>
+          <div class="school-title">관리 학교 선택</div>
+          <div class="school-sub">수업할 학교를 선택하면 해당 학교 전용 관리 화면으로 이동합니다</div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap">
+          <input id="sch-search" value="${esc(ST.schoolSearch||'')}" placeholder="🔍 학교명 검색" style="flex:1;min-width:160px;padding:9px 12px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px;outline:none;font-family:inherit">
+          <select id="sch-filter-type" style="padding:9px 12px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px;background:#fff;color:#0D1117;outline:none">
+            <option value="" ${!typeFilter?'selected':''}>전체</option>
+            <option value="regular" ${typeFilter==='regular'?'selected':''}>정규반</option>
+            <option value="lecture" ${typeFilter==='lecture'?'selected':''}>특강</option>
+          </select>
+          <select id="sch-sort" style="padding:9px 12px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px;background:#fff;color:#0D1117;outline:none">
+            <option value="count" ${sortMode==='count'?'selected':''}>학생 많은 순</option>
+            <option value="name" ${sortMode==='name'?'selected':''}>가나다순</option>
+          </select>
+        </div>
+        <div id="school-grid-wrap"></div>
+        <button class="school-add-btn" id="btn-add-toggle">+ 새 학교 추가</button>
+        ${ST.showAddSchool?`<div class="add-school-form" style="margin-top:12px">
+          <input id="ns-sname" placeholder="학교 이름">
+          <input id="ns-sgrade" placeholder="학년 (예: 2학년)">
+          <select id="ns-stype" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit;background:#fff;margin-top:8px">
+            <option value="regular">정규반 (학교 단위)</option>
+            <option value="lecture">특강 (여러 학교 학생 혼합)</option>
+          </select>
+          <div style="font-size:11px;color:#9BA3AF;margin-top:5px;line-height:1.5">특강으로 만들면 학생 등록 시 학생별 "고등학교" 입력칸이 추가돼요.</div>
+          <div style="display:flex;gap:8px;margin-top:8px"><button class="abtn abtn-blue" id="btn-do-add">추가</button><button class="abtn abtn-gray" id="btn-cancel-add">취소</button></div>
+          <div id="add-msg" style="font-size:12px;margin-top:6px"></div>
+        </div>`:''}
       </div>
-      <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap">
-        <input id="sch-search" value="${esc(ST.schoolSearch||'')}" placeholder="🔍 학교명 검색" style="flex:1;min-width:160px;padding:9px 12px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px;outline:none;font-family:inherit">
-        <select id="sch-filter-type" style="padding:9px 12px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px;background:#fff;color:#0D1117;outline:none">
-          <option value="" ${!typeFilter?'selected':''}>전체</option>
-          <option value="regular" ${typeFilter==='regular'?'selected':''}>정규반</option>
-          <option value="lecture" ${typeFilter==='lecture'?'selected':''}>특강</option>
-        </select>
-        <select id="sch-sort" style="padding:9px 12px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px;background:#fff;color:#0D1117;outline:none">
-          <option value="count" ${sortMode==='count'?'selected':''}>학생 많은 순</option>
-          <option value="name" ${sortMode==='name'?'selected':''}>가나다순</option>
-        </select>
+      <div style="flex:1;min-width:280px;max-width:380px;display:flex;flex-direction:column;gap:16px">
+        <div style="background:#fff;border-radius:16px;padding:18px;box-shadow:0 2px 12px rgba(0,0,0,0.06)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div style="font-size:14px;font-weight:800;color:#1A237E">📋 조교 공지사항</div>
+          </div>
+          ${ST.isMaster?`<div style="margin-bottom:12px">
+            <textarea id="ta-notice-input" placeholder="조교 선생님들께 전달할 내용을 입력하세요" style="width:100%;min-height:56px;padding:9px 11px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:12.5px;outline:none;font-family:inherit;resize:vertical"></textarea>
+            <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:6px">
+              <span id="ta-notice-msg" style="font-size:11px;color:#B3261E"></span>
+              <button id="btn-ta-notice-post" class="abtn abtn-blue" style="padding:6px 14px;font-size:12px">등록</button>
+            </div>
+          </div>`:''}
+          <div id="ta-notice-list" style="max-height:220px;overflow-y:auto">${renderTaNoticeList()}</div>
+        </div>
+        <div style="background:#fff;border-radius:16px;padding:18px;box-shadow:0 2px 12px rgba(0,0,0,0.06)">
+          <div style="font-size:14px;font-weight:800;color:#1A237E;margin-bottom:12px">🆕 업데이트 내역</div>
+          <div style="max-height:260px;overflow-y:auto">${renderChangelog()}</div>
+        </div>
       </div>
-      <div id="school-grid-wrap"></div>
-      <button class="school-add-btn" id="btn-add-toggle">+ 새 학교 추가</button>
-      ${ST.showAddSchool?`<div class="add-school-form" style="margin-top:12px">
-        <input id="ns-sname" placeholder="학교 이름">
-        <input id="ns-sgrade" placeholder="학년 (예: 2학년)">
-        <select id="ns-stype" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit;background:#fff;margin-top:8px">
-          <option value="regular">정규반 (학교 단위)</option>
-          <option value="lecture">특강 (여러 학교 학생 혼합)</option>
-        </select>
-        <div style="font-size:11px;color:#9BA3AF;margin-top:5px;line-height:1.5">특강으로 만들면 학생 등록 시 학생별 "고등학교" 입력칸이 추가돼요.</div>
-        <div style="display:flex;gap:8px;margin-top:8px"><button class="abtn abtn-blue" id="btn-do-add">추가</button><button class="abtn abtn-gray" id="btn-cancel-add">취소</button></div>
-        <div id="add-msg" style="font-size:12px;margin-top:6px"></div>
-      </div>`:''}
     </div>
   </div>`;}
 
@@ -1533,6 +1573,24 @@ function bSchoolSelect(){
   document.getElementById('btn-alo-main').onclick=doLogout;
   document.getElementById('btn-goto-courses').onclick=()=>{ST.adminView='courses';render();};
   renderSchoolGrid();
+  if(ST.taNotices===undefined){ST.taNotices=null;fetchTaNotices();}
+  else bindTaNoticeDeleteHandlers();
+  document.getElementById('btn-ta-notice-post')?.addEventListener('click',async()=>{
+    const input=document.getElementById('ta-notice-input');
+    const msg=document.getElementById('ta-notice-msg');
+    const text=input.value.trim();
+    if(!text){msg.textContent='내용을 입력하세요';return;}
+    const btn=document.getElementById('btn-ta-notice-post');
+    btn.disabled=true;msg.textContent='';
+    try{
+      const res=await fetch('/api/admin/ta-notice-post',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
+      const data=await res.json();
+      if(!res.ok||!data.success){msg.textContent=data.message||'등록 실패';btn.disabled=false;return;}
+      input.value='';
+      await fetchTaNotices();
+    }catch(e){msg.textContent='오류: '+e.message;}
+    btn.disabled=false;
+  });
   document.getElementById('sch-search').oninput=()=>renderSchoolGrid();
   document.getElementById('sch-filter-type').onchange=()=>renderSchoolGrid();
   document.getElementById('sch-sort').onchange=()=>renderSchoolGrid();
@@ -3118,6 +3176,54 @@ async function fetchTaAccounts(){
     ST.taAccounts=data.success?data.accounts:[];
   }catch(e){ST.taAccounts=[];}
   render();
+}
+
+function renderChangelog(){
+  return CHANGELOG.map(g=>`
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:6px">${g.date}</div>
+      <ul style="margin:0;padding-left:16px">
+        ${g.items.map(t=>`<li style="font-size:12px;color:#3A4150;line-height:1.7">${esc(t)}</li>`).join('')}
+      </ul>
+    </div>`).join('');
+}
+
+function renderTaNoticeList(){
+  if(ST.taNotices===null||ST.taNotices===undefined)return`<div style="font-size:12.5px;color:#9BA3AF;padding:6px 0">불러오는 중...</div>`;
+  const notices=ST.taNotices||[];
+  if(!notices.length)return`<div style="font-size:12.5px;color:#9BA3AF;padding:6px 0">등록된 공지사항이 없습니다.</div>`;
+  return notices.map(n=>`
+    <div style="padding:10px 0;border-bottom:1px solid #F0F1F5">
+      <div style="font-size:12.5px;color:#10192B;line-height:1.6;white-space:pre-wrap">${esc(n.text)}</div>
+      <div style="font-size:10.5px;color:#9BA3AF;margin-top:5px;display:flex;align-items:center;gap:6px">
+        <span>${esc(n.authorName||'원장님')}</span><span>·</span><span>${esc(String(n.createdAt||'').slice(0,16).replace('T',' '))}</span>
+        ${ST.isMaster?`<button data-ta-notice-del="${esc(n.id)}" style="margin-left:auto;background:none;border:none;color:#C4CBD6;cursor:pointer;font-size:11px" title="삭제">✕</button>`:''}
+      </div>
+    </div>`).join('');
+}
+
+async function fetchTaNotices(){
+  try{
+    const res=await fetch('/api/admin/ta-notice-list',{credentials:'include'});
+    const data=await res.json();
+    ST.taNotices=data.success?data.notices:[];
+  }catch(e){ST.taNotices=[];}
+  const wrap=document.getElementById('ta-notice-list');
+  if(wrap)wrap.innerHTML=renderTaNoticeList();
+  bindTaNoticeDeleteHandlers();
+}
+
+function bindTaNoticeDeleteHandlers(){
+  document.querySelectorAll('[data-ta-notice-del]').forEach(btn=>{
+    btn.onclick=async()=>{
+      if(!confirm('이 공지를 삭제할까요?'))return;
+      btn.disabled=true;
+      try{
+        await fetch('/api/admin/ta-notice-delete',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:btn.dataset.taNoticeDel})});
+      }catch(e){}
+      await fetchTaNotices();
+    };
+  });
 }
 
 function rLogs(sc){

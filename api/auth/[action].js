@@ -4,6 +4,7 @@ import {
   getSessionToken, getSession, deleteSession, clearSessionCookie,
   getAdminAccounts, findAdminAccount,
 } from '../_lib/auth.js';
+import { getRedis } from '../_lib/redis.js';
 import { findStudentByCredentials } from '../_lib/school.js';
 
 // Vercel 함수 개수 제한(Hobby 12개)에 맞추기 위해 login/session/logout을 한 파일로 통합.
@@ -25,6 +26,13 @@ export default async function handler(req, res) {
       const { accounts } = await getAdminAccounts();
       const account = findAdminAccount(accounts, id);
       if (!account || !verifyPassword(pw, account.pwdHash)) {
+        if (!account) {
+          const norm = String(id).trim().toLowerCase();
+          const pending = (await getRedis().get('ta:pending')) || [];
+          if (pending.some(p => p.id === norm)) {
+            return res.status(401).json({ success: false, message: '아직 원장님 승인 대기 중인 계정입니다' });
+          }
+        }
         return res.status(401).json({ success: false, message: 'ID 또는 비밀번호 오류' });
       }
       const { token, maxAge } = await createSession({

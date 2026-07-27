@@ -1184,6 +1184,7 @@ function rLogin(){return`
 
     <p style="text-align:center;font-size:12px;color:#C4C9D4;margin-top:20px">
       <span id="btn-find-idpw" style="color:#9BA3AF;cursor:pointer;text-decoration:underline;font-size:12px">아이디 · 비밀번호 찾기</span>
+      ${ST.lmode==='admin'?`<span style="margin:0 6px;color:#E8ECF0">|</span><span id="btn-ta-signup" style="color:#9BA3AF;cursor:pointer;text-decoration:underline;font-size:12px">조교 계정 신청</span>`:''}
     </p>
   </div>
 </div>
@@ -1311,6 +1312,90 @@ function showFindIdPwModal(){
   };
 }
 
+function showTaSignupModal(){
+  const existing=document.querySelector('.ta-signup-modal');
+  if(existing){existing.remove();return;}
+
+  const modal=document.createElement('div');
+  modal.className='ta-signup-modal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto';
+
+  modal.innerHTML=`
+  <div style="background:#fff;border-radius:20px;padding:32px 28px;width:100%;max-width:380px;box-shadow:0 8px 32px rgba(0,0,0,0.18)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <div style="font-size:17px;font-weight:800;color:#1A237E">조교 계정 신청</div>
+      <button id="tas-close" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9BA3AF;line-height:1">✕</button>
+    </div>
+    <p style="font-size:12px;color:#9BA3AF;margin-bottom:20px">신청 후 원장님이 승인하면 바로 로그인할 수 있어요</p>
+
+    <div style="margin-bottom:12px">
+      <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">이름</label>
+      <input id="tas-name" placeholder="예: 김민지"
+        style="width:100%;padding:12px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit;transition:border-color 0.15s"
+        onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">사용할 아이디</label>
+      <input id="tas-id" placeholder="영문/숫자 4자 이상"
+        style="width:100%;padding:12px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit;transition:border-color 0.15s"
+        onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">비밀번호</label>
+      <input id="tas-pw" type="password" placeholder="4자 이상"
+        style="width:100%;padding:12px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit;transition:border-color 0.15s"
+        onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">
+    </div>
+    <div style="margin-bottom:16px">
+      <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">비밀번호 확인</label>
+      <input id="tas-pw2" type="password" placeholder="다시 입력"
+        style="width:100%;padding:12px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit;transition:border-color 0.15s"
+        onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">
+    </div>
+
+    <div id="tas-err" style="font-size:12px;color:#E53935;min-height:18px;margin-bottom:8px;line-height:1.5"></div>
+
+    <button id="tas-submit"
+      style="width:100%;padding:13px;background:#1A237E;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:background 0.15s">
+      신청하기
+    </button>
+  </div>`;
+
+  document.body.appendChild(modal);
+  modal.onclick=e=>{if(e.target===modal)modal.remove();};
+  document.getElementById('tas-close').onclick=()=>modal.remove();
+  document.getElementById('tas-name').focus();
+
+  document.getElementById('tas-submit').onclick=async()=>{
+    const name=document.getElementById('tas-name').value.trim();
+    const id=document.getElementById('tas-id').value.trim().toLowerCase();
+    const pw=document.getElementById('tas-pw').value;
+    const pw2=document.getElementById('tas-pw2').value;
+    const err=document.getElementById('tas-err');
+    err.textContent='';
+    if(!name){err.textContent='이름을 입력해주세요';return;}
+    if(id.length<4||/\s/.test(id)){err.textContent='아이디는 공백 없이 4자 이상이어야 합니다';return;}
+    if(pw.length<4){err.textContent='비밀번호는 4자 이상이어야 합니다';return;}
+    if(pw!==pw2){err.textContent='비밀번호가 일치하지 않습니다';return;}
+
+    const btn=document.getElementById('tas-submit');
+    btn.disabled=true;
+    try{
+      const res=await fetch('/api/admin/ta-signup',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,name,pw})});
+      const data=await res.json();
+      if(!res.ok||!data.success){err.textContent=data.message||'신청 실패';btn.disabled=false;return;}
+      modal.querySelector('div').innerHTML=`
+        <div style="text-align:center;padding:12px 0">
+          <div style="font-size:32px;margin-bottom:12px">✅</div>
+          <div style="font-size:15px;font-weight:700;color:#1A237E;margin-bottom:6px">신청이 완료되었습니다</div>
+          <div style="font-size:12.5px;color:#9BA3AF;line-height:1.6;margin-bottom:20px">원장님이 승인하면 바로 로그인할 수 있어요.</div>
+          <button id="tas-done" style="width:100%;padding:12px;background:#1A237E;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer">닫기</button>
+        </div>`;
+      document.getElementById('tas-done').onclick=()=>modal.remove();
+    }catch(e){err.textContent='오류: '+e.message;btn.disabled=false;}
+  };
+}
+
 // /api/student/me 응답을 ST.user/ST.userSchool로 반영 (본인 기록+집계만 포함된 축소된 학교 객체)
 function applyServerStudentData(data){
   ST.user=data.student;
@@ -1355,7 +1440,7 @@ function doLogout(){
     fetch('/api/auth/logout',{method:'POST',credentials:'include'}).catch(()=>{});
   }
   ST.loggedIn=false;ST.serverAdminSession=false;ST.serverStudentSession=false;
-  ST.isMaster=false;ST.actorName='';ST.taAccounts=undefined;ST.taNotices=undefined;
+  ST.isMaster=false;ST.actorName='';ST.taAccounts=undefined;ST.taNotices=undefined;ST.taPending=undefined;
   render();
 }
 // 관리자 학교 목록/개별 학교 데이터를 서버에서 불러오는 헬퍼 (서버 세션 확립 후 사용)
@@ -1386,32 +1471,34 @@ async function attemptAdminLogin(id,pw){
       method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({role:'admin',id,pw})
     });
-    if(!res.ok)return false;
-    const data=await res.json();
-    if(!data.success)return false;
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok||!data.success)return {ok:false,message:data.message||''};
     ST.loggedIn=true;ST.role='admin';ST.school=null;ST.serverAdminSession=true;
     ST.isMaster=!!data.isMaster;ST.actorName=data.actorName||'';
     await loadServerSchoolsList();
-    return true;
-  }catch(e){return false;}
+    return {ok:true};
+  }catch(e){return {ok:false,message:''};}
 }
 function bLogin(){
   // 로그인 유지는 이제 서버 쿠키가 전담 — 평문 아이디/비번을 브라우저에 남기지 않음
   document.getElementById('ls-s').onclick=()=>{ST.lmode='student';render()};
   document.getElementById('ls-a').onclick=()=>{ST.lmode='admin';render()};
   document.getElementById('btn-find-idpw')?.addEventListener('click',showFindIdPwModal);
+  document.getElementById('btn-ta-signup')?.addEventListener('click',showTaSignupModal);
   document.getElementById('btn-li').onclick=async()=>{
     const id=document.getElementById('li-id').value.trim().toLowerCase();
     const pw=document.getElementById('li-pw').value.trim();
     const role=ST.lmode;
     const btn=document.getElementById('btn-li');
     btn.disabled=true;
-    const ok=role==='admin'?await attemptAdminLogin(id,pw):await attemptStudentLogin(id,pw);
+    let ok,message;
+    if(role==='admin'){const r=await attemptAdminLogin(id,pw);ok=r.ok;message=r.message;}
+    else ok=await attemptStudentLogin(id,pw);
     btn.disabled=false;
     if(ok){
       render();
     } else {
-      document.getElementById('li-err').textContent=role==='admin'?'ID 또는 비밀번호 오류':'ID 또는 비밀번호를 확인해주세요';
+      document.getElementById('li-err').textContent=message||(role==='admin'?'ID 또는 비밀번호 오류':'ID 또는 비밀번호를 확인해주세요');
     }
   };
 }
@@ -3069,6 +3156,10 @@ function rAdminSettings(sc){
     ST.taAccounts=null;
     fetchTaAccounts();
   }
+  if(ST.isMaster&&ST.taPending===undefined){
+    ST.taPending=null;
+    fetchTaPending();
+  }
   return`
   <div class="section-card">
     <div class="section-ttl">🔔 선생님 알림 설정</div>
@@ -3095,7 +3186,11 @@ function rAdminSettings(sc){
   </div>
   ${ST.isMaster?`<div class="section-card">
     <div class="section-ttl">👥 조교 계정 관리</div>
-    <div style="font-size:12px;color:#9BA3AF;margin-bottom:14px">조교별로 별도 아이디를 만들어주면, 이후 누가 언제 뭘 했는지 구분할 수 있게 됩니다.</div>
+    <div style="font-size:12px;color:#9BA3AF;margin-bottom:14px">조교별로 별도 아이디를 만들어주면, 이후 누가 언제 뭘 했는지 구분할 수 있게 됩니다. 조교가 직접 <strong>조교 계정 신청</strong>으로 신청하면 아래에서 승인/거절할 수 있어요.</div>
+    ${ST.taPending&&ST.taPending.length?`<div style="margin-bottom:16px;padding:12px;background:#FFF8E1;border:1.5px solid #FFE082;border-radius:10px">
+      <div style="font-size:12.5px;font-weight:700;color:#E65100;margin-bottom:8px">🔔 가입 대기 중 (${ST.taPending.length})</div>
+      ${renderTaPendingList(ST.taPending)}
+    </div>`:''}
     ${ST.taAccounts===null?`<div style="font-size:13px;color:#9BA3AF">불러오는 중...</div>`:renderTaList(ST.taAccounts||[])}
     <div style="margin-top:16px;padding-top:16px;border-top:1px solid #EEF0F4">
       <div style="font-weight:700;font-size:13px;margin-bottom:10px">새 조교 추가</div>
@@ -3175,6 +3270,27 @@ async function fetchTaAccounts(){
     const data=await res.json();
     ST.taAccounts=data.success?data.accounts:[];
   }catch(e){ST.taAccounts=[];}
+  render();
+}
+
+function renderTaPendingList(pending){
+  return '<table style="width:100%;border-collapse:collapse;font-size:13px">'+
+    pending.map(p=>`<tr style="border-bottom:1px solid rgba(0,0,0,0.06)">
+      <td style="padding:8px 4px">${esc(p.name)}</td>
+      <td style="padding:8px 4px;font-family:monospace;color:#5C6470">${esc(p.id)}</td>
+      <td style="padding:8px 4px;text-align:right">
+        <button class="abtn abtn-blue" data-ta-approve="${esc(p.id)}" style="padding:6px 12px;font-size:12px;margin-right:6px">승인</button>
+        <button class="abtn abtn-gray" data-ta-reject="${esc(p.id)}" style="padding:6px 12px;font-size:12px">거절</button>
+      </td>
+    </tr>`).join('')+
+    '</table>';
+}
+async function fetchTaPending(){
+  try{
+    const res=await fetch('/api/admin/ta-pending-list',{credentials:'include'});
+    const data=await res.json();
+    ST.taPending=data.success?data.pending:[];
+  }catch(e){ST.taPending=[];}
   render();
 }
 
@@ -3650,6 +3766,33 @@ function bAdmin(){
           if(!res.ok||!data.success){alert(data.message||'삭제 실패');return;}
         }catch(e){alert('오류: '+e.message);return;}
         ST.taAccounts=undefined;
+        render();
+      };
+    });
+    document.querySelectorAll('[data-ta-approve]').forEach(b=>{
+      b.onclick=async()=>{
+        const id=b.dataset.taApprove;
+        b.disabled=true;
+        try{
+          const res=await fetch('/api/admin/ta-approve',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+          const data=await res.json();
+          if(!res.ok||!data.success){alert(data.message||'승인 실패');b.disabled=false;return;}
+        }catch(e){alert('오류: '+e.message);b.disabled=false;return;}
+        ST.taAccounts=undefined;ST.taPending=undefined;
+        render();
+      };
+    });
+    document.querySelectorAll('[data-ta-reject]').forEach(b=>{
+      b.onclick=async()=>{
+        const id=b.dataset.taReject;
+        if(!confirm(`${id} 신청을 거절합니다. 계속하시겠습니까?`))return;
+        b.disabled=true;
+        try{
+          const res=await fetch('/api/admin/ta-reject',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+          const data=await res.json();
+          if(!res.ok||!data.success){alert(data.message||'거절 실패');b.disabled=false;return;}
+        }catch(e){alert('오류: '+e.message);b.disabled=false;return;}
+        ST.taPending=undefined;
         render();
       };
     });

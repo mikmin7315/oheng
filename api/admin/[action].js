@@ -87,6 +87,33 @@ export default async function handler(req, res) {
     }
   }
 
+  // 조교 계정 신청: 로그인 전 상태에서 접근하는 공개 엔드포인트라 세션 체크보다 먼저 처리.
+  // 즉시 admin:auth에 계정을 만들지 않고 ta:pending에 대기 등록만 하며, 원장님 승인(ta-approve) 후에만
+  // 실제 로그인 가능한 계정이 된다.
+  if (action === 'ta-signup') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+
+    const rlOk = await checkRateLimit('ta-signup', getClientIp(req), 5, 60);
+    if (!rlOk) return res.status(429).json({ success: false, message: '잠시 후 다시 시도해주세요' });
+
+    const { id: rawId, name, pw } = req.body || {};
+    const id = String(rawId || '').trim().toLowerCase();
+    if (id.length < 4 || /\s/.test(id)) return res.status(400).json({ success: false, message: '아이디는 공백 없이 4자 이상이어야 합니다' });
+    if (!name || !String(name).trim()) return res.status(400).json({ success: false, message: '이름을 입력하세요' });
+    if (!pw || String(pw).length < 4) return res.status(400).json({ success: false, message: '비밀번호는 4자 이상이어야 합니다' });
+
+    const redis = getRedis();
+    const { accounts } = await getAdminAccounts();
+    if (accounts.some(a => a.id === id)) return res.status(400).json({ success: false, message: '이미 사용 중인 아이디입니다' });
+    const pending = (await redis.get('ta:pending')) || [];
+    if (pending.some(p => p.id === id)) return res.status(400).json({ success: false, message: '이미 신청된 아이디입니다. 원장님 승인을 기다려주세요' });
+
+    pending.push({ id, name: String(name).trim(), pwdHash: hashPassword(pw), requestedAt: new Date().toISOString() });
+    await redis.set('ta:pending', pending);
+    return res.status(200).json({ success: true });
+  }
+
   const session = await requireAdminSessionOrApiToken(req);
   if (!session) return res.status(401).json({ success: false, message: 'Unauthorized' });
 
@@ -325,6 +352,66 @@ export default async function handler(req, res) {
     } catch (e) {
       return res.status(409).json({ success: false, message: '다른 변경과 충돌했습니다. 다시 시도해주세요' });
     }
+    return res.status(200).json({ success: true, id });
+  }
+
+  if (action === 'ta-pending-list') {
+    if (req.method !== 'GET') return res.status(405).end();
+    const masterCheck = await requireMasterAdminSessionOrApiToken(req);
+    if (!masterCheck) return res.status(403).json({ success: false, message: '원장님 계정만 볼 수 있습니다' });
+    const redis = getRedis();
+    const pending = (await redis.get('ta:pending')) || [];
+    return res.status(200).json({
+      success: true,
+      pending: pending.map(p => ({ id: p.id, name: p.name, requestedAt: p.requestedAt })),
+    });
+  }
+
+  if (action === 'ta-approve') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    const masterCheck = await requireMasterAdminSessionOrApiToken(req);
+    if (!masterCheck) return res.status(403).json({ success: false, message: '원장님 계정만 가능합니다' });
+
+    const { id: rawId } = req.body || {};
+    const id = String(rawId || '').trim().toLowerCase();
+    const redis = getRedis();
+    const pending = (await redis.get('ta:pending')) || [];
+    const target = pending.find(p => p.id === id);
+    if (!target) return res.status(404).json({ success: false, message: '신청 내역을 찾을 수 없습니다' });
+
+    const { version, accounts } = await getAdminAccounts();
+    if (accounts.some(a => a.id === id)) {
+      // 승인 대기 중 같은 아이디로 다른 경로(ta-create 등)가 이미 선점한 경우 — 대기 목록에서만 제거
+      await redis.set('ta:pending', pending.filter(p => p.id !== id));
+      return res.status(400).json({ success: false, message: '이미 사용 중인 아이디입니다. 신청이 취소되었습니다' });
+    }
+
+    const now = new Date().toISOString();
+    accounts.push({
+      id: target.id, name: target.name, pwdHash: target.pwdHash, isMaster: false,
+      createdAt: now, updatedAt: now, passwordChangedAt: now,
+    });
+    try {
+      await setAdminAccounts(accounts, version);
+    } catch (e) {
+      return res.status(409).json({ success: false, message: '다른 변경과 충돌했습니다. 다시 시도해주세요' });
+    }
+    await redis.set('ta:pending', pending.filter(p => p.id !== id));
+    return res.status(200).json({ success: true, id: target.id, name: target.name });
+  }
+
+  if (action === 'ta-reject') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    const masterCheck = await requireMasterAdminSessionOrApiToken(req);
+    if (!masterCheck) return res.status(403).json({ success: false, message: '원장님 계정만 가능합니다' });
+
+    const { id: rawId } = req.body || {};
+    const id = String(rawId || '').trim().toLowerCase();
+    const redis = getRedis();
+    const pending = (await redis.get('ta:pending')) || [];
+    await redis.set('ta:pending', pending.filter(p => p.id !== id));
     return res.status(200).json({ success: true, id });
   }
 

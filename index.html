@@ -1440,7 +1440,7 @@ function doLogout(){
     fetch('/api/auth/logout',{method:'POST',credentials:'include'}).catch(()=>{});
   }
   ST.loggedIn=false;ST.serverAdminSession=false;ST.serverStudentSession=false;
-  ST.isMaster=false;ST.actorName='';ST.taAccounts=undefined;ST.taNotices=undefined;ST.taPending=undefined;
+  ST.isMaster=false;ST.actorName='';ST.taAccounts=undefined;ST.taNotices=undefined;ST.taPending=undefined;ST.taNoticeDraft='';
   render();
 }
 // 관리자 학교 목록/개별 학교 데이터를 서버에서 불러오는 헬퍼 (서버 세션 확립 후 사용)
@@ -1563,7 +1563,7 @@ function rSchoolSelect(){
             <div style="font-size:14px;font-weight:800;color:#1A237E">📋 조교 공지사항</div>
           </div>
           ${ST.isMaster?`<div style="margin-bottom:12px">
-            <textarea id="ta-notice-input" placeholder="조교 선생님들께 전달할 내용을 입력하세요" style="width:100%;min-height:56px;padding:9px 11px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:12.5px;outline:none;font-family:inherit;resize:vertical"></textarea>
+            <textarea id="ta-notice-input" placeholder="조교 선생님들께 전달할 내용을 입력하세요" style="width:100%;min-height:56px;padding:9px 11px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:12.5px;outline:none;font-family:inherit;resize:vertical">${esc(ST.taNoticeDraft||'')}</textarea>
             <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:6px">
               <span id="ta-notice-msg" style="font-size:11px;color:#B3261E"></span>
               <button id="btn-ta-notice-post" class="abtn abtn-blue" style="padding:6px 14px;font-size:12px">등록</button>
@@ -1662,6 +1662,7 @@ function bSchoolSelect(){
   renderSchoolGrid();
   if(ST.taNotices===undefined){ST.taNotices=null;fetchTaNotices();}
   else bindTaNoticeDeleteHandlers();
+  document.getElementById('ta-notice-input')?.addEventListener('input',e=>{ST.taNoticeDraft=e.target.value;});
   document.getElementById('btn-ta-notice-post')?.addEventListener('click',async()=>{
     const input=document.getElementById('ta-notice-input');
     const msg=document.getElementById('ta-notice-msg');
@@ -1673,7 +1674,7 @@ function bSchoolSelect(){
       const res=await fetch('/api/admin/ta-notice-post',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
       const data=await res.json();
       if(!res.ok||!data.success){msg.textContent=data.message||'등록 실패';btn.disabled=false;return;}
-      input.value='';
+      input.value='';ST.taNoticeDraft='';
       await fetchTaNotices();
     }catch(e){msg.textContent='오류: '+e.message;}
     btn.disabled=false;

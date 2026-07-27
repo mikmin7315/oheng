@@ -85,7 +85,10 @@ export function normalizeSchoolForWrite(incoming, existing) {
     const prev = existingStudentsById.get(s.id);
     const { pwd, pwdHash, ...rest } = s;
     if (prev) return { ...rest, pwd: prev.pwd, pwdHash: prev.pwdHash };
-    const initialPwd = pwd || '1234';
+    // 숫자만 허용 — 숫자가 아닌 문자가 섞여 들어오면 안전하게 무작위 4자리 숫자로 대체한다
+    // (여기는 일반 학교 저장 경로라 400으로 거절하기보다 정제해서 저장을 막지 않는 쪽을 택함).
+    const digitsOnly = String(pwd || '').replace(/\D/g, '');
+    const initialPwd = digitsOnly || String(Math.floor(1000 + Math.random() * 9000));
     return { ...rest, pwd: encryptPwd(initialPwd), pwdHash: hashPassword(initialPwd) };
   });
 

@@ -2665,7 +2665,7 @@ function rStudentMgmt(sc){
     <div class="form3" style="margin-bottom:14px">
       <div class="fgrp"><label class="flbl">이름</label><input class="finp" id="ns-name"/></div>
       <div class="fgrp"><label class="flbl">학생 ID</label><input class="finp" id="ns-id" value="${autoId}"/></div>
-      <div class="fgrp"><label class="flbl">초기 비밀번호</label><input class="finp" id="ns-pw" value="${autoPwd}"/></div>
+      <div class="fgrp"><label class="flbl">초기 비밀번호</label><input class="finp" id="ns-pw" value="${autoPwd}" inputmode="numeric" pattern="[0-9]*"/></div>
       <div class="fgrp"><label class="flbl">학생 전화번호</label><input class="finp" id="ns-ph" placeholder="010-0000-0000" oninput="autoHyphen(this)" maxlength="13"/></div>
       <div class="fgrp"><label class="flbl">학부모 전화번호</label><input class="finp" id="ns-pph" placeholder="010-0000-0000" oninput="autoHyphen(this)" maxlength="13"/></div>
       <div class="fgrp"><label class="flbl">구분</label>
@@ -3233,6 +3233,7 @@ function bAdmin(){
       const pw=document.getElementById('ns-pw').value.trim();
       const msg=document.getElementById('ns-msg');
       if(!name||!id||!pw){msg.textContent='필수 항목을 입력하세요';msg.style.color='#E53935';return;}
+      if(!/^\d+$/.test(pw)){msg.textContent='비밀번호는 숫자만 입력할 수 있습니다';msg.style.color='#E53935';return;}
       if(DB.schools.some(s=>s.students.some(st=>st.id.toLowerCase()===id.toLowerCase()))){msg.textContent='이미 사용 중인 ID입니다';msg.style.color='#E53935';return;}
       const sType=document.getElementById('ns-type')?.value||'regular';
       const today=new Date().toISOString().slice(0,10);
@@ -4742,7 +4743,7 @@ function openEditStudent(sc, sid){
         </div>
         <div>
           <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">비밀번호 ${s.pwd?'':'<span style="color:#C4C9D4;font-weight:400;text-transform:none">(아직 확인된 적 없음 — 한 번 재설정하면 이후 계속 조회 가능)</span>'}</label>
-          <input id="edit-pwd" value="${s.pwd?esc(s.pwd):''}" placeholder="변경하려면 새 비밀번호 입력 (비워두면 유지)" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit"
+          <input id="edit-pwd" value="${s.pwd?esc(s.pwd):''}" placeholder="변경하려면 새 비밀번호 입력 (비워두면 유지)" inputmode="numeric" pattern="[0-9]*" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit"
             onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">
         </div>
         <div>
@@ -4796,6 +4797,7 @@ function openEditStudent(sc, sid){
     const saveBtn = document.getElementById('btn-edit-save');
 
     if(!name){ msg.textContent='이름을 입력하세요'; msg.style.color='#E53935'; return; }
+    if(pwd && !/^\d+$/.test(pwd)){ msg.textContent='비밀번호는 숫자만 입력할 수 있습니다'; msg.style.color='#E53935'; return; }
     if(pwd && pwd.length < 4){ msg.textContent='비밀번호는 4자 이상이어야 합니다'; msg.style.color='#E53935'; return; }
 
     saveBtn.disabled = true;

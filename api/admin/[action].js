@@ -133,6 +133,14 @@ export default async function handler(req, res) {
     if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
     const count = Math.min(Math.max(parseInt(req.body?.count, 10) || 1, 1), 500);
     const redis = getRedis();
+    // cnt:studentId가 실제 학생 ID 최댓값보다 뒤처져 있으면(과거 클라이언트 로컬 채번으로 우회 등록된
+    // 학생이 있는 경우) 그 값 그대로 증가시켜봐야 이미 쓰이고 있는 ID와 다시 충돌한다 — 매번 실제
+    // 전체 학교 데이터에서 최댓값을 확인해 카운터가 뒤처져 있으면 먼저 따라잡힌 뒤에 증가시킨다.
+    const index = await getSchoolIndex();
+    const schools = (await Promise.all(index.map(id => getSchool(id)))).filter(Boolean);
+    const realMax = maxStudentIdSuffix(schools);
+    const current = (await redis.get('cnt:studentId')) || 0;
+    if (realMax > current) await redis.set('cnt:studentId', realMax);
     const ids = [];
     for (let i = 0; i < count; i++) {
       const n = await redis.incr('cnt:studentId');
@@ -208,6 +216,9 @@ export default async function handler(req, res) {
     const idx = (sc.students || []).findIndex(s => s.id === studentId);
     if (idx < 0) return res.status(404).json({ success: false, message: '학생을 찾을 수 없습니다' });
 
+    if (newPwd && !/^\d+$/.test(String(newPwd).trim())) {
+      return res.status(400).json({ success: false, message: '비밀번호는 숫자만 입력할 수 있습니다' });
+    }
     const pwd = (newPwd && String(newPwd).trim().length >= 4) ? String(newPwd).trim() : String(Math.floor(1000 + Math.random() * 9000));
     sc.students[idx].pwd = encryptPwd(pwd);
     sc.students[idx].pwdHash = hashPassword(pwd);

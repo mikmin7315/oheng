@@ -2682,6 +2682,7 @@ function rStudentMgmt(sc){
       <span>👥 학생 목록 (${sc.students.length}명)</span>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button id="btn-ppurio-selected-idpw" style="display:none;padding:6px 14px;background:#1A237E;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">💬 선택 0명 발송</button>
+        <button id="btn-withdraw-selected" style="display:none;padding:6px 14px;background:#FFEBEE;color:#E53935;border:1.5px solid #FFCDD2;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">🚪 선택 0명 탈퇴처리</button>
         <button id="btn-ppurio-all-idpw" style="padding:6px 14px;background:#FEE500;color:#000;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">💬 ID/비번 일괄 발송</button>
         <button class="abtn abtn-blue" id="btn-export-excel" style="font-size:11px;padding:6px 12px">📊 엑셀 내보내기</button>
         <button class="abtn abtn-gray" onclick="printStudentList()" style="font-size:11px;padding:6px 12px">🖨️ 인쇄</button>
@@ -2772,11 +2773,17 @@ function renderStudentTable(sc){
   });
   // 체크박스로 고른 학생만 골라 ID/비번 발송 — "전체 선택" 헤더 체크박스와 연동
   const selectedBtn=document.getElementById('btn-ppurio-selected-idpw');
+  const withdrawSelectedBtn=document.getElementById('btn-withdraw-selected');
   const updateSelectedBtn=()=>{
-    if(!selectedBtn)return;
     const n=wrap.querySelectorAll('.stu-select:checked').length;
-    if(n){selectedBtn.style.display='';selectedBtn.textContent=`💬 선택 ${n}명 발송`;}
-    else selectedBtn.style.display='none';
+    if(selectedBtn){
+      if(n){selectedBtn.style.display='';selectedBtn.textContent=`💬 선택 ${n}명 발송`;}
+      else selectedBtn.style.display='none';
+    }
+    if(withdrawSelectedBtn){
+      if(n){withdrawSelectedBtn.style.display='';withdrawSelectedBtn.textContent=`🚪 선택 ${n}명 탈퇴처리`;}
+      else withdrawSelectedBtn.style.display='none';
+    }
   };
   wrap.querySelectorAll('.stu-select').forEach(chk=>{
     chk.addEventListener('change',()=>{
@@ -3276,6 +3283,21 @@ function bAdmin(){
       const ids=[...document.querySelectorAll('.stu-select:checked')].map(c=>c.dataset.sid);
       if(!ids.length)return;
       sendPpurioSelectedIdPw(sc, ids);
+    });
+    document.getElementById('btn-withdraw-selected')?.addEventListener('click',()=>{
+      const ids=[...document.querySelectorAll('.stu-select:checked')].map(c=>c.dataset.sid);
+      if(!ids.length)return;
+      const names=ids.map(id=>sc.students.find(s=>s.id===id)?.name||id);
+      if(!confirm(`선택한 ${ids.length}명을 탈퇴 처리합니다.\n\n${names.join(', ')}\n\n학생 목록에서 제외되고 "탈퇴 학생" 게시판으로 이동합니다. 성적 기록은 그대로 보존되며, 언제든 복구할 수 있습니다.\n\n계속하시겠습니까?`))return;
+      sc.withdrawnStudents=sc.withdrawnStudents||[];
+      ids.forEach(id=>{
+        const s=sc.students.find(x=>x.id===id);
+        if(!s)return;
+        sc.withdrawnStudents.push({...s,withdrawReason:'일괄 탈퇴처리',withdrawnAt:nowStr()});
+      });
+      sc.students=sc.students.filter(x=>!ids.includes(x.id));
+      saveDB();
+      render();
     });
     document.getElementById('stu-search').oninput=e=>{ST.stuSearch=e.target.value;renderStudentTable(sc);};
     document.getElementById('stu-filter-type').onchange=e=>{ST.stuFilterType=e.target.value;renderStudentTable(sc);};

@@ -150,13 +150,18 @@ export function normalizeAdminAccounts(raw) {
     return { version: raw.version || 0, accounts: raw.accounts };
   }
   if (raw.id && raw.pwdHash) {
-    // v1: 단일 계정 객체 — 마스터 계정 하나로 승격
-    const now = new Date().toISOString();
+    // v1: 단일 계정 객체 — 마스터 계정 하나로 승격.
+    // 이 normalize는 getAdminAccounts()가 호출될 때마다(요청마다) 매번 다시 실행되므로,
+    // 여기서 new Date()로 매번 새 타임스탬프를 만들면 호출할 때마다 값이 달라진다 — 로그인
+    // 시 세션에 찍힌 passwordChangedAt과, 그다음 요청에서 다시 계산된 값이 서로 달라져
+    // requireAdminSession의 비밀번호-변경 검사가 방금 로그인한 세션까지 즉시 무효화해버리는
+    // 버그가 있었다(Codex 리뷰에서 지적됨). 값이 없을 때는 항상 같은 고정값을 써야 한다.
+    const LEGACY_TS = '1970-01-01T00:00:00.000Z';
     return {
       version: 0,
       accounts: [{
         id: raw.id, name: raw.name || '원장님', pwdHash: raw.pwdHash, isMaster: true,
-        createdAt: raw.createdAt || now, updatedAt: raw.updatedAt || now, passwordChangedAt: raw.passwordChangedAt || now,
+        createdAt: raw.createdAt || LEGACY_TS, updatedAt: raw.updatedAt || LEGACY_TS, passwordChangedAt: raw.passwordChangedAt || LEGACY_TS,
       }],
     };
   }
@@ -169,19 +174,35 @@ export async function getAdminAccounts() {
   return normalizeAdminAccounts(raw);
 }
 
-// 쓰기 직전 현재 버전을 다시 읽어 expectedVersion과 비교 — 다르면 예외를 던져 호출부가
-// 실패 처리하게 한다. 조교 계정 관리는 빈도가 낮아 낙관적 락 하나로 충분(별도 Redis
-// hash/트랜잭션 도입은 하지 않음 — YAGNI).
+// 버전 확인과 쓰기를 각각 별도 명령으로 하면(GET 후 조건부 SET) 그 사이에 다른 요청이
+// 끼어들어 똑같이 버전 확인을 통과해버릴 수 있다 — 두 요청 모두 "성공"으로 응답하지만
+// 나중 쓰기가 먼저 쓴 변경을 조용히 덮어쓴다(Codex 리뷰에서 지적됨). Lua 스크립트는 Redis
+// 서버에서 통째로 원자적으로 실행되므로, 확인과 쓰기 사이에 다른 요청이 끼어들 수 없다.
+const CAS_SET_SCRIPT = `
+  local key = KEYS[1]
+  local expectedVersion = tonumber(ARGV[1])
+  local raw = redis.call('GET', key)
+  local current = 0
+  if raw then
+    local ok, decoded = pcall(cjson.decode, raw)
+    if ok and decoded and decoded.version then current = decoded.version end
+  end
+  if current ~= expectedVersion then
+    return -1
+  end
+  redis.call('SET', key, ARGV[2])
+  return 1
+`;
+
 export async function setAdminAccounts(accounts, expectedVersion) {
   const redis = getRedis();
-  const current = normalizeAdminAccounts(await redis.get('admin:auth'));
-  if (current.version !== expectedVersion) {
+  const next = { version: expectedVersion + 1, accounts };
+  const result = await redis.eval(CAS_SET_SCRIPT, ['admin:auth'], [expectedVersion, JSON.stringify(next)]);
+  if (result !== 1) {
     const err = new Error('admin accounts version conflict');
     err.code = 'VERSION_CONFLICT';
     throw err;
   }
-  const next = { version: expectedVersion + 1, accounts };
-  await redis.set('admin:auth', next);
   return next;
 }
 
@@ -209,17 +230,22 @@ export async function removePendingTaRequest(id) {
   await redis.hdel('ta:pending', id);
 }
 
-// 승인 처리 전용: 데이터를 읽은 뒤 원자적으로 제거하고, 실제로 "내가" 제거한 경우에만 데이터를
-// 반환한다. HDEL은 이미 지워진 필드에 대해 0을 반환하므로, 승인 처리 도중 다른 관리자가
-// 동시에 거절(삭제)해버린 신청을 승인이 못 보고 계정을 만들어버리는 일을 막을 수 있다
-// (Codex 리뷰에서 지적됨 — target을 미리 읽어두고 나중에 별도로 삭제하면 그 사이에 거절이
-// 끼어들어도 승인 쪽은 알아챌 방법이 없었음).
+// 승인 처리 전용: 읽기+삭제를 Lua 스크립트로 묶어 Redis 서버에서 원자적으로 처리한다.
+// 별도의 HGET 다음 HDEL 두 번의 명령으로 하면, 그 사이에 거절→같은 아이디로 재신청이
+// 끼어들어 방금 들어온 새 신청을 지우면서 예전(이미 사라진) 신청 데이터로 승인해버릴 수
+// 있다(Codex 리뷰에서 지적됨). Lua 스크립트는 통째로 한 번에 실행되어 그 사이에 다른
+// 명령이 끼어들 수 없다.
+const CLAIM_SCRIPT = `
+  local val = redis.call('HGET', KEYS[1], ARGV[1])
+  if val == false then return false end
+  redis.call('HDEL', KEYS[1], ARGV[1])
+  return val
+`;
 export async function claimPendingTaRequest(id) {
   const redis = getRedis();
-  const target = await redis.hget('ta:pending', id);
-  if (!target) return null;
-  const removed = await redis.hdel('ta:pending', id);
-  return removed > 0 ? target : null;
+  const raw = await redis.eval(CLAIM_SCRIPT, ['ta:pending'], [id]);
+  if (!raw) return null;
+  try { return typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { return null; }
 }
 
 export function findAdminAccount(accounts, id) {
@@ -256,6 +282,23 @@ export async function requireAdminSession(req) {
   const token = getSessionToken(req);
   const session = await getSession(token);
   if (!session || session.role !== 'admin') return null;
+  // 다중 계정 로그인 도입 이후로는 관리자 세션이 항상 actorId를 갖고 생성된다 — actorId가
+  // 없는 세션은 그 이전(단일 관리자 계정 시절)에 만들어진 것이므로, 계정 삭제/비밀번호
+  // 변경 검증을 우회하지 못하도록 더 이상 유효한 관리자 세션으로 인정하지 않는다
+  // (Codex 리뷰에서 지적됨).
+  if (!session.actorId) return null;
+  // 세션 자체는 아직 만료 전(최대 30일)이라도, 그 사이에 원장님이 해당 조교 계정을
+  // 삭제했다면 더 이상 유효하지 않아야 한다 — 매 요청마다 계정이 실제로 남아있는지
+  // 확인한다(Codex 리뷰에서 지적됨: 계정 삭제가 기존 세션을 무효화하지 않던 문제).
+  const { accounts } = await getAdminAccounts();
+  const account = findAdminAccount(accounts, session.actorId);
+  if (!account) return null;
+  // 비밀번호를 재설정(예: 유출 의심)해도 기존 로그인 세션이 30일 만료 전까지 그대로
+  // 유효했던 문제(Codex 리뷰) — 세션 생성 시점의 passwordChangedAt과 계정의 현재 값이
+  // 다르면(비번이 그 이후 바뀌었다는 뜻) 그 세션은 더 이상 인정하지 않는다. 이 필드가
+  // 없던 예전 세션(이 수정 배포 이전에 로그인한 세션)도 안전하게 다시 로그인하도록
+  // 일괄 무효화된다.
+  if (session.passwordChangedAt !== account.passwordChangedAt) return null;
   return session;
 }
 

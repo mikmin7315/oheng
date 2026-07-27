@@ -4583,7 +4583,9 @@ function guessNextStudentIds(count){
   const prefix='s';
   let maxNum=0;
   DB.schools.forEach(school=>{
-    school.students.forEach(s=>{
+    // 탈퇴 학생도 포함해야 한다 — 탈퇴 학생 ID가 최댓값인 상태에서 새 학생에게 같은 ID를
+    // 내주면, 나중에 그 탈퇴 학생을 복구할 때 ID가 겹친다.
+    [...(school.students||[]),...(school.withdrawnStudents||[])].forEach(s=>{
       if(s.id&&s.id.startsWith(prefix)){
         const n=parseInt(s.id.slice(prefix.length))||0;
         if(n>maxNum)maxNum=n;

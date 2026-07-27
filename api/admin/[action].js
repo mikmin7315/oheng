@@ -18,7 +18,9 @@ const MAX_BODY_CHARS = 5_000_000; // 5MB — 마이그레이션 업로드용 상
 function maxStudentIdSuffix(schools) {
   let max = 0;
   schools.forEach(sc => {
-    (sc.students || []).forEach(s => {
+    // 탈퇴 학생도 포함해야 한다 — 탈퇴 학생 ID가 최댓값인 상태에서 새 학생에게 같은 ID를
+    // 내주면, 나중에 그 탈퇴 학생을 복구할 때 ID가 겹친다(Codex 리뷰에서 지적됨).
+    [...(sc.students || []), ...(sc.withdrawnStudents || [])].forEach(s => {
       const m = /^s(\d+)$/.exec(s.id || '');
       if (m) max = Math.max(max, parseInt(m[1], 10));
     });
@@ -169,11 +171,22 @@ export default async function handler(req, res) {
     const index = await getSchoolIndex();
     const schools = (await Promise.all(index.map(id => getSchool(id)))).filter(Boolean);
     const realMax = maxStudentIdSuffix(schools);
-    const current = (await redis.get('cnt:studentId')) || 0;
-    if (realMax > current) await redis.set('cnt:studentId', realMax);
+    // 따라잡기(SET)와 증가(INCR)를 따로 하면 두 요청이 동시에 들어올 때 하나가 SET으로
+    // 카운터를 되돌려서 같은 ID가 두 번 발급될 수 있다(Codex 리뷰에서 지적됨, P1) — Lua
+    // 스크립트로 묶어 Redis 서버에서 원자적으로 처리한다.
+    const CATCHUP_AND_INCR = `
+      local key = KEYS[1]
+      local realMax = tonumber(ARGV[1])
+      local count = tonumber(ARGV[2])
+      local current = tonumber(redis.call('GET', key) or '0')
+      if realMax > current then
+        redis.call('SET', key, realMax)
+      end
+      return redis.call('INCRBY', key, count)
+    `;
+    const final = await redis.eval(CATCHUP_AND_INCR, ['cnt:studentId'], [realMax, count]);
     const ids = [];
-    for (let i = 0; i < count; i++) {
-      const n = await redis.incr('cnt:studentId');
+    for (let n = final - count + 1; n <= final; n++) {
       ids.push('s' + String(n).padStart(3, '0'));
     }
     return res.status(200).json({ success: true, ids, id: ids[0] });
@@ -228,6 +241,7 @@ export default async function handler(req, res) {
       if (oldToken) await deleteSession(oldToken);
       const { token, maxAge } = await createSession({
         role: 'admin', actorId: target.id, actorName: target.name, isMaster: target.isMaster === true,
+        passwordChangedAt: target.passwordChangedAt,
       });
       setSessionCookie(res, token, maxAge);
     }
@@ -390,13 +404,9 @@ export default async function handler(req, res) {
       createdAt: now, updatedAt: now, passwordChangedAt: now,
     };
 
-    // admin:auth 쓰기는 setAdminAccounts 내부에서 버전을 다시 확인하지만, 그 확인과 실제
-    // 쓰기 사이에는 여전히 짧은 경쟁 구간이 있다(다른 승인이 동시에 끼어들면 버전 충돌로
-    // 감지됨) — 감지될 때마다 최신 계정 목록을 다시 읽어 재시도하면 두 승인이 겹쳐도
-    // 둘 다 반영된다. (같은 종류의 근본적인 한계가 ta-create/credentials/ta-delete에도
-    // 이미 있음 — 완전한 원자성을 보장하려면 Redis 트랜잭션/Lua 스크립트가 필요한데, 이
-    // 앱 규모(원장님 1~2명, 사람이 직접 클릭)에서는 과한 대응이라 판단해 재시도로 충분히
-    // 좁혀두는 선에서 마무리함.)
+    // setAdminAccounts는 이제 Lua 스크립트로 버전 확인+쓰기를 원자적으로 처리하므로, 두
+    // 승인이 동시에 들어와도 버전 충돌이 정확히 감지된다 — 충돌 시 최신 계정 목록을 다시
+    // 읽어 재시도하면 두 승인 모두 반영된다.
     let approved = false;
     for (let attempt = 0; attempt < 3 && !approved; attempt++) {
       const latest = await getAdminAccounts();

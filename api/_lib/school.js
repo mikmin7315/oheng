@@ -92,6 +92,22 @@ export function normalizeSchoolForWrite(incoming, existing) {
     return { ...rest, pwd: encryptPwd(initialPwd), pwdHash: hashPassword(initialPwd) };
   });
 
+  // 탈퇴 학생 목록도 학생과 동일하게 암호화된 pwd/pwdHash를 유지해야 한다. 관리자 화면은
+  // pwd를 복호화된 평문으로 보여주므로, 여기서 손대지 않고 클라이언트가 보낸 값을 그대로
+  // 저장하면 탈퇴 처리(단건/일괄) 시 비밀번호 평문이 그대로 Redis에 남는다(Codex 리뷰에서
+  // 지적됨). 이미 탈퇴 목록에 있던 학생이면 그 암호화값을, 이번에 막 탈퇴 처리돼 방금까지
+  // 재학생이었던 학생이면 재학 시절의 암호화값을 그대로 이어받아 복구했을 때도 로그인
+  // 정보가 그대로 유지되게 한다.
+  const existingWithdrawnById = new Map((existing?.withdrawnStudents || []).map(s => [s.id, s]));
+  const withdrawnStudents = (Array.isArray(incoming.withdrawnStudents) ? incoming.withdrawnStudents : (existing?.withdrawnStudents || [])).map(s => {
+    const prev = existingWithdrawnById.get(s.id) || existingStudentsById.get(s.id);
+    const { pwd, pwdHash, ...rest } = s;
+    if (prev) return { ...rest, pwd: prev.pwd, pwdHash: prev.pwdHash };
+    const digitsOnly = String(pwd || '').replace(/\D/g, '');
+    const initialPwd = digitsOnly || String(Math.floor(1000 + Math.random() * 9000));
+    return { ...rest, pwd: encryptPwd(initialPwd), pwdHash: hashPassword(initialPwd) };
+  });
+
   return {
     id: existing?.id || incoming.id,
     name: incoming.name,
@@ -101,7 +117,7 @@ export function normalizeSchoolForWrite(incoming, existing) {
     records: Array.isArray(incoming.records) ? incoming.records : [],
     notices: incoming.notices || {},
     suggestions: Array.isArray(incoming.suggestions) ? incoming.suggestions : (existing?.suggestions || []),
-    withdrawnStudents: Array.isArray(incoming.withdrawnStudents) ? incoming.withdrawnStudents : (existing?.withdrawnStudents || []),
+    withdrawnStudents,
     inquiries: Array.isArray(incoming.inquiries) ? incoming.inquiries : (existing?.inquiries || []),
     // sendLogs는 전용 append/clear 엔드포인트로만 바뀜 — 일반 저장(PUT)에서는 클라이언트가 들고 있던
     // 오래된 값으로 덮어쓰지 않도록 항상 서버의 기존 값을 그대로 유지

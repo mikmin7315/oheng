@@ -2,7 +2,7 @@ import {
   verifyPassword, createSession, setSessionCookie,
   checkLoginRateLimit, isSameOrigin, getClientIp,
   getSessionToken, getSession, deleteSession, clearSessionCookie,
-  getAdminAccounts, findAdminAccount, listPendingTaRequests,
+  getAdminAccounts, findAdminAccount, listPendingTaRequests, requireAdminSession,
 } from '../_lib/auth.js';
 import { findStudentByCredentials } from '../_lib/school.js';
 
@@ -36,6 +36,7 @@ export default async function handler(req, res) {
       }
       const { token, maxAge } = await createSession({
         role: 'admin', actorId: account.id, actorName: account.name, isMaster: account.isMaster === true,
+        passwordChangedAt: account.passwordChangedAt,
       });
       setSessionCookie(res, token, maxAge);
       return res.status(200).json({
@@ -57,8 +58,14 @@ export default async function handler(req, res) {
   if (action === 'session') {
     if (req.method !== 'GET') return res.status(405).end();
     const token = getSessionToken(req);
-    const session = await getSession(token);
+    let session = await getSession(token);
     if (!session) return res.status(401).json({ success: false, message: '세션이 없습니다' });
+    // 관리자 세션은 requireAdminSession과 동일한 검증(계정 삭제/비밀번호 변경 여부)을 거치게
+    // 해서, 여기서만 별도로 느슨한 검사를 하다가 로직이 갈라지는 일이 없게 함.
+    if (session.role === 'admin') {
+      session = await requireAdminSession(req);
+      if (!session) return res.status(401).json({ success: false, message: '세션이 없습니다' });
+    }
     return res.status(200).json({
       success: true, role: session.role,
       actorName: session.actorName || '', isMaster: session.isMaster === true,

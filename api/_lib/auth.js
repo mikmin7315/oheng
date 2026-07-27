@@ -185,39 +185,70 @@ export async function setAdminAccounts(accounts, expectedVersion) {
   return next;
 }
 
-// ── 조교 가입 대기 목록 ──
-// admin:auth와 동일한 낙관적 락 방식 — 단순 배열을 그대로 get/set하면 두 신청이 거의 동시에
-// 들어오거나 승인/거절과 신청이 겹칠 때 나중 쓰기가 먼저 쓴 내용을 통째로 덮어써 신청이
-// 조용히 사라질 수 있다 (Codex 리뷰에서 지적됨).
-export function normalizePendingTaRequests(raw) {
-  if (!raw) return { version: 0, requests: [] };
-  if (Array.isArray(raw.requests)) return { version: raw.version || 0, requests: raw.requests };
-  if (Array.isArray(raw)) return { version: 0, requests: raw }; // 과거 순수 배열 형식과의 호환
-  return { version: 0, requests: [] };
+// ── 조교 가입 대기 목록 (Redis Hash: field=아이디, value=신청 정보) ──
+// 배열 하나를 통째로 get/set하는 낙관적 락은 "현재 버전 확인 → 쓰기" 사이에 여전히 경쟁
+// 구간이 남아 두 요청이 동시에 들어오면 나중 쓰기가 먼저 쓴 내용을 덮어쓸 수 있다(Codex
+// 리뷰에서 지적됨). HSETNX/HDEL은 Redis 서버에서 필드 단위로 원자적으로 처리되므로 이
+// 경쟁 상태 자체가 생기지 않는다.
+export async function listPendingTaRequests() {
+  const redis = getRedis();
+  const map = await redis.hgetall('ta:pending');
+  return map ? Object.values(map) : [];
 }
 
-export async function getPendingTaRequests() {
+// 같은 아이디로 이미 신청이 있으면 아무것도 바꾸지 않고 false를 반환 — 원자적이라 동시에
+// 들어온 두 신청 중 하나만 통과한다.
+export async function addPendingTaRequest(entry) {
   const redis = getRedis();
-  const raw = await redis.get('ta:pending');
-  return normalizePendingTaRequests(raw);
+  const added = await redis.hsetnx('ta:pending', entry.id, entry);
+  return added === 1;
 }
 
-export async function setPendingTaRequests(requests, expectedVersion) {
+export async function removePendingTaRequest(id) {
   const redis = getRedis();
-  const current = normalizePendingTaRequests(await redis.get('ta:pending'));
-  if (current.version !== expectedVersion) {
-    const err = new Error('pending ta requests version conflict');
-    err.code = 'VERSION_CONFLICT';
-    throw err;
-  }
-  const next = { version: expectedVersion + 1, requests };
-  await redis.set('ta:pending', next);
-  return next;
+  await redis.hdel('ta:pending', id);
+}
+
+// 승인 처리 전용: 데이터를 읽은 뒤 원자적으로 제거하고, 실제로 "내가" 제거한 경우에만 데이터를
+// 반환한다. HDEL은 이미 지워진 필드에 대해 0을 반환하므로, 승인 처리 도중 다른 관리자가
+// 동시에 거절(삭제)해버린 신청을 승인이 못 보고 계정을 만들어버리는 일을 막을 수 있다
+// (Codex 리뷰에서 지적됨 — target을 미리 읽어두고 나중에 별도로 삭제하면 그 사이에 거절이
+// 끼어들어도 승인 쪽은 알아챌 방법이 없었음).
+export async function claimPendingTaRequest(id) {
+  const redis = getRedis();
+  const target = await redis.hget('ta:pending', id);
+  if (!target) return null;
+  const removed = await redis.hdel('ta:pending', id);
+  return removed > 0 ? target : null;
 }
 
 export function findAdminAccount(accounts, id) {
   const norm = String(id || '').trim().toLowerCase();
   return accounts.find(a => a.id === norm) || null;
+}
+
+// ── 조교 공지사항 (Redis Hash: field=공지 id, value=공지 내용) ──
+// 배열을 통째로 get/set하던 이전 방식은 두 원장님 계정이 거의 동시에 글을 쓰거나 작성/삭제가
+// 겹치면 나중 쓰기가 먼저 쓴 내용을 지워버릴 수 있었다(Codex 리뷰에서 지적됨). 공지마다 고유
+// id를 필드로 쓰는 Hash로 바꾸면 작성은 항상 새 필드에 쓰는 것이라 애초에 충돌이 없고,
+// 삭제도 필드 단위 HDEL이라 원자적이다.
+export async function listTaNotices(limit = 50) {
+  const redis = getRedis();
+  const map = await redis.hgetall('ta:notices');
+  const all = map ? Object.values(map) : [];
+  all.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  return limit ? all.slice(0, limit) : all;
+}
+
+export async function addTaNotice(entry) {
+  const redis = getRedis();
+  await redis.hset('ta:notices', { [entry.id]: entry });
+  return entry;
+}
+
+export async function removeTaNotice(id) {
+  const redis = getRedis();
+  await redis.hdel('ta:notices', id);
 }
 
 // 요청 쿠키의 세션이 유효한 관리자 세션인지 확인 — 아니면 null

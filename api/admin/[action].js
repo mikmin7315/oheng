@@ -2,7 +2,8 @@ import {
   requireAdminSessionOrApiToken, requireMasterAdminSessionOrApiToken,
   isSameOrigin, verifyPassword, hashPassword, encryptPwd,
   getAdminAccounts, setAdminAccounts, findAdminAccount,
-  getPendingTaRequests, setPendingTaRequests,
+  listPendingTaRequests, addPendingTaRequest, removePendingTaRequest, claimPendingTaRequest,
+  listTaNotices, addTaNotice, removeTaNotice,
   checkRateLimit, getClientIp,
   createSession, setSessionCookie, getSessionToken, deleteSession,
 } from '../_lib/auth.js';
@@ -23,22 +24,6 @@ function maxStudentIdSuffix(schools) {
     });
   });
   return max;
-}
-
-// 조교 가입 대기 목록에서 id 하나를 제거 — 신청/승인/거절이 동시에 겹쳐도 낙관적 락 충돌 시
-// 최신 목록을 다시 읽어 재시도한다 (단순 정리 작업이라 저빈도 재시도로 충분).
-async function removePendingTaRequest(id) {
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const { version, requests } = await getPendingTaRequests();
-    if (!requests.some(p => p.id === id)) return true;
-    try {
-      await setPendingTaRequests(requests.filter(p => p.id !== id), version);
-      return true;
-    } catch (e) {
-      if (e.code !== 'VERSION_CONFLICT') throw e;
-    }
-  }
-  return false;
 }
 
 function validateMigrateShape(body) {
@@ -95,8 +80,10 @@ export default async function handler(req, res) {
       const index = await getSchoolIndex();
       const schools = (await Promise.all(index.map(id => getSchool(id)))).filter(Boolean);
       const admin = await redis.get('admin:auth');
+      const taNotices = await listTaNotices(0); // 0 → 개수 제한 없이 전체 백업
+      const taPending = await listPendingTaRequests();
       const exportedAt = new Date().toISOString();
-      const payload = { exportedAt, schoolIndex: index, schools, admin: admin || null };
+      const payload = { exportedAt, schoolIndex: index, schools, admin: admin || null, taNotices, taPending };
       await githubPutFile(repo, 'oheng-backup.json', JSON.stringify(payload, null, 2), `백업 ${exportedAt}`, token);
       return res.status(200).json({ success: true, schoolsBackedUp: schools.length, exportedAt });
     } catch (e) {
@@ -120,23 +107,14 @@ export default async function handler(req, res) {
     if (!name || !String(name).trim()) return res.status(400).json({ success: false, message: '이름을 입력하세요' });
     if (!pw || String(pw).length < 4) return res.status(400).json({ success: false, message: '비밀번호는 4자 이상이어야 합니다' });
 
-    // 동시에 여러 신청이 들어와도 낙관적 락으로 서로 덮어쓰지 않도록, 충돌 시 최신 목록을
-    // 다시 읽어 재검증 후 재시도 (신청 자체가 저빈도라 몇 번 재시도하면 충분).
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const { accounts } = await getAdminAccounts();
-      if (accounts.some(a => a.id === id)) return res.status(400).json({ success: false, message: '이미 사용 중인 아이디입니다' });
-      const { version, requests } = await getPendingTaRequests();
-      if (requests.some(p => p.id === id)) return res.status(400).json({ success: false, message: '이미 신청된 아이디입니다. 원장님 승인을 기다려주세요' });
+    const { accounts } = await getAdminAccounts();
+    if (accounts.some(a => a.id === id)) return res.status(400).json({ success: false, message: '이미 사용 중인 아이디입니다' });
 
-      const next = [...requests, { id, name: String(name).trim(), pwdHash: hashPassword(pw), requestedAt: new Date().toISOString() }];
-      try {
-        await setPendingTaRequests(next, version);
-        return res.status(200).json({ success: true });
-      } catch (e) {
-        if (e.code !== 'VERSION_CONFLICT') throw e;
-      }
-    }
-    return res.status(409).json({ success: false, message: '다른 신청과 겹쳤습니다. 다시 시도해주세요' });
+    // HSETNX는 Redis 서버에서 원자적으로 처리되므로, 동시에 같은 아이디로 신청이 두 번
+    // 들어와도 하나만 통과한다 (get-then-set 방식과 달리 경쟁 상태가 생기지 않음).
+    const added = await addPendingTaRequest({ id, name: String(name).trim(), pwdHash: hashPassword(pw), requestedAt: new Date().toISOString() });
+    if (!added) return res.status(400).json({ success: false, message: '이미 신청된 아이디입니다. 원장님 승인을 기다려주세요' });
+    return res.status(200).json({ success: true });
   }
 
   const session = await requireAdminSessionOrApiToken(req);
@@ -384,7 +362,7 @@ export default async function handler(req, res) {
     if (req.method !== 'GET') return res.status(405).end();
     const masterCheck = await requireMasterAdminSessionOrApiToken(req);
     if (!masterCheck) return res.status(403).json({ success: false, message: '원장님 계정만 볼 수 있습니다' });
-    const { requests } = await getPendingTaRequests();
+    const requests = await listPendingTaRequests();
     return res.status(200).json({
       success: true,
       pending: requests.map(p => ({ id: p.id, name: p.name, requestedAt: p.requestedAt })),
@@ -399,29 +377,44 @@ export default async function handler(req, res) {
 
     const { id: rawId } = req.body || {};
     const id = String(rawId || '').trim().toLowerCase();
-    const { requests } = await getPendingTaRequests();
-    const target = requests.find(p => p.id === id);
-    if (!target) return res.status(404).json({ success: false, message: '신청 내역을 찾을 수 없습니다' });
 
-    const { version, accounts } = await getAdminAccounts();
-    if (accounts.some(a => a.id === id)) {
-      // 승인 대기 중 같은 아이디로 다른 경로(ta-create 등)가 이미 선점한 경우 — 대기 목록에서만 제거
-      await removePendingTaRequest(id);
-      return res.status(400).json({ success: false, message: '이미 사용 중인 아이디입니다. 신청이 취소되었습니다' });
-    }
+    // 읽고 나서 따로 지우면 그 사이에 다른 관리자의 거절이 끼어들어도 승인 쪽이 알아챌 수
+    // 없다 — claim은 "내가 실제로 제거했을 때만" 데이터를 돌려주므로, 동시에 거절이 먼저
+    // 일어났다면 여기서 null을 받아 승인을 진행하지 않는다.
+    const target = await claimPendingTaRequest(id);
+    if (!target) return res.status(404).json({ success: false, message: '신청 내역을 찾을 수 없습니다 (이미 처리되었을 수 있습니다)' });
 
     const now = new Date().toISOString();
-    accounts.push({
+    const newAccount = {
       id: target.id, name: target.name, pwdHash: target.pwdHash, isMaster: false,
       createdAt: now, updatedAt: now, passwordChangedAt: now,
-    });
-    try {
-      await setAdminAccounts(accounts, version);
-    } catch (e) {
+    };
+
+    // admin:auth 쓰기는 setAdminAccounts 내부에서 버전을 다시 확인하지만, 그 확인과 실제
+    // 쓰기 사이에는 여전히 짧은 경쟁 구간이 있다(다른 승인이 동시에 끼어들면 버전 충돌로
+    // 감지됨) — 감지될 때마다 최신 계정 목록을 다시 읽어 재시도하면 두 승인이 겹쳐도
+    // 둘 다 반영된다. (같은 종류의 근본적인 한계가 ta-create/credentials/ta-delete에도
+    // 이미 있음 — 완전한 원자성을 보장하려면 Redis 트랜잭션/Lua 스크립트가 필요한데, 이
+    // 앱 규모(원장님 1~2명, 사람이 직접 클릭)에서는 과한 대응이라 판단해 재시도로 충분히
+    // 좁혀두는 선에서 마무리함.)
+    let approved = false;
+    for (let attempt = 0; attempt < 3 && !approved; attempt++) {
+      const latest = await getAdminAccounts();
+      if (latest.accounts.some(a => a.id === id)) {
+        return res.status(400).json({ success: false, message: '이미 사용 중인 아이디입니다. 신청이 취소되었습니다' });
+      }
+      try {
+        await setAdminAccounts([...latest.accounts, newAccount], latest.version);
+        approved = true;
+      } catch (e) {
+        if (e.code !== 'VERSION_CONFLICT') throw e;
+      }
+    }
+    if (!approved) {
+      // 계정 생성이 끝내 실패했으니 이미 claim으로 지워진 신청을 되살려서 재시도할 수 있게 함
+      await addPendingTaRequest(target);
       return res.status(409).json({ success: false, message: '다른 변경과 충돌했습니다. 다시 시도해주세요' });
     }
-    // 계정 생성은 이미 확정됐으므로, 대기 목록 정리는 최선을 다해 재시도만 하고 실패해도 승인 자체는 성공으로 응답
-    await removePendingTaRequest(id);
     return res.status(200).json({ success: true, id: target.id, name: target.name });
   }
 
@@ -433,16 +426,14 @@ export default async function handler(req, res) {
 
     const { id: rawId } = req.body || {};
     const id = String(rawId || '').trim().toLowerCase();
-    const ok = await removePendingTaRequest(id);
-    if (!ok) return res.status(409).json({ success: false, message: '다른 변경과 충돌했습니다. 다시 시도해주세요' });
+    await removePendingTaRequest(id);
     return res.status(200).json({ success: true, id });
   }
 
   // 조교 공지사항: 학교 데이터와 무관한 전역 게시판. 작성은 원장님만, 열람은 모든 관리자 계정 가능.
   if (action === 'ta-notice-list') {
     if (req.method !== 'GET') return res.status(405).end();
-    const redis = getRedis();
-    const notices = (await redis.get('ta:notices')) || [];
+    const notices = await listTaNotices(50);
     return res.status(200).json({ success: true, notices });
   }
 
@@ -459,11 +450,11 @@ export default async function handler(req, res) {
     if (!text) return res.status(400).json({ success: false, message: '내용을 입력하세요' });
     if (text.length > 500) return res.status(400).json({ success: false, message: '500자 이내로 입력해주세요' });
 
-    const redis = getRedis();
-    const notices = (await redis.get('ta:notices')) || [];
-    const entry = { id: 'tn' + Date.now(), text, authorName: session.actorName || masterCheck.actorName || '원장님', createdAt: new Date().toISOString() };
-    notices.unshift(entry);
-    await redis.set('ta:notices', notices.slice(0, 50));
+    // id에 랜덤 접미사를 더해, 같은 밀리초에 두 글이 동시에 등록돼도 같은 해시 필드를 두고
+    // 서로 덮어쓰는 일이 없게 함
+    const id = 'tn' + Date.now() + Math.random().toString(36).slice(2, 8);
+    const entry = { id, text, authorName: session.actorName || masterCheck.actorName || '원장님', createdAt: new Date().toISOString() };
+    await addTaNotice(entry);
     return res.status(200).json({ success: true, notice: entry });
   }
 
@@ -474,10 +465,7 @@ export default async function handler(req, res) {
     if (!masterCheck) return res.status(403).json({ success: false, message: '원장님 계정만 가능합니다' });
 
     const { id } = req.body || {};
-    const redis = getRedis();
-    const notices = (await redis.get('ta:notices')) || [];
-    const next = notices.filter(n => n.id !== id);
-    await redis.set('ta:notices', next);
+    await removeTaNotice(id);
     return res.status(200).json({ success: true });
   }
 

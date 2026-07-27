@@ -1838,6 +1838,18 @@ function rReport(recs){
   const prevRec = recIdx>0 ? recs[recIdx-1] : null;
   const delta = (prevRec&&prevRec.totalScore!=null&&rec.totalScore!=null) ? rec.totalScore-prevRec.totalScore : null;
 
+  // 숙제 미완료 연속 여부 (최근 2주 연속 미완료 시 경고)
+  const hwWeekMissed=(r)=>{
+    if(!r)return false;
+    const wk2Skip = sc?.hwNames&&sc.hwNames[r.month+'_'+r.week]?sc.hwNames[r.month+'_'+r.week].hw2Skip:sc?.hw2Skip;
+    const hw1Val = r.hw1||r.homework||'';
+    const hw2Val = r.hw2||'';
+    const hw1Missed = hw1Val ? hw1Val!=='완료' : false;
+    const hw2Missed = (!wk2Skip&&hw2Val) ? hw2Val!=='완료' : false;
+    return hw1Missed||hw2Missed;
+  };
+  const hwMissedStreak = hwWeekMissed(rec) && hwWeekMissed(prevRec);
+
   const rtPct = (!rtSkip&&rec.rtScore!=null&&rec.rvAvg)?Math.round(rec.rtScore/rec.rvAvg*100):null;
   const wtPct = (!wtSkip&&rec.wtScore!=null&&rec.wtAvg)?Math.round(rec.wtScore/rec.wtAvg*100):null;
   const totPct = (rec.totalScore!=null&&totAvg)?Math.round(rec.totalScore/totAvg*100):null;
@@ -1866,6 +1878,7 @@ function rReport(recs){
       ${totPct!=null?`<span style="font-size:12.5px;color:#57616F;font-weight:600;padding:5px 2px">반평균 ${totAvg}점 대비 ${totPct}%</span>`:''}
     </div>
     ${delta!=null&&delta<=-10?`<div style="margin-top:10px;padding:10px 14px;background:#FFEBEE;border:1.5px solid #FFCDD2;border-radius:10px;font-size:12.5px;font-weight:700;color:#C62828;display:flex;align-items:center;gap:6px">🚨 지난주 대비 10점 이상 하락했어요</div>`:''}
+    ${hwMissedStreak?`<div style="margin-top:10px;padding:10px 14px;background:#FFF3E0;border:1.5px solid #FFCC80;border-radius:10px;font-size:12.5px;font-weight:700;color:#E65100;display:flex;align-items:center;gap:6px">🚨 최근 2주 연속 숙제를 완료하지 않았어요</div>`:''}
   </div>
 
   <!-- 주차 선택 -->

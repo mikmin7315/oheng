@@ -185,6 +185,36 @@ export async function setAdminAccounts(accounts, expectedVersion) {
   return next;
 }
 
+// ── 조교 가입 대기 목록 ──
+// admin:auth와 동일한 낙관적 락 방식 — 단순 배열을 그대로 get/set하면 두 신청이 거의 동시에
+// 들어오거나 승인/거절과 신청이 겹칠 때 나중 쓰기가 먼저 쓴 내용을 통째로 덮어써 신청이
+// 조용히 사라질 수 있다 (Codex 리뷰에서 지적됨).
+export function normalizePendingTaRequests(raw) {
+  if (!raw) return { version: 0, requests: [] };
+  if (Array.isArray(raw.requests)) return { version: raw.version || 0, requests: raw.requests };
+  if (Array.isArray(raw)) return { version: 0, requests: raw }; // 과거 순수 배열 형식과의 호환
+  return { version: 0, requests: [] };
+}
+
+export async function getPendingTaRequests() {
+  const redis = getRedis();
+  const raw = await redis.get('ta:pending');
+  return normalizePendingTaRequests(raw);
+}
+
+export async function setPendingTaRequests(requests, expectedVersion) {
+  const redis = getRedis();
+  const current = normalizePendingTaRequests(await redis.get('ta:pending'));
+  if (current.version !== expectedVersion) {
+    const err = new Error('pending ta requests version conflict');
+    err.code = 'VERSION_CONFLICT';
+    throw err;
+  }
+  const next = { version: expectedVersion + 1, requests };
+  await redis.set('ta:pending', next);
+  return next;
+}
+
 export function findAdminAccount(accounts, id) {
   const norm = String(id || '').trim().toLowerCase();
   return accounts.find(a => a.id === norm) || null;

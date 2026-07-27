@@ -2,6 +2,7 @@ import {
   requireAdminSessionOrApiToken, requireMasterAdminSessionOrApiToken,
   isSameOrigin, verifyPassword, hashPassword, encryptPwd,
   getAdminAccounts, setAdminAccounts, findAdminAccount,
+  getPendingTaRequests, setPendingTaRequests,
   checkRateLimit, getClientIp,
   createSession, setSessionCookie, getSessionToken, deleteSession,
 } from '../_lib/auth.js';
@@ -22,6 +23,22 @@ function maxStudentIdSuffix(schools) {
     });
   });
   return max;
+}
+
+// 조교 가입 대기 목록에서 id 하나를 제거 — 신청/승인/거절이 동시에 겹쳐도 낙관적 락 충돌 시
+// 최신 목록을 다시 읽어 재시도한다 (단순 정리 작업이라 저빈도 재시도로 충분).
+async function removePendingTaRequest(id) {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { version, requests } = await getPendingTaRequests();
+    if (!requests.some(p => p.id === id)) return true;
+    try {
+      await setPendingTaRequests(requests.filter(p => p.id !== id), version);
+      return true;
+    } catch (e) {
+      if (e.code !== 'VERSION_CONFLICT') throw e;
+    }
+  }
+  return false;
 }
 
 function validateMigrateShape(body) {
@@ -103,15 +120,23 @@ export default async function handler(req, res) {
     if (!name || !String(name).trim()) return res.status(400).json({ success: false, message: '이름을 입력하세요' });
     if (!pw || String(pw).length < 4) return res.status(400).json({ success: false, message: '비밀번호는 4자 이상이어야 합니다' });
 
-    const redis = getRedis();
-    const { accounts } = await getAdminAccounts();
-    if (accounts.some(a => a.id === id)) return res.status(400).json({ success: false, message: '이미 사용 중인 아이디입니다' });
-    const pending = (await redis.get('ta:pending')) || [];
-    if (pending.some(p => p.id === id)) return res.status(400).json({ success: false, message: '이미 신청된 아이디입니다. 원장님 승인을 기다려주세요' });
+    // 동시에 여러 신청이 들어와도 낙관적 락으로 서로 덮어쓰지 않도록, 충돌 시 최신 목록을
+    // 다시 읽어 재검증 후 재시도 (신청 자체가 저빈도라 몇 번 재시도하면 충분).
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const { accounts } = await getAdminAccounts();
+      if (accounts.some(a => a.id === id)) return res.status(400).json({ success: false, message: '이미 사용 중인 아이디입니다' });
+      const { version, requests } = await getPendingTaRequests();
+      if (requests.some(p => p.id === id)) return res.status(400).json({ success: false, message: '이미 신청된 아이디입니다. 원장님 승인을 기다려주세요' });
 
-    pending.push({ id, name: String(name).trim(), pwdHash: hashPassword(pw), requestedAt: new Date().toISOString() });
-    await redis.set('ta:pending', pending);
-    return res.status(200).json({ success: true });
+      const next = [...requests, { id, name: String(name).trim(), pwdHash: hashPassword(pw), requestedAt: new Date().toISOString() }];
+      try {
+        await setPendingTaRequests(next, version);
+        return res.status(200).json({ success: true });
+      } catch (e) {
+        if (e.code !== 'VERSION_CONFLICT') throw e;
+      }
+    }
+    return res.status(409).json({ success: false, message: '다른 신청과 겹쳤습니다. 다시 시도해주세요' });
   }
 
   const session = await requireAdminSessionOrApiToken(req);
@@ -359,11 +384,10 @@ export default async function handler(req, res) {
     if (req.method !== 'GET') return res.status(405).end();
     const masterCheck = await requireMasterAdminSessionOrApiToken(req);
     if (!masterCheck) return res.status(403).json({ success: false, message: '원장님 계정만 볼 수 있습니다' });
-    const redis = getRedis();
-    const pending = (await redis.get('ta:pending')) || [];
+    const { requests } = await getPendingTaRequests();
     return res.status(200).json({
       success: true,
-      pending: pending.map(p => ({ id: p.id, name: p.name, requestedAt: p.requestedAt })),
+      pending: requests.map(p => ({ id: p.id, name: p.name, requestedAt: p.requestedAt })),
     });
   }
 
@@ -375,15 +399,14 @@ export default async function handler(req, res) {
 
     const { id: rawId } = req.body || {};
     const id = String(rawId || '').trim().toLowerCase();
-    const redis = getRedis();
-    const pending = (await redis.get('ta:pending')) || [];
-    const target = pending.find(p => p.id === id);
+    const { requests } = await getPendingTaRequests();
+    const target = requests.find(p => p.id === id);
     if (!target) return res.status(404).json({ success: false, message: '신청 내역을 찾을 수 없습니다' });
 
     const { version, accounts } = await getAdminAccounts();
     if (accounts.some(a => a.id === id)) {
       // 승인 대기 중 같은 아이디로 다른 경로(ta-create 등)가 이미 선점한 경우 — 대기 목록에서만 제거
-      await redis.set('ta:pending', pending.filter(p => p.id !== id));
+      await removePendingTaRequest(id);
       return res.status(400).json({ success: false, message: '이미 사용 중인 아이디입니다. 신청이 취소되었습니다' });
     }
 
@@ -397,7 +420,8 @@ export default async function handler(req, res) {
     } catch (e) {
       return res.status(409).json({ success: false, message: '다른 변경과 충돌했습니다. 다시 시도해주세요' });
     }
-    await redis.set('ta:pending', pending.filter(p => p.id !== id));
+    // 계정 생성은 이미 확정됐으므로, 대기 목록 정리는 최선을 다해 재시도만 하고 실패해도 승인 자체는 성공으로 응답
+    await removePendingTaRequest(id);
     return res.status(200).json({ success: true, id: target.id, name: target.name });
   }
 
@@ -409,9 +433,8 @@ export default async function handler(req, res) {
 
     const { id: rawId } = req.body || {};
     const id = String(rawId || '').trim().toLowerCase();
-    const redis = getRedis();
-    const pending = (await redis.get('ta:pending')) || [];
-    await redis.set('ta:pending', pending.filter(p => p.id !== id));
+    const ok = await removePendingTaRequest(id);
+    if (!ok) return res.status(409).json({ success: false, message: '다른 변경과 충돌했습니다. 다시 시도해주세요' });
     return res.status(200).json({ success: true, id });
   }
 

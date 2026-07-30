@@ -3371,6 +3371,9 @@ function bAdmin(){
       const sid=r.dataset.sid;if(!sid)return;
       const existingIdx=sc.records.findIndex(x=>x.sid===sid&&x.month===mon&&x.week===wk);
       const existingComment=existingIdx>=0?(sc.records[existingIdx].comment||''):'';
+      // 인강/현강 체크(attendType)는 성적과 별개로 관리되므로, 성적 저장 시 기존 값을 그대로 보존한다.
+      // (예전엔 이 값을 새 rec에 옮기지 않아 성적을 저장할 때마다 인강/현강 체크가 초기화되는 버그가 있었음)
+      const existingAttendType=existingIdx>=0?(sc.records[existingIdx].attendType||''):'';
       const rsk=r.dataset.rtskip==='1';const wsk=r.dataset.wtskip==='1';
       const rtv=parseFloat(r.querySelector('.inp-rt').value);const wtv=parseFloat(r.querySelector('.inp-wt').value);
       const rec={sid,month:mon,week:wk,thrRt,thrWt,
@@ -3385,7 +3388,7 @@ function bAdmin(){
         homework:r.querySelector('.inp-hw1')?.value||'',
         hwName1:(()=>{const _k=mon+'_'+wk;return sc.hwNames&&sc.hwNames[_k]?sc.hwNames[_k].hw1:sc.hw1||'숙제1';})(),
         hwName2:(()=>{const _k=mon+'_'+wk;return sc.hwNames&&sc.hwNames[_k]?sc.hwNames[_k].hw2:sc.hw2||'숙제2';})(),
-        retestTime:r.querySelector('.inp-rt2').value,comment:existingComment};
+        retestTime:r.querySelector('.inp-rt2').value,comment:existingComment,attendType:existingAttendType};
       if(existingIdx>=0)sc.records[existingIdx]=rec;else sc.records.push(rec);saved++;savedSids.push(sid);
     });
     addLog(sc,mon,wk,saved,thrRt,thrWt);

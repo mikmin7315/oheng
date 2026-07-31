@@ -33,8 +33,9 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // 메인 앱: 네트워크 우선, 실패 시 캐시
-  if (url.pathname === '/' || url.pathname === '/index.html') {
+  // 메인 앱: 네트워크 우선, 실패 시 캐시 (lecture.html도 index.html처럼 자주 갱신되는
+  // 메인 진입 페이지라 캐시 우선으로 두면 재방문자가 배포된 새 버전을 영영 못 봄)
+  if (url.pathname === '/' || url.pathname === '/index.html' || url.pathname === '/lecture.html') {
     event.respondWith(
       fetch(event.request)
         .then(response => {

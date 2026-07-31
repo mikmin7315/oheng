@@ -652,12 +652,26 @@ async function syncSchoolToServer(sc,attempt,intent){
     }
   }catch(e){console.warn('서버 저장 실패(로컬엔 저장됨):',e);}
 }
+// 여러 saveDB() 호출이 동시에 나가면(예: 인강/현강 체크에서 학생 여러 명을 빠르게 연달아
+// 체크) 각 요청이 fetch를 보내는 시점의 sc.version을 그대로 들고 나가기 때문에, 서로의
+// 저장이 반영되기 전에 같은 버전으로 겹쳐 보내 충돌(409)이 연쇄적으로 발생한다. 재시도
+// 로직(최대 3회)이 대부분은 조용히 흡수하지만, 짧은 시간에 여러 건이 겹치면 그중 일부는
+// 3번 다 실패해 "저장 중 충돌이 반복되어..." 경고와 함께 화면 전체가 다시 그려지고, 그
+// 시점에 반영되지 않은 변경(예: 방금 체크한 항목)은 조용히 사라진다 — 사용자에게는 "체크가
+// 자꾸 안 되고 화면이 새로고침된다"로 보임. 같은 학교에 대한 저장을 큐로 한 번에 하나씩만
+// 순서대로 내보내면, 각 저장이 직전 저장이 반영된 최신 버전을 보고 나가게 되어 이 경쟁
+// 상태 자체가 생기지 않는다.
+let _saveQueue=Promise.resolve();
 function saveDB(intent){
   try{localStorage.setItem(SKEY,JSON.stringify({...DB,adminPwd:ADMIN_PWD,adminId:ADMIN_ID}));}
   catch(e){console.warn('saveDB 오류(무시):', e);}
   if(ST.role==='admin'&&ST.serverAdminSession&&ST.school){
     const sc=DB.schools.find(s=>s.id===ST.school);
-    if(sc)return syncSchoolToServer(sc,0,intent); // 호출부에서 await하면 서버 반영 확인 후 성공 메시지를 띄울 수 있음(선택)
+    if(sc){
+      const result=_saveQueue.then(()=>syncSchoolToServer(sc,0,intent));
+      _saveQueue=result.catch(()=>{}); // 하나가 실패해도 큐 자체는 계속 이어지게
+      return result; // 호출부에서 await하면 서버 반영 확인 후 성공 메시지를 띄울 수 있음(선택)
+    }
   }
   return Promise.resolve();
 }

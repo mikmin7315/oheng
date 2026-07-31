@@ -3,6 +3,7 @@ import { listAllVideos, canMemberAccessVideo } from './video.js';
 
 const COURSE_PREFIX = 'course:';
 const COURSE_INDEX_KEY = 'course:index';
+const APPLICANTS_PREFIX = 'course:applicants:';
 
 export async function getCourseIndex() {
   const redis = getRedis();
@@ -66,6 +67,30 @@ export async function listPublishedCoursesForPublic() {
       id: c.id, title: c.title, description: c.description,
       price: c.price, durationDays: c.durationDays, videoCount: (c.videoIds || []).length,
     }));
+}
+
+// 결제 연동 전까지, 강좌 카드의 "신청하기"가 여기 쌓인다 — 관리자가 강좌 관리 화면에서
+// 신청자 목록을 보고 수동으로 수강권을 부여(grant-entitlement)하면 명단에서 빠진다.
+// memberId 기준으로 중복 신청은 최신 시각으로만 갱신(같은 사람이 여러 번 눌러도 한 줄).
+export async function applyToCourse(courseId, memberId) {
+  const redis = getRedis();
+  const key = APPLICANTS_PREFIX + courseId;
+  const list = (await redis.get(key)) || [];
+  const filtered = list.filter(a => a.memberId !== memberId);
+  filtered.push({ memberId, appliedAt: new Date().toISOString() });
+  await redis.set(key, filtered);
+}
+
+export async function listApplicants(courseId) {
+  const redis = getRedis();
+  return (await redis.get(APPLICANTS_PREFIX + courseId)) || [];
+}
+
+export async function removeApplicant(courseId, memberId) {
+  const redis = getRedis();
+  const key = APPLICANTS_PREFIX + courseId;
+  const list = (await redis.get(key)) || [];
+  await redis.set(key, list.filter(a => a.memberId !== memberId));
 }
 
 // 회원이 실제 구매(active + 미만료)한 강좌들의 영상 목록.

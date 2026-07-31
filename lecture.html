@@ -123,6 +123,26 @@ async function loadPublicCourses(){
   }catch(e){return [];}
 }
 
+// 결제 연동 전까지 "신청하기"는 로그인이 필요해서, 비로그인 상태로 누르면 신청할 강좌를
+// 기억해뒀다가 로그인(휴대폰 OTP든 구글 리다이렉트 왕복이든) 완료 직후 자동으로 신청 처리한다.
+function setPendingApply(courseId){ try{ sessionStorage.setItem('oheng_pending_apply',courseId); }catch(e){} }
+function takePendingApply(){
+  try{
+    const id=sessionStorage.getItem('oheng_pending_apply');
+    sessionStorage.removeItem('oheng_pending_apply');
+    return id;
+  }catch(e){ return null; }
+}
+async function tryAutoApply(){
+  const courseId=takePendingApply();
+  if(!courseId)return;
+  try{
+    const res=await fetch('/api/courses/apply',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({courseId})});
+    const d=await res.json();
+    if(d.success)alert('신청이 완료됐습니다! 확인 후 연락드릴게요.');
+  }catch(e){}
+}
+
 async function boot(){
   const qs=new URLSearchParams(location.search);
   if(qs.has('google_error')){
@@ -140,6 +160,7 @@ async function boot(){
   if(member){
     ST.mode='member';ST.member=member;
     if(!member.name){ST.screen='otp-name';render();return;}
+    await tryAutoApply();
     ST.videos=await loadMemberVideos();ST.screen='list';render();return;
   }
   ST.mode=null;
@@ -189,6 +210,7 @@ async function doOtpVerify(code,errEl,btn){
     if(d.isNew || !d.name){ST.screen='otp-name';render();return;}
     ST.mode='member';
     ST.member=await loadMemberMe();
+    await tryAutoApply();
     ST.videos=await loadMemberVideos();
     ST.screen='list';
     render();
@@ -207,6 +229,7 @@ async function doProfileSave(name,errEl,btn){
     if(!d.success){errEl.textContent=d.message||'저장 실패';btn.disabled=false;btn.textContent='완료';return;}
     ST.mode='member';
     ST.member=await loadMemberMe();
+    await tryAutoApply();
     ST.videos=await loadMemberVideos();
     ST.screen='list';
     render();
@@ -246,6 +269,7 @@ function browseScreen(){
         <div class="course-title">${esc(c.title)}</div>
         <div class="course-desc">${esc(c.description||'')}</div>
         <div class="course-meta"><span>영상 ${c.videoCount}개 · 수강기간 ${c.durationDays}일</span><span class="course-price">${won(c.price)}</span></div>
+        <button class="btn btn-primary" data-apply-course="${c.id}" style="width:100%;margin-top:12px;padding:10px">🙋 신청하기</button>
       </div>`).join('')
     :`<div class="empty"><div class="ic">🎬</div><div style="font-size:14px;font-weight:600;color:#C8CFDD;margin-bottom:6px">아직 등록된 강좌가 없습니다</div></div>`;
   const errBox=ST.googleError?`<div class="login-err" style="margin:0 0 14px">${esc(ST.googleError)}</div>`:'';
@@ -375,6 +399,13 @@ function wireBrowse(){
   document.getElementById('btn-start').addEventListener('click',()=>{ST.screen='otp-phone';render();});
   document.getElementById('btn-google').addEventListener('click',()=>{location.href='/api/member-auth/google-start';});
   document.getElementById('btn-student-link').addEventListener('click',()=>{ST.screen='student-login';render();});
+  document.querySelectorAll('[data-apply-course]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      setPendingApply(btn.dataset.applyCourse);
+      alert('먼저 로그인해주세요 — 로그인/가입이 끝나면 자동으로 신청됩니다.');
+      ST.screen='otp-phone';render();
+    });
+  });
 }
 
 function wireOtpPhone(){

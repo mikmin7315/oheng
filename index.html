@@ -1814,10 +1814,12 @@ async function renderCourseList(){
           <div style="font-size:12px;color:#5C6470;margin-top:6px">영상 ${(c.videoIds||[]).length}개 · 수강기간 ${c.durationDays}일 · ${(c.price||0).toLocaleString()}원</div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="abtn" data-toggle-applicants="${c.id}" style="font-size:11px;padding:6px 10px">🙋 신청자${ST.expandedApplicantsCourseId===c.id?' 접기':' 관리'}</button>
           <button class="abtn abtn-blue" data-edit-course="${c.id}" style="font-size:11px;padding:6px 10px">✏️ 수정</button>
           <button class="abtn abtn-red" data-del-course="${c.id}" style="font-size:11px;padding:6px 10px">🗑️ 삭제</button>
         </div>
       </div>
+      ${ST.expandedApplicantsCourseId===c.id?`<div id="applicants-wrap" style="margin-top:14px;padding-top:14px;border-top:1px solid #F0F2F5">불러오는 중...</div>`:''}
     </div>`).join('');
   wrap.querySelectorAll('[data-edit-course]').forEach(b=>{
     b.onclick=()=>{ST.editCourseId=b.dataset.editCourse;ST.showAddCourse=true;render();};
@@ -1834,6 +1836,53 @@ async function renderCourseList(){
       }catch(e){alert('오류: '+e.message);b.disabled=false;return;}
       ST.adminCourses=undefined;
       renderCourseList();
+    };
+  });
+  wrap.querySelectorAll('[data-toggle-applicants]').forEach(b=>{
+    b.onclick=()=>{
+      ST.expandedApplicantsCourseId=(ST.expandedApplicantsCourseId===b.dataset.toggleApplicants)?null:b.dataset.toggleApplicants;
+      renderCourseList();
+    };
+  });
+  if(ST.expandedApplicantsCourseId)renderApplicants(ST.expandedApplicantsCourseId, courses.find(c=>c.id===ST.expandedApplicantsCourseId));
+}
+
+async function renderApplicants(courseId, course){
+  const box=document.getElementById('applicants-wrap');
+  if(!box)return;
+  let applicants=[];
+  try{
+    const res=await fetch('/api/courses/admin-applicants?courseId='+encodeURIComponent(courseId),{credentials:'include'});
+    const data=await res.json();
+    applicants=data.success?data.applicants:[];
+  }catch(e){}
+  if(!applicants.length){
+    box.innerHTML='<div style="color:#9BA3AF;font-size:12px">아직 신청자가 없습니다.</div>';
+    return;
+  }
+  box.innerHTML=`<div style="font-size:12px;font-weight:700;color:#5C6470;margin-bottom:8px">신청자 ${applicants.length}명</div>`+
+    applicants.map(a=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid #F7F8FA">
+      <div style="font-size:13px">
+        <span style="font-weight:700;color:#1A237E">${esc(a.name)}</span>
+        <span style="color:#9BA3AF;margin-left:6px">${esc(a.phone||a.email||'')}</span>
+        <span style="color:#C4C9D4;margin-left:6px;font-size:11px">${esc((a.appliedAt||'').slice(0,10))} 신청</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <input data-grant-days="${a.memberId}" type="number" min="1" value="${course?.durationDays||30}" style="width:60px;padding:5px 6px;border:1.5px solid #E8ECF0;border-radius:7px;font-size:12px" title="수강기간(일)">
+        <button class="abtn abtn-green" data-grant="${a.memberId}" data-course="${courseId}" style="font-size:11px;padding:5px 10px">✓ 수강권 부여</button>
+      </div>
+    </div>`).join('');
+  box.querySelectorAll('[data-grant]').forEach(b=>{
+    b.onclick=async()=>{
+      const days=parseInt(document.querySelector(`[data-grant-days="${b.dataset.grant}"]`)?.value,10)||undefined;
+      b.disabled=true;b.textContent='처리 중...';
+      try{
+        const res=await fetch('/api/courses/grant-entitlement',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({memberId:b.dataset.grant,courseId:b.dataset.course,days})});
+        const data=await res.json();
+        if(!res.ok||!data.success){alert(data.message||'부여 실패');b.disabled=false;b.textContent='✓ 수강권 부여';return;}
+      }catch(e){alert('오류: '+e.message);b.disabled=false;b.textContent='✓ 수강권 부여';return;}
+      renderApplicants(courseId, course);
     };
   });
 }

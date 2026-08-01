@@ -4386,35 +4386,47 @@ function renderScoreDropAlert(sc, mon, wk){
   const prevRecs = sc.records.filter(r=>r.month===prevMon&&r.week===prevWk);
   if(!curRecs.length||!prevRecs.length){ alertEl.innerHTML=''; return; }
 
-  const drops = [];
-  curRecs.forEach(cur=>{
-    const prev = prevRecs.find(p=>p.sid===cur.sid);
-    if(!prev) return;
-    const curTot = cur.totalScore, prevTot = prev.totalScore;
-    if(curTot===null||curTot===undefined||prevTot===null||prevTot===undefined) return;
-    const diff = curTot - prevTot;
-    if(diff <= -10){
-      const s = sc.students.find(x=>x.id===cur.sid);
-      drops.push({name: s?s.name:cur.sid, prev:prevTot, cur:curTot, diff});
-    }
-  });
+  const findDrops=(scoreKey,skipKey)=>{
+    const drops=[];
+    curRecs.forEach(cur=>{
+      const prev = prevRecs.find(p=>p.sid===cur.sid);
+      if(!prev) return;
+      if((skipKey&&(cur[skipKey]||prev[skipKey]))) return;
+      const curV = cur[scoreKey], prevV = prev[scoreKey];
+      if(curV===null||curV===undefined||prevV===null||prevV===undefined) return;
+      const diff = curV - prevV;
+      if(diff <= -10){
+        const s = sc.students.find(x=>x.id===cur.sid);
+        drops.push({name: s?s.name:cur.sid, prev:prevV, cur:curV, diff});
+      }
+    });
+    drops.sort((a,b)=>a.diff-b.diff);
+    return drops;
+  };
 
-  if(!drops.length){ alertEl.innerHTML=''; return; }
+  const totalDrops = findDrops('totalScore', null);
+  const rtDrops = findDrops('rtScore', 'rtSkip');
+  const wtDrops = findDrops('wtScore', 'wtSkip');
 
-  drops.sort((a,b)=>a.diff-b.diff);
-  const items = drops.map(d=>`
-    <span style="display:inline-flex;align-items:center;gap:4px;background:#FFEBEE;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:700;color:#C62828">
-      ${d.name}
-      <span style="font-weight:400;color:#E53935">${d.prev}→${d.cur}점 (${d.diff})</span>
-    </span>`).join('');
+  if(!totalDrops.length&&!rtDrops.length&&!wtDrops.length){ alertEl.innerHTML=''; return; }
 
-  alertEl.innerHTML = `
+  const section=(label,drops)=>{
+    if(!drops.length) return '';
+    const items = drops.map(d=>`
+      <span style="display:inline-flex;align-items:center;gap:4px;background:#FFEBEE;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:700;color:#C62828">
+        ${d.name}
+        <span style="font-weight:400;color:#E53935">${d.prev}→${d.cur}점 (${d.diff})</span>
+      </span>`).join('');
+    return `
     <div style="background:#FFF5F5;border:1.5px solid #FFCDD2;border-radius:12px;padding:12px 16px;margin-bottom:12px">
       <div style="font-size:12px;font-weight:700;color:#C62828;margin-bottom:8px">
-        전주 대비 10점 이상 하락 (${drops.length}명)
+        ${label} 전주 대비 10점 이상 하락 (${drops.length}명)
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:6px">${items}</div>
     </div>`;
+  };
+
+  alertEl.innerHTML = section('전체 총점',totalDrops) + section('RT',rtDrops) + section('WT',wtDrops);
 }
 
 function rSendLogs(sc){

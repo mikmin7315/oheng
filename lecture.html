@@ -344,9 +344,11 @@ async function doLogout(){
 function navBar(){
   const loggedIn=['list','player'].includes(ST.screen) && (ST.mode==='student'||ST.mode==='member');
   const showLanding=ST.screen==='browse';
+  // student-login/otp-* 같은 로그인 진행 화면에서는 이 버튼들의 클릭 핸들러를 wireBrowse()에서만
+  // 붙여서, 랜딩(browse) 화면이 아닐 때 표시하면 눌러도 반응 없는 죽은 버튼이 된다(Codex 리뷰로 발견).
   const right=loggedIn
     ?`<span class="who">${ST.mode==='student'?`${esc(ST.student?.student?.name||'')} · ${esc(ST.student?.school?.name||'')}`:`${esc(ST.member?.name||'')} · ${esc(ST.member?.phone||ST.member?.email||'')}`}</span><button class="btn" id="btn-logout">로그아웃</button>`
-    :`<button class="nav-textlink" id="nav-student-link">학생 로그인</button><button class="btn btn-primary" id="nav-cta">무료체험 신청</button>`;
+    :showLanding?`<button class="nav-textlink" id="nav-student-link">학생 로그인</button><button class="btn btn-primary" id="nav-cta">무료체험 신청</button>`:'';
   const links=showLanding
     ?`<div class="navlinks"><a href="#courses">강좌</a><a href="#instructor">원장님 소개</a><a href="#features">커리큘럼</a><a href="#reviews">실제 후기</a></div>`
     :'';

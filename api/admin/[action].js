@@ -496,6 +496,10 @@ export default async function handler(req, res) {
     // 쌓아두면 학교 데이터 전체가 수 MB로 불어나 모든 조회/저장이 느려진다. 실제로 오래된
     // 저장을 되돌리는 경우는 거의 없어서 최근 30개만 유지 (원장님 확인 후 결정한 값).
     if (sc.saveLogs.length > 30) sc.saveLogs = sc.saveLogs.slice(-30);
+    // 30개조차 건당 최대 수십 KB라 여전히 무겁다 — 최근 5건만 되돌리기 가능하게 스냅샷을 남기고,
+    // 그보다 오래된 기록은 감사 이력(누가 언제 몇 명 저장했는지)만 남기고 무거운 스냅샷은 제거.
+    const KEEP_SNAPSHOT = 5;
+    sc.saveLogs.forEach((e, i) => { if (i < sc.saveLogs.length - KEEP_SNAPSHOT && e.snapshot) delete e.snapshot; });
     sc.version = (sc.version || 0) + 1;
     await getRedis().set('school:' + schoolId, sc);
     return res.status(200).json({ success: true });
@@ -548,13 +552,16 @@ export default async function handler(req, res) {
     if (!sc) return res.status(404).json({ success: false, message: '학교를 찾을 수 없습니다' });
     const beforeSave = (sc.saveLogs || []).length;
     const beforeSend = (sc.sendLogs || []).length;
+    const beforeSaveChars = JSON.stringify(sc.saveLogs || []).length;
     sc.saveLogs = Array.isArray(sc.saveLogs) ? sc.saveLogs.slice(-30) : [];
     sc.sendLogs = Array.isArray(sc.sendLogs) ? sc.sendLogs.slice(-300) : [];
+    const KEEP_SNAPSHOT = 5;
+    sc.saveLogs.forEach((e, i) => { if (i < sc.saveLogs.length - KEEP_SNAPSHOT && e.snapshot) delete e.snapshot; });
     sc.version = (sc.version || 0) + 1;
     await getRedis().set('school:' + schoolId, sc);
     return res.status(200).json({
       success: true,
-      saveLogs: { before: beforeSave, after: sc.saveLogs.length },
+      saveLogs: { before: beforeSave, after: sc.saveLogs.length, beforeChars: beforeSaveChars, afterChars: JSON.stringify(sc.saveLogs).length },
       sendLogs: { before: beforeSend, after: sc.sendLogs.length },
     });
   }

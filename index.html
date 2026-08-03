@@ -5395,6 +5395,10 @@ function pushLogEntry(sc,entry){
     sc.saveLogs=Array.isArray(sc.saveLogs)?sc.saveLogs:[];
     sc.saveLogs.push(entry);
     if(sc.saveLogs.length>30)sc.saveLogs=sc.saveLogs.slice(-30);
+    // 되돌리기는 실제로 최근 몇 건만 쓰이므로, 오래된 기록은 목록(감사 이력)에는 남기되
+    // 무거운 스냅샷(건당 최대 수십 KB)만 떼어낸다 — canUndo가 snapshot 유무로 버튼을 알아서 숨김
+    const KEEP_SNAPSHOT=5;
+    sc.saveLogs.forEach((e,i)=>{if(i<sc.saveLogs.length-KEEP_SNAPSHOT&&e.snapshot)delete e.snapshot;});
     fetch('/api/admin/append-save-log',{
       method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({schoolId:sc.id,entry})

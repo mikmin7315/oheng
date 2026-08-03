@@ -492,7 +492,10 @@ export default async function handler(req, res) {
     const stampedEntry = { ...entry, actorName: session.actorName || entry.actorName || '' };
     sc.saveLogs = Array.isArray(sc.saveLogs) ? sc.saveLogs : [];
     sc.saveLogs.push(stampedEntry);
-    if (sc.saveLogs.length > 200) sc.saveLogs = sc.saveLogs.slice(-200);
+    // 되돌리기 스냅샷을 통째로 담다 보니 건당 최대 수십 KB까지 커져서, 예전처럼 200개까지
+    // 쌓아두면 학교 데이터 전체가 수 MB로 불어나 모든 조회/저장이 느려진다. 실제로 오래된
+    // 저장을 되돌리는 경우는 거의 없어서 최근 30개만 유지 (원장님 확인 후 결정한 값).
+    if (sc.saveLogs.length > 30) sc.saveLogs = sc.saveLogs.slice(-30);
     sc.version = (sc.version || 0) + 1;
     await getRedis().set('school:' + schoolId, sc);
     return res.status(200).json({ success: true });
@@ -508,7 +511,7 @@ export default async function handler(req, res) {
     if (!sc) return res.status(404).json({ success: false, message: '학교를 찾을 수 없습니다' });
     sc.sendLogs = Array.isArray(sc.sendLogs) ? sc.sendLogs : [];
     sc.sendLogs.push(entry);
-    if (sc.sendLogs.length > 1000) sc.sendLogs = sc.sendLogs.slice(-1000);
+    if (sc.sendLogs.length > 300) sc.sendLogs = sc.sendLogs.slice(-300);
     sc.version = (sc.version || 0) + 1;
     await getRedis().set('school:' + schoolId, sc);
     return res.status(200).json({ success: true });

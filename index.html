@@ -4726,7 +4726,7 @@ function addSendLog(sc, entry){
   if(ST.serverAdminSession){
     sc.sendLogs = Array.isArray(sc.sendLogs) ? sc.sendLogs : [];
     sc.sendLogs.push(entry);
-    if(sc.sendLogs.length > 1000) sc.sendLogs = sc.sendLogs.slice(-1000);
+    if(sc.sendLogs.length > 300) sc.sendLogs = sc.sendLogs.slice(-300);
     fetch('/api/admin/append-send-log', {
       method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({schoolId: sc.id, entry})
@@ -4737,7 +4737,7 @@ function addSendLog(sc, entry){
     const key = 'oheng_sendlogs_' + sc.id;
     const logs = JSON.parse(localStorage.getItem(key) || '[]');
     logs.push(entry);
-    localStorage.setItem(key, JSON.stringify(logs.slice(-1000)));
+    localStorage.setItem(key, JSON.stringify(logs.slice(-300)));
   } catch(e){ console.warn('addSendLog 오류:', e); }
 }
 function getSendLogs(sc){
@@ -5394,7 +5394,7 @@ function pushLogEntry(sc,entry){
   if(ST.serverAdminSession){
     sc.saveLogs=Array.isArray(sc.saveLogs)?sc.saveLogs:[];
     sc.saveLogs.push(entry);
-    if(sc.saveLogs.length>200)sc.saveLogs=sc.saveLogs.slice(-200);
+    if(sc.saveLogs.length>30)sc.saveLogs=sc.saveLogs.slice(-30);
     fetch('/api/admin/append-save-log',{
       method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({schoolId:sc.id,entry})
@@ -5405,7 +5405,7 @@ function pushLogEntry(sc,entry){
     const key='oheng_logs_'+sc.id;
     const logs=JSON.parse(localStorage.getItem(key)||'[]');
     logs.push(entry);
-    localStorage.setItem(key,JSON.stringify(logs.slice(-200)));
+    localStorage.setItem(key,JSON.stringify(logs.slice(-30)));
   }catch(e){console.warn('로그 기록 오류:',e);}
 }
 // 성적 일괄 저장 로그 — snapshot은 선택값(안 넘기면 기존과 동일하게 동작, 하위호환)

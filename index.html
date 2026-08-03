@@ -618,10 +618,20 @@ function loadDB(){
 // 이제는 저장을 호출하는 쪽이 "이번 저장에서 실제로 의도한 레코드 키(sid|month|week)"를
 // intent.dirtyKeys(수정/추가)·intent.deletedKeys(삭제)로 명시하고, 그 외 레코드는 충돌 시
 // 무조건 서버 최신본을 따르게 한다. intent를 안 넘기면(레코드를 안 건드리는 저장) 안전하게 전부 서버 우선.
+// 학생 정보(sc.students)·탈퇴 학생(sc.withdrawnStudents)도 같은 문제가 있었다 — 예를 들어 학생 이름을
+// 고쳐 저장했는데 그 사이 버전이 밀려 409가 나면, 예전 코드는 학생 목록 전체를 서버 최신본으로
+// 덮어써버려서(비밀번호만 로컬 값 유지) 방금 고친 이름이 조용히 사라지고 재시도에서 원래 이름으로
+// 다시 저장돼버렸다. 레코드와 동일하게 intent.dirtyStudentIds/deletedStudentIds,
+// intent.dirtyWithdrawnIds/deletedWithdrawnIds로 "이번 저장에서 실제로 건드린 학생"을 명시해
+// 그 학생만 로컬 값을 지키고 나머지는 서버 최신본을 따르게 한다.
 async function syncSchoolToServer(sc,attempt,intent){
   attempt=attempt||0;
   const dirtyKeys=intent?.dirtyKeys||new Set();
   const deletedKeys=intent?.deletedKeys||new Set();
+  const dirtyStudentIds=intent?.dirtyStudentIds||new Set();
+  const deletedStudentIds=intent?.deletedStudentIds||new Set();
+  const dirtyWithdrawnIds=intent?.dirtyWithdrawnIds||new Set();
+  const deletedWithdrawnIds=intent?.deletedWithdrawnIds||new Set();
   try{
     const res=await fetch('/api/admin/school/'+encodeURIComponent(sc.id),{
       method:'PUT',credentials:'include',headers:{'Content-Type':'application/json'},
@@ -632,9 +642,26 @@ async function syncSchoolToServer(sc,attempt,intent){
       if(data.school&&attempt<3){
         const latest=data.school;
         sc.version=latest.version;
-        sc.students=(latest.students||[]).map(ls=>{const local=sc.students.find(x=>x.id===ls.id);return(local&&local.pwd)?{...ls,pwd:local.pwd}:ls;});
+        const localStudentMap=new Map(sc.students.map(x=>[x.id,x]));
+        const mergedStudents=(latest.students||[])
+          .filter(ls=>!deletedStudentIds.has(ls.id))
+          .map(ls=>{
+            if(dirtyStudentIds.has(ls.id)&&localStudentMap.has(ls.id))return localStudentMap.get(ls.id);
+            const local=localStudentMap.get(ls.id);
+            return(local&&local.pwd)?{...ls,pwd:local.pwd}:ls;
+          });
+        const latestStudentIds=new Set((latest.students||[]).map(x=>x.id));
+        const newLocalDirtyStudents=[...localStudentMap.entries()].filter(([id])=>dirtyStudentIds.has(id)&&!latestStudentIds.has(id)).map(([,x])=>x);
+        sc.students=[...mergedStudents,...newLocalDirtyStudents];
         sc.notices=latest.notices??sc.notices;
-        sc.withdrawnStudents=latest.withdrawnStudents??sc.withdrawnStudents;
+        const localWithdrawnMap=new Map((sc.withdrawnStudents||[]).map(x=>[x.id,x]));
+        const latestWithdrawn=latest.withdrawnStudents||[];
+        const mergedWithdrawn=latestWithdrawn
+          .filter(ws=>!deletedWithdrawnIds.has(ws.id))
+          .map(ws=>(dirtyWithdrawnIds.has(ws.id)&&localWithdrawnMap.has(ws.id))?localWithdrawnMap.get(ws.id):ws);
+        const latestWithdrawnIds=new Set(latestWithdrawn.map(x=>x.id));
+        const newLocalDirtyWithdrawn=[...localWithdrawnMap.entries()].filter(([id])=>dirtyWithdrawnIds.has(id)&&!latestWithdrawnIds.has(id)).map(([,x])=>x);
+        sc.withdrawnStudents=[...mergedWithdrawn,...newLocalDirtyWithdrawn];
         sc.hw1=latest.hw1??sc.hw1;sc.hw2=latest.hw2??sc.hw2;sc.hw2Skip=latest.hw2Skip??sc.hw2Skip;sc.hwNames=latest.hwNames??sc.hwNames;
         sc.kakaoChannel=latest.kakaoChannel??sc.kakaoChannel;
         const key=r=>r.sid+'|'+r.month+'|'+r.week;
@@ -3131,7 +3158,7 @@ function renderStudentTable(sc){
     inp.onchange=()=>{
       const s=sc.students.find(x=>x.id===inp.dataset.hsId);if(!s)return;
       s.highSchool=inp.value.trim();
-      saveDB();
+      saveDB({dirtyStudentIds:new Set([s.id])});
     };
   });
   wrap.querySelectorAll('[data-edit-id]').forEach(b=>{ b.onclick=()=>openEditStudent(sc, b.dataset.editId); });
@@ -3153,7 +3180,7 @@ function renderStudentTable(sc){
     inp.onchange=()=>{
       const s=sc.students.find(x=>x.id===inp.dataset.reasonId);if(!s)return;
       s.reason=inp.value.trim();
-      saveDB();
+      saveDB({dirtyStudentIds:new Set([s.id])});
     };
   });
   // 체크박스로 고른 학생만 골라 ID/비번 발송 — "전체 선택" 헤더 체크박스와 연동
@@ -3767,7 +3794,7 @@ function bAdmin(){
       const newSt={id,name,pwd:pw,phone:document.getElementById('ns-ph').value,parentPhone:document.getElementById('ns-pph').value,type:sType,reason:document.getElementById('ns-reason')?.value.trim()||'',highSchool:document.getElementById('ns-hs')?.value.trim()||'',createdAt:today};
       sc.students.push(newSt);
       ST.suggestedStudentId=undefined;
-      saveDB();msg.textContent=`✓ ${name} 추가 완료!`;msg.style.color='#00897B';render();
+      saveDB({dirtyStudentIds:new Set([newSt.id])});msg.textContent=`✓ ${name} 추가 완료!`;msg.style.color='#00897B';render();
       // 카카오 ID/비번 발송은 강제하지 않고 선택 — "취소"하면 나중에 일괄 발송으로 보낼 수 있음
       if((newSt.parentPhone||newSt.phone) && confirm(`${name} 학생 등록 완료!\n\n지금 바로 카카오 알림톡(ID/비번)을 보낼까요?\n\n"취소"를 누르면 지금은 보내지 않고, 나중에 "ID/비번 일괄 발송"에서 한 번에 보낼 수 있습니다.`)){
         sendPpurioIdPw(sc,newSt);
@@ -3791,7 +3818,7 @@ function bAdmin(){
           let added=0;
           validRows.forEach((p,i)=>{sc.students.push({id:ids[i],name:p.name,pwd:String(Math.floor(1000+Math.random()*9000)),phone:p.phone||'',parentPhone:p.parentPhone||'',type:p.type||'regular',highSchool:p.highSchool||'',createdAt:today});added++;});
           ST.suggestedStudentId=undefined;
-          saveDB();msg.textContent=`✓ ${added}명 등록 완료`;msg.style.color='#00897B';setTimeout(()=>render(),800);
+          saveDB({dirtyStudentIds:new Set(ids)});msg.textContent=`✓ ${added}명 등록 완료`;msg.style.color='#00897B';setTimeout(()=>render(),800);
         }catch(err){msg.textContent='오류: '+err.message;msg.style.color='#E53935';}
       };
       reader.readAsText(fi.files[0],'UTF-8');
@@ -3816,7 +3843,7 @@ function bAdmin(){
         sc.withdrawnStudents.push({...s,withdrawReason:'일괄 탈퇴처리',withdrawnAt:nowStr()});
       });
       sc.students=sc.students.filter(x=>!ids.includes(x.id));
-      saveDB();
+      saveDB({deletedStudentIds:new Set(ids),dirtyWithdrawnIds:new Set(ids)});
       render();
     });
     document.getElementById('stu-search').oninput=e=>{ST.stuSearch=e.target.value;renderStudentTable(sc);};
@@ -3832,7 +3859,7 @@ function bAdmin(){
         const [s]=sc.withdrawnStudents.splice(idx,1);
         delete s.withdrawReason;delete s.withdrawnAt;
         sc.students.push(s);
-        saveDB();render();
+        saveDB({deletedWithdrawnIds:new Set([s.id]),dirtyStudentIds:new Set([s.id])});render();
       };
     });
     document.querySelectorAll('[data-perm-del-id]').forEach(b=>{
@@ -3840,9 +3867,10 @@ function bAdmin(){
         const s=(sc.withdrawnStudents||[]).find(x=>x.id===b.dataset.permDelId);
         if(!s)return;
         if(!confirm(`${s.name} 학생을 완전히 삭제할까요?\n이 작업은 되돌릴 수 없으며, 성적 기록도 함께 삭제됩니다.`))return;
+        const affectedKeys=new Set(sc.records.filter(x=>x.sid===s.id).map(r=>r.sid+'|'+r.month+'|'+r.week));
         sc.withdrawnStudents=sc.withdrawnStudents.filter(x=>x.id!==s.id);
         sc.records=sc.records.filter(x=>x.sid!==s.id);
-        saveDB();render();
+        saveDB({deletedWithdrawnIds:new Set([s.id]),deletedKeys:affectedKeys});render();
       };
     });
     return;
@@ -5071,7 +5099,7 @@ function openWithdrawStudent(sc, sid){
     sc.withdrawnStudents = sc.withdrawnStudents || [];
     sc.withdrawnStudents.push({ ...s, withdrawReason, withdrawnAt: nowStr() });
     sc.students = sc.students.filter(x=>x.id!==sid);
-    saveDB();
+    saveDB({deletedStudentIds:new Set([sid]),dirtyWithdrawnIds:new Set([sid])});
     popup.remove();
     render();
   };
@@ -5170,7 +5198,7 @@ function openEditStudent(sc, sid){
     s.type = type;
     s.reason = reason;
     if(sc.type==='lecture') s.highSchool = document.getElementById('edit-hs')?.value.trim()||'';
-    saveDB();
+    saveDB({dirtyStudentIds:new Set([s.id])});
 
     msg.textContent = '✓ 저장 완료!'; msg.style.color = '#00897B';
     setTimeout(()=>{ popup.remove(); render(); }, 600);

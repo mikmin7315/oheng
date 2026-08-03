@@ -1812,11 +1812,11 @@ function rCourseAdmin(){
   <div class="school-wrap">
     <div class="school-inner" style="max-width:760px">
       <div style="text-align:center;margin-bottom:32px">
-        <div style="width:60px;height:60px;border-radius:18px;background:linear-gradient(135deg,#7B1FA2,#AB47BC);display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 14px;box-shadow:0 8px 24px rgba(123,31,162,0.25)">🎓</div>
-        <div class="school-title">강좌 관리</div>
+        <div style="width:60px;height:60px;border-radius:18px;background:#FF6B4A;display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 14px;box-shadow:0 8px 24px rgba(255,107,74,0.28)">🎓</div>
+        <div class="school-title" style="color:#12151C">강좌 관리</div>
         <div class="school-sub">oheng.co.kr 인강 사이트에 공개할 강좌를 등록하고 관리합니다</div>
       </div>
-      <button class="school-add-btn" id="btn-course-add-toggle">${ST.showAddCourse?'취소':'+ 새 강좌 추가'}</button>
+      <button class="school-add-btn" id="btn-course-add-toggle" style="${ST.showAddCourse?'':'background:#FF6B4A;border:none;color:#fff;font-weight:700;box-shadow:0 4px 14px rgba(255,107,74,0.28)'}">${ST.showAddCourse?'취소':'+ 새 강좌 추가'}</button>
       ${ST.showAddCourse?courseFormHtml(editing):''}
       <div id="course-list-wrap" style="margin-top:20px"></div>
     </div>
@@ -1842,7 +1842,7 @@ async function renderCourseList(){
     <div class="school-card" style="text-align:left;cursor:default;padding:18px 20px;margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
         <div>
-          <div style="font-weight:700;color:#1A237E;font-size:15px">${esc(c.title)} ${c.published?'<span style="font-size:10.5px;font-weight:700;color:#00897B;background:#E0F2E9;border-radius:20px;padding:2px 8px;margin-left:6px">공개</span>':'<span style="font-size:10.5px;font-weight:700;color:#9BA3AF;background:#F1F3F5;border-radius:20px;padding:2px 8px;margin-left:6px">비공개</span>'}</div>
+          <div style="font-weight:700;color:#12151C;font-size:15px">${esc(c.title)} ${c.published?'<span style="font-size:10.5px;font-weight:700;color:#00897B;background:#E0F2E9;border-radius:20px;padding:2px 8px;margin-left:6px">공개</span>':'<span style="font-size:10.5px;font-weight:700;color:#9BA3AF;background:#F1F3F5;border-radius:20px;padding:2px 8px;margin-left:6px">비공개</span>'}</div>
           <div style="font-size:12px;color:#9BA3AF;margin-top:4px">${esc(c.description||'')}</div>
           <div style="font-size:12px;color:#5C6470;margin-top:6px">영상 ${(c.videoIds||[]).length}개 · 수강기간 ${c.durationDays}일 · ${(c.price||0).toLocaleString()}원</div>
         </div>
@@ -1897,7 +1897,7 @@ async function renderApplicants(courseId, course){
     applicants.map(a=>`
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid #F7F8FA">
       <div style="font-size:13px">
-        <span style="font-weight:700;color:#1A237E">${esc(a.name)}</span>
+        <span style="font-weight:700;color:#12151C">${esc(a.name)}</span>
         <span style="color:#9BA3AF;margin-left:6px">${esc(a.phone||a.email||'')}</span>
         <span style="color:#C4C9D4;margin-left:6px;font-size:11px">${esc((a.appliedAt||'').slice(0,10))} 신청</span>
       </div>

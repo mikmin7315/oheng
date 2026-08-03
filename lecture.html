@@ -12,7 +12,7 @@
     --pill-bg:#F4F4F5;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion: no-preference){ html{scroll-behavior:smooth} }
   body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic',sans-serif;background:var(--white);color:var(--navy);min-height:100dvh}
   #app{min-height:100dvh;display:flex;flex-direction:column}
   a{color:inherit}
@@ -25,20 +25,21 @@
   .navlinks a{text-decoration:none}
   .navlinks a:hover{color:var(--coral)}
   .navright{display:flex;align-items:center;gap:16px}
-  .nav-textlink{background:none;border:none;font-size:13px;font-weight:600;color:var(--navy-soft);cursor:pointer;font-family:inherit;white-space:nowrap}
+  .nav-textlink{background:none;border:none;font-size:13px;font-weight:600;color:var(--navy-soft);cursor:pointer;font-family:inherit;white-space:nowrap;padding:12px 4px;min-height:44px;display:inline-flex;align-items:center}
   .nav-textlink:hover{color:var(--navy)}
   .who{font-size:12.5px;color:var(--navy-soft);white-space:nowrap}
   @media (max-width:860px){ .navlinks{display:none} .navbar{padding:0 16px} }
 
   /* ── 버튼 ── */
-  .btn{padding:9px 16px;border-radius:9px;border:1.5px solid var(--border);background:var(--white);color:var(--navy);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+  .btn{padding:12px 18px;min-height:44px;border-radius:9px;border:1.5px solid var(--border);background:var(--white);color:var(--navy);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
   .btn:hover{background:#F5F5F4}
   .btn-primary{background:var(--coral);border-color:var(--coral);color:#fff}
   .btn-primary:hover{background:var(--coral-dark)}
   .btn-primary:disabled{opacity:0.5;cursor:default}
   .btn-block{width:100%;padding:13px;font-size:14.5px;border-radius:10px}
-  .link-btn{background:none;border:none;color:var(--navy-soft);font-size:12.5px;cursor:pointer;font-family:inherit;text-decoration:underline}
+  .link-btn{background:none;border:none;color:var(--navy-soft);font-size:12.5px;cursor:pointer;font-family:inherit;text-decoration:underline;padding:10px 2px;min-height:44px;display:inline-flex;align-items:center}
   .link-btn:hover{color:var(--navy)}
+  .btn:focus-visible,.link-btn:focus-visible,.nav-textlink:focus-visible,a:focus-visible{outline:2.5px solid var(--coral);outline-offset:2px}
   .divider-or{display:flex;align-items:center;gap:10px;margin:14px 0;color:#B9BCC4;font-size:11.5px}
   .divider-or::before,.divider-or::after{content:'';flex:1;height:1px;background:var(--border)}
 
@@ -71,18 +72,18 @@
   .section{padding:56px 24px}
   .section-inner{max-width:1180px;margin:0 auto}
   .section-head{text-align:center;margin-bottom:26px}
-  .section-title{font-size:24px;font-weight:900}
+  .section-title{font-size:24px;font-weight:900;margin:0}
   .section-sub{font-size:13px;color:var(--navy-soft);margin-top:6px}
-  .tabs{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:22px}
-  .tab{padding:9px 18px;border-radius:20px;background:var(--pill-bg);color:var(--navy);font-size:13px;font-weight:700}
-  .tab.active{background:var(--coral);color:#fff}
+  .tabs{display:flex;justify-content:center;align-items:center;gap:10px;flex-wrap:wrap;margin-top:18px;font-size:13px;color:var(--navy-soft)}
+  .tab{font-weight:600}
+  .tab.active{color:var(--coral);font-weight:800}
+  .tabs .sep{color:var(--border)}
 
   /* ── 강좌 카드 ── */
   .course-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:22px;margin-top:30px}
   .ccard{border:1px solid var(--border);border-radius:16px;overflow:hidden;background:#fff;transition:box-shadow .15s,transform .15s}
   .ccard:hover{box-shadow:0 12px 28px rgba(23,28,46,.08);transform:translateY(-2px)}
-  .ccard-thumb{height:170px;position:relative;display:flex;align-items:flex-end;padding:14px;font-size:34px}
-  .ccard-badge{position:absolute;top:14px;left:14px;padding:4px 10px;border-radius:6px;font-size:10.5px;font-weight:800;color:#fff}
+  .ccard-thumb{height:170px}
   .ccard-body{padding:18px 20px 20px;display:flex;flex-direction:column;gap:7px}
   .ccard-title{font-size:16px;font-weight:800}
   .ccard-meta{font-size:12px;color:var(--navy-soft)}
@@ -130,7 +131,7 @@
   .login-card{width:100%;max-width:360px;background:#fff;border:1px solid var(--border);border-radius:18px;padding:32px 28px;box-shadow:0 8px 30px rgba(23,28,46,.05)}
   .login-title{font-size:19px;font-weight:900;margin-bottom:4px}
   .login-sub{font-size:12.5px;color:var(--navy-soft);margin-bottom:22px;line-height:1.5}
-  .finp{width:100%;padding:12px 14px;border-radius:10px;border:1.5px solid var(--border);background:#fff;color:var(--navy);font-size:14px;font-family:inherit;margin-bottom:10px;outline:none}
+  .finp{width:100%;padding:12px 14px;border-radius:10px;border:1.5px solid var(--border);background:#fff;color:var(--navy);font-size:16px;font-family:inherit;margin-bottom:10px;outline:none}
   .finp:focus{border-color:var(--coral)}
   .login-err{font-size:12px;color:#E0473E;min-height:16px;margin-bottom:6px}
   .login-foot{margin-top:18px;text-align:center}
@@ -356,26 +357,19 @@ function navBar(){
   </div>`;
 }
 
-function courseBadge(i){
-  const set=[['BEST','#FF6B4A'],['NEW','#2A9D8F'],['인기','#8B5CF6']];
-  return set[i%set.length];
-}
 function courseThumbGrad(i){
   const set=[['#4C5FD5','#242A56'],['#FF8A5C','#D9432E'],['#2FB39E','#0F5A5A']];
   return set[i%set.length];
 }
 function courseCard(c,i){
-  const[badge,badgeColor]=courseBadge(i);
   const[g1,g2]=courseThumbGrad(i);
   return`<div class="ccard">
-    <div class="ccard-thumb" style="background:linear-gradient(135deg,${g1},${g2})">
-      <span class="ccard-badge" style="background:${badgeColor}">${badge}</span>
-    </div>
+    <div class="ccard-thumb" style="background:linear-gradient(135deg,${g1},${g2})"></div>
     <div class="ccard-body">
       <div class="ccard-title">${esc(c.title)}</div>
       <div class="ccard-meta">${esc(c.description||'')||'영상 '+c.videoCount+'개'} · 수강기간 ${c.durationDays}일</div>
       <div class="ccard-price">${won(c.price)}</div>
-      <button class="btn btn-primary btn-block" data-apply-course="${c.id}">🙋 신청하기</button>
+      <button class="btn btn-primary btn-block" data-apply-course="${c.id}"><span aria-hidden="true">🙋</span>&nbsp;신청하기</button>
     </div>
   </div>`;
 }
@@ -384,7 +378,7 @@ function browseScreen(){
   const courses=ST.courses||[];
   const grid=courses.length
     ?courses.map(courseCard).join('')
-    :`<div class="empty-courses"><div class="ic">🎬</div><div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:4px">곧 새로운 강좌가 열립니다</div><div style="font-size:12.5px">무료체험을 신청하시면 개강 소식을 가장 먼저 알려드려요</div></div>`;
+    :`<div class="empty-courses"><div class="ic" aria-hidden="true">🎬</div><div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:4px">곧 새로운 강좌가 열립니다</div><div style="font-size:12.5px">무료체험을 신청하시면 개강 소식을 가장 먼저 알려드려요</div></div>`;
   const errBox=ST.googleError?`<div class="login-err" style="text-align:center;margin:0 0 10px">${esc(ST.googleError)}</div>`:'';
   return`
     <section class="hero">
@@ -404,24 +398,24 @@ function browseScreen(){
             <div><div class="stat-n">'21~'23</div><div class="stat-l">최다마감</div></div>
           </div>
         </div>
-        <div class="hero-image">🎓</div>
+        <div class="hero-image" aria-hidden="true">🎓</div>
       </div>
     </section>
 
     <div class="trust-bar">
-      <span>🏫 대치동 특목·자사고 전담 강사 출신</span>
-      <span>🎓 한국외국어대학교대학원 영어번역학</span>
-      <span>📝 외신·논문 번역가 출신</span>
-      <span>🖥️ 인강 + 현강 병행 가능</span>
+      <span><span aria-hidden="true">🏫</span> 대치동 특목·자사고 전담 강사 출신</span>
+      <span><span aria-hidden="true">🎓</span> 한국외국어대학교대학원 영어번역학</span>
+      <span><span aria-hidden="true">📝</span> 외신·논문 번역가 출신</span>
+      <span><span aria-hidden="true">🖥️</span> 인강 + 현강 병행 가능</span>
     </div>
 
     <section class="section" id="courses">
       <div class="section-inner">
         <div class="section-head">
-          <div class="section-title">레벨에 맞는 커리큘럼을 선택하세요</div>
+          <h2 class="section-title">레벨에 맞는 커리큘럼을 선택하세요</h2>
           <div class="section-sub">초등부터 수능 특강까지, 전국 어디서든 같은 퀄리티로</div>
           <div class="tabs">
-            <span class="tab">초등</span><span class="tab">중등</span><span class="tab active">고등/수능</span><span class="tab">특강</span>
+            <span class="tab">초등</span><span class="sep">·</span><span class="tab">중등</span><span class="sep">·</span><span class="tab active">고등/수능</span><span class="sep">·</span><span class="tab">특강</span>
           </div>
         </div>
         <div class="course-grid">${grid}</div>
@@ -430,10 +424,10 @@ function browseScreen(){
 
     <section class="section instructor" id="instructor">
       <div class="section-inner">
-        <div class="instructor-photo">👩‍🏫</div>
+        <div class="instructor-photo" aria-hidden="true">👩‍🏫</div>
         <div>
           <div class="instructor-eyebrow">INSTRUCTOR</div>
-          <div class="instructor-name">오은실 원장</div>
+          <h2 class="instructor-name">오은실 원장</h2>
           <p class="instructor-quote">"일산에서 고등강사로 이름이 알려지게 된 이유는, 만들어낸 광고와 입소문이 아닌 학부모님들과 학생들의 진실된 목소리 덕분입니다."</p>
           <div class="cred-row"><span>· 대치이강학원 특목·자사고 전담 & 외고 공인영어특강</span><span>· 前 이투스 목동 / 대학나무학원</span><span>· 한국외국어대학교대학원 영어번역학</span></div>
         </div>
@@ -443,13 +437,13 @@ function browseScreen(){
     <section class="section" id="features" style="background:var(--lightbg)">
       <div class="section-inner">
         <div class="section-head" style="text-align:left;margin-bottom:0">
-          <div class="section-title" style="font-size:20px">이런 커리큘럼으로 관리받습니다</div>
+          <h2 class="section-title" style="font-size:20px">이런 커리큘럼으로 관리받습니다</h2>
         </div>
         <div class="feature-grid">
-          <div class="fcard"><div class="ic">📚</div><h3>최상의 퀄리티 수업·자료</h3><p>특목고·자사고·자공고 수업은 학교별 최적의 자료를 직접 제작합니다.</p></div>
-          <div class="fcard"><div class="ic">🔍</div><h3>깊이있는 독해와 문법</h3><p>단순 풀이스킬이 아닌 진짜 분석독해. 번역사 출신 원장님의 배경지식을 녹여 이해 안 되는 지문이 없도록 분석합니다.</p></div>
-          <div class="fcard"><div class="ic">🧩</div><h3>최대 9단계 내신대비</h3><p>지문분석 → 워크북 → 변형문제 1~3차 → 전국기출 → 매주학교시험 → 족집게 포인트자료 → FINAL</p></div>
-          <div class="fcard"><div class="ic">📊</div><h3>주간 성적·출결 리포트</h3><p>매주 성적과 출결을 정리해 학부모님께 공유해드리고, 인강도 실제로 들었는지 매주 확인합니다.</p></div>
+          <div class="fcard"><div class="ic" aria-hidden="true">📚</div><h3>최상의 퀄리티 수업·자료</h3><p>특목고·자사고·자공고 수업은 학교별 최적의 자료를 직접 제작합니다.</p></div>
+          <div class="fcard"><div class="ic" aria-hidden="true">🔍</div><h3>깊이있는 독해와 문법</h3><p>단순 풀이스킬이 아닌 진짜 분석독해. 번역사 출신 원장님의 배경지식을 녹여 이해 안 되는 지문이 없도록 분석합니다.</p></div>
+          <div class="fcard"><div class="ic" aria-hidden="true">🧩</div><h3>최대 9단계 내신대비</h3><p>지문분석 → 워크북 → 변형문제 1~3차 → 전국기출 → 매주학교시험 → 족집게 포인트자료 → FINAL</p></div>
+          <div class="fcard"><div class="ic" aria-hidden="true">📊</div><h3>주간 성적·출결 리포트</h3><p>매주 성적과 출결을 정리해 학부모님께 공유해드리고, 인강도 실제로 들었는지 매주 확인합니다.</p></div>
         </div>
       </div>
     </section>
@@ -457,7 +451,7 @@ function browseScreen(){
     <section class="section" id="reviews">
       <div class="section-inner">
         <div class="section-head" style="text-align:left;margin-bottom:0">
-          <div class="section-title" style="font-size:20px">학생·학부모님이 남겨주신 실제 후기</div>
+          <h2 class="section-title" style="font-size:20px">학생·학부모님이 남겨주신 실제 후기</h2>
         </div>
         <div class="review-grid">
           <div class="rcard"><div class="stars">★★★★★</div><div class="body">3모때 2등급 뜨길래 학원 등록했어요. 그 뒤로 학원에서 말고 영어공부 안 했는데 6모 9모 10모 다 1등급 떴어요! 오은실영어 짱</div><div class="who">김지후 · 2025-12-06</div></div>

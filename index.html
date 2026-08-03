@@ -1193,10 +1193,8 @@ function rLogin(){return`
 
     <!-- 로고 -->
     <div style="text-align:center;margin-bottom:8px">
-      <div style="font-size:32px;font-weight:800;color:#1A237E;letter-spacing:-1px">
-        <span style="color:#E65100">OH</span>ENG
-      </div>
-      <div style="font-size:11px;font-weight:600;letter-spacing:2px;color:#9BA3AF;margin-top:2px">BREAKTHROUGH</div>
+      <img src="/assets/logo-symbol-hero.png" alt="OHENG" style="height:64px;width:auto">
+      <div style="font-size:11px;font-weight:600;letter-spacing:2px;color:#9BA3AF;margin-top:6px">BREAKTHROUGH</div>
     </div>
     <p style="text-align:center;font-size:13px;color:#9BA3AF;margin-bottom:32px">오은실 영어 · 학습 관리 시스템</p>
 
@@ -1573,7 +1571,7 @@ function rSchoolSelect(){
   const sortMode=ST.schoolSort||'count';
   return`
   <div class="top-nav">
-    <div class="nav-logo"><span style="font-size:18px;font-weight:800;color:#fff;letter-spacing:-0.5px"><span style="color:#FFB300">OH</span>ENG</span></div>
+    <div class="nav-logo"><img src="/assets/logo-symbol-white.png" alt="OHENG" style="height:22px;width:auto;display:block"></div>
     <div class="nav-right"><button class="nbtn" id="btn-goto-account">⚙️ 계정 관리</button><button class="nbtn" id="btn-goto-courses">🎓 강좌 관리</button><button class="nbtn" id="btn-alo-main">로그아웃</button></div>
   </div>
   <div class="school-wrap" style="align-items:flex-start;padding-top:40px">
@@ -1800,7 +1798,7 @@ function rCourseAdmin(){
   const editing=ST.editCourseId?(ST.adminCourses||[]).find(c=>c.id===ST.editCourseId):null;
   return`
   <div class="top-nav">
-    <div class="nav-logo"><span style="font-size:18px;font-weight:800;color:#fff;letter-spacing:-0.5px"><span style="color:#FFB300">OH</span>ENG</span></div>
+    <div class="nav-logo"><img src="/assets/logo-symbol-white.png" alt="OHENG" style="height:22px;width:auto;display:block"></div>
     <div class="nav-right"><button class="nbtn" id="btn-back-schools">‹ 학교 선택으로</button><button class="nbtn" id="btn-alo-main2">로그아웃</button></div>
   </div>
   <div class="school-wrap">
@@ -2109,7 +2107,7 @@ function rStudent(){
   else if(ST.tab==='suggest') inner=rSuggest();
   else if(ST.tab==='inquiry') inner=rInquiry();
   else inner=rStudentSettings();
-  return`<div class="top-nav"><div class="nav-logo"><span style="font-size:18px;font-weight:800;color:#fff;letter-spacing:-0.5px"><span style="color:#FFB300">OH</span>ENG</span></div>
+  return`<div class="top-nav"><div class="nav-logo"><img src="/assets/logo-symbol-white.png" alt="OHENG" style="height:22px;width:auto;display:block"></div>
     <div class="nav-right"><span style="font-size:13px;opacity:.85;white-space:nowrap">${ST.user.name} · ${ST.userSchool?.name}</span>
       <button class="nbtn no-print" onclick="window.print()">인쇄</button>
       <button class="nbtn no-print" id="btn-lo">로그아웃</button></div></div>
@@ -2706,7 +2704,7 @@ function rAdmin(){
   const curMenu=menus.find(m=>m.id===ST.atab);
   return`
   <div class="top-nav">
-    <div class="nav-logo"><span style="font-size:18px;font-weight:800;color:#fff;letter-spacing:-0.5px"><span style="color:#FFB300">OH</span>ENG</span></div>
+    <div class="nav-logo"><img src="/assets/logo-symbol-white.png" alt="OHENG" style="height:22px;width:auto;display:block"></div>
     <div class="nav-right">
       <button class="nbtn nbtn-school" id="btn-back-school">← 학교 선택</button>
       <button class="nbtn" id="btn-alo">로그아웃</button>
@@ -3448,7 +3446,7 @@ function rAccountAdmin(){
   }
   return`
   <div class="top-nav">
-    <div class="nav-logo"><span style="font-size:18px;font-weight:800;color:#fff;letter-spacing:-0.5px"><span style="color:#FFB300">OH</span>ENG</span></div>
+    <div class="nav-logo"><img src="/assets/logo-symbol-white.png" alt="OHENG" style="height:22px;width:auto;display:block"></div>
     <div class="nav-right"><button class="nbtn" id="btn-back-schools">‹ 학교 선택으로</button><button class="nbtn" id="btn-alo-main2">로그아웃</button></div>
   </div>
   <div class="school-wrap">

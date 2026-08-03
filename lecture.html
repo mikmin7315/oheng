@@ -3,65 +3,150 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-<title>OHENG 인강</title>
-<meta name="theme-color" content="#0B0F1A">
+<title>OHENG 인강 — 오은실쌤과 함께하는 전국 온라인 영어</title>
+<meta name="theme-color" content="#FF6B4A">
 <style>
+  :root{
+    --navy:#171C2E; --navy-soft:#5C6478; --coral:#FF6B4A; --coral-dark:#E8552F;
+    --gray:#6B7280; --border:#E7E5E1; --lightbg:#FAF8F5; --white:#FFFFFF;
+    --pill-bg:#F4F4F5;
+  }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic',sans-serif;background:#0B0F1A;color:#E8ECF4;min-height:100dvh}
+  html{scroll-behavior:smooth}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic',sans-serif;background:var(--white);color:var(--navy);min-height:100dvh}
   #app{min-height:100dvh;display:flex;flex-direction:column}
-  .top{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #1C2333;position:sticky;top:0;background:#0B0F1A;z-index:10}
-  .brand{display:flex;align-items:center;gap:8px;font-weight:800;font-size:17px;letter-spacing:-0.3px}
-  .brand .dot{width:8px;height:8px;border-radius:50%;background:#FFB300}
-  .who{font-size:12px;color:#8A93A8}
-  .btn{padding:8px 14px;border-radius:8px;border:1px solid #2A3247;background:#141A28;color:#C8CFDD;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit}
-  .btn:hover{background:#1A2135}
-  .btn-primary{background:#4C5FD5;border-color:#4C5FD5;color:#fff}
-  .btn-primary:hover{background:#5A6CE0}
+  a{color:inherit}
+
+  /* ── 공용 네비게이션 ── */
+  .navbar{display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:64px;border-bottom:1px solid var(--border);position:sticky;top:0;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);z-index:20}
+  .navbar .logo{display:flex;align-items:center;gap:5px;font-weight:900;font-size:18px;letter-spacing:-0.4px;cursor:pointer;white-space:nowrap}
+  .navbar .logo .dot{width:7px;height:7px;border-radius:50%;background:var(--coral)}
+  .navlinks{display:flex;align-items:center;gap:30px;font-size:14px;font-weight:600;color:var(--navy)}
+  .navlinks a{text-decoration:none}
+  .navlinks a:hover{color:var(--coral)}
+  .navright{display:flex;align-items:center;gap:16px}
+  .nav-textlink{background:none;border:none;font-size:13px;font-weight:600;color:var(--navy-soft);cursor:pointer;font-family:inherit;white-space:nowrap}
+  .nav-textlink:hover{color:var(--navy)}
+  .who{font-size:12.5px;color:var(--navy-soft);white-space:nowrap}
+  @media (max-width:860px){ .navlinks{display:none} .navbar{padding:0 16px} }
+
+  /* ── 버튼 ── */
+  .btn{padding:9px 16px;border-radius:9px;border:1.5px solid var(--border);background:var(--white);color:var(--navy);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+  .btn:hover{background:#F5F5F4}
+  .btn-primary{background:var(--coral);border-color:var(--coral);color:#fff}
+  .btn-primary:hover{background:var(--coral-dark)}
   .btn-primary:disabled{opacity:0.5;cursor:default}
-  .link-btn{background:none;border:none;color:#8A93A8;font-size:12.5px;cursor:pointer;font-family:inherit;text-decoration:underline}
-  .link-btn:hover{color:#C8CFDD}
-  main{flex:1;padding:24px 20px 60px;max-width:720px;margin:0 auto;width:100%}
+  .btn-block{width:100%;padding:13px;font-size:14.5px;border-radius:10px}
+  .link-btn{background:none;border:none;color:var(--navy-soft);font-size:12.5px;cursor:pointer;font-family:inherit;text-decoration:underline}
+  .link-btn:hover{color:var(--navy)}
+  .divider-or{display:flex;align-items:center;gap:10px;margin:14px 0;color:#B9BCC4;font-size:11.5px}
+  .divider-or::before,.divider-or::after{content:'';flex:1;height:1px;background:var(--border)}
 
-  /* 로그인/인증 */
-  .login-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:20px}
-  .login-card{width:100%;max-width:340px;background:#111726;border:1px solid #1C2333;border-radius:18px;padding:32px 28px}
-  .login-title{font-size:20px;font-weight:800;margin-bottom:4px}
-  .login-sub{font-size:12.5px;color:#8A93A8;margin-bottom:24px}
-  .finp{width:100%;padding:12px 14px;border-radius:10px;border:1.5px solid #2A3247;background:#0B0F1A;color:#E8ECF4;font-size:14px;font-family:inherit;margin-bottom:10px;outline:none}
-  .finp:focus{border-color:#4C5FD5}
-  .login-err{font-size:12px;color:#F87171;min-height:16px;margin-bottom:8px}
-  .login-foot{margin-top:16px;text-align:center}
+  main{flex:1;width:100%}
+  .app-main{max-width:640px;margin:0 auto;padding:24px 20px 60px;width:100%}
 
-  /* 강좌 둘러보기 */
-  .intro{text-align:center;padding:36px 20px 28px}
-  .intro-title{font-size:22px;font-weight:800;margin-bottom:6px}
-  .intro-sub{font-size:13px;color:#8A93A8;margin-bottom:20px}
-  .course-card{background:#111726;border:1px solid #1C2333;border-radius:14px;padding:18px;margin-bottom:12px}
-  .course-title{font-size:15.5px;font-weight:700;margin-bottom:6px}
-  .course-desc{font-size:12.5px;color:#8A93A8;margin-bottom:12px;line-height:1.5}
-  .course-meta{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;color:#7B8499}
-  .course-price{font-size:15px;font-weight:800;color:#FFB300}
+  /* ── 히어로 ── */
+  .hero{display:flex;align-items:center;justify-content:center;gap:64px;padding:56px 24px;background:var(--lightbg)}
+  .hero-inner{display:flex;align-items:center;gap:64px;max-width:1180px;width:100%}
+  .hero-left{flex:1;min-width:0;display:flex;flex-direction:column;gap:18px}
+  .badge-pill{display:inline-flex;align-self:flex-start;padding:6px 13px;border-radius:20px;background:#FFE4DC;color:var(--coral-dark);font-size:12px;font-weight:700}
+  .hero-title{font-size:38px;font-weight:900;letter-spacing:-1px;line-height:1.28}
+  .hero-sub{font-size:14.5px;color:var(--navy-soft);line-height:1.6;max-width:480px}
+  .cta-row{display:flex;gap:10px;flex-wrap:wrap}
+  .cta-row .btn{padding:14px 24px;font-size:14.5px;border-radius:10px}
+  .stats-row{display:flex;gap:26px;padding-top:4px}
+  .stat-n{font-size:18px;font-weight:900}
+  .stat-l{font-size:11.5px;color:var(--navy-soft)}
+  .hero-image{flex-shrink:0;width:360px;height:360px;border-radius:24px;background:linear-gradient(135deg,#E9E4FB,#FFD9C7);display:flex;align-items:center;justify-content:center;font-size:72px}
+  @media (max-width:860px){
+    .hero-inner{flex-direction:column;gap:28px;text-align:left}
+    .hero-title{font-size:28px}
+    .hero-image{width:100%;height:220px}
+  }
 
-  /* 목록 */
-  .wk-head{font-size:12px;font-weight:700;color:#7B8499;margin:22px 0 10px;letter-spacing:0.3px}
+  /* ── 신뢰 지표 바 ── */
+  .trust-bar{background:var(--navy);padding:16px 24px;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:14px 40px;font-size:12.5px;font-weight:600;color:#fff}
+
+  /* ── 섹션 공용 ── */
+  .section{padding:56px 24px}
+  .section-inner{max-width:1180px;margin:0 auto}
+  .section-head{text-align:center;margin-bottom:26px}
+  .section-title{font-size:24px;font-weight:900}
+  .section-sub{font-size:13px;color:var(--navy-soft);margin-top:6px}
+  .tabs{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:22px}
+  .tab{padding:9px 18px;border-radius:20px;background:var(--pill-bg);color:var(--navy);font-size:13px;font-weight:700}
+  .tab.active{background:var(--coral);color:#fff}
+
+  /* ── 강좌 카드 ── */
+  .course-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:22px;margin-top:30px}
+  .ccard{border:1px solid var(--border);border-radius:16px;overflow:hidden;background:#fff;transition:box-shadow .15s,transform .15s}
+  .ccard:hover{box-shadow:0 12px 28px rgba(23,28,46,.08);transform:translateY(-2px)}
+  .ccard-thumb{height:170px;position:relative;display:flex;align-items:flex-end;padding:14px;font-size:34px}
+  .ccard-badge{position:absolute;top:14px;left:14px;padding:4px 10px;border-radius:6px;font-size:10.5px;font-weight:800;color:#fff}
+  .ccard-body{padding:18px 20px 20px;display:flex;flex-direction:column;gap:7px}
+  .ccard-title{font-size:16px;font-weight:800}
+  .ccard-meta{font-size:12px;color:var(--navy-soft)}
+  .ccard-price{font-size:16px;font-weight:900;color:var(--coral)}
+  .ccard .btn{margin-top:4px}
+  .empty-courses{grid-column:1/-1;text-align:center;padding:50px 20px;color:var(--navy-soft);border:1.5px dashed var(--border);border-radius:16px}
+  .empty-courses .ic{font-size:32px;margin-bottom:10px}
+
+  /* ── 원장님 소개 ── */
+  .instructor{background:var(--navy);color:#fff}
+  .instructor .section-inner{display:flex;align-items:center;gap:56px}
+  .instructor-photo{flex-shrink:0;width:260px;height:260px;border-radius:20px;background:linear-gradient(135deg,#3A4166,#232945);display:flex;align-items:center;justify-content:center;font-size:64px}
+  .instructor-eyebrow{font-size:12px;font-weight:800;color:var(--coral);letter-spacing:.5px}
+  .instructor-name{font-size:26px;font-weight:900;margin:8px 0 14px}
+  .instructor-quote{font-size:14.5px;line-height:1.65;color:#C7C9D6;max-width:560px}
+  .cred-row{display:flex;gap:20px;flex-wrap:wrap;margin-top:16px;font-size:12px;color:#9498AA;font-weight:600}
+  @media (max-width:860px){
+    .instructor .section-inner{flex-direction:column;text-align:center;gap:22px}
+    .cred-row{justify-content:center}
+  }
+
+  /* ── 후기 ── */
+  .review-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;margin-top:26px}
+  .rcard{border:1px solid var(--border);border-radius:14px;padding:20px;background:#fff}
+  .rcard .stars{color:var(--coral);font-size:12.5px;font-weight:700;margin-bottom:8px}
+  .rcard .body{font-size:13.5px;line-height:1.6;margin-bottom:10px}
+  .rcard .who{font-size:11.5px;color:var(--navy-soft);font-weight:600}
+
+  /* ── 하단 CTA ── */
+  .footer-cta{background:var(--coral);color:#fff;text-align:center;padding:60px 24px}
+  .footer-cta h2{font-size:24px;font-weight:900;margin-bottom:20px}
+  .footer-cta .btn{background:#fff;color:var(--coral-dark);border:none;padding:14px 30px;font-size:14.5px;border-radius:10px}
+  .site-footer{background:#12162400;padding:20px 24px 32px;text-align:center;font-size:11.5px;color:#FFE4DC}
+  .footer-cta .site-footer{background:transparent}
+
+  /* ── 로그인/인증 카드 (앱 영역 공용) ── */
+  .login-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:40px 20px}
+  .login-card{width:100%;max-width:360px;background:#fff;border:1px solid var(--border);border-radius:18px;padding:32px 28px;box-shadow:0 8px 30px rgba(23,28,46,.05)}
+  .login-title{font-size:19px;font-weight:900;margin-bottom:4px}
+  .login-sub{font-size:12.5px;color:var(--navy-soft);margin-bottom:22px;line-height:1.5}
+  .finp{width:100%;padding:12px 14px;border-radius:10px;border:1.5px solid var(--border);background:#fff;color:var(--navy);font-size:14px;font-family:inherit;margin-bottom:10px;outline:none}
+  .finp:focus{border-color:var(--coral)}
+  .login-err{font-size:12px;color:#E0473E;min-height:16px;margin-bottom:6px}
+  .login-foot{margin-top:18px;text-align:center}
+
+  /* ── 목록/재생 (로그인 후 앱) ── */
+  .wk-head{font-size:12px;font-weight:800;color:var(--navy-soft);margin:22px 0 10px;letter-spacing:0.3px}
   .wk-head:first-child{margin-top:0}
-  .vcard{background:#111726;border:1px solid #1C2333;border-radius:14px;padding:16px;margin-bottom:10px;cursor:pointer;transition:border-color .15s}
-  .vcard:hover{border-color:#3A4260}
+  .vcard{background:#fff;border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:10px;cursor:pointer;transition:border-color .15s}
+  .vcard:hover{border-color:var(--coral)}
   .vcard-title{font-size:14.5px;font-weight:700;display:flex;align-items:center;gap:8px}
-  .empty{text-align:center;padding:80px 20px;color:#5C6478}
+  .empty{text-align:center;padding:80px 20px;color:#A8ABB6}
   .empty .ic{font-size:38px;margin-bottom:14px}
 
-  /* 재생 화면 */
-  .player-back{background:none;border:none;color:#8A93A8;font-size:13px;cursor:pointer;margin-bottom:16px;font-family:inherit;display:flex;align-items:center;gap:6px}
-  .player-back:hover{color:#E8ECF4}
+  .player-back{background:none;border:none;color:var(--navy-soft);font-size:13px;cursor:pointer;margin-bottom:16px;font-family:inherit;display:flex;align-items:center;gap:6px}
+  .player-back:hover{color:var(--navy)}
   .player-title{font-size:19px;font-weight:800;margin-bottom:4px}
-  .player-wk{font-size:12.5px;color:#8A93A8;margin-bottom:20px}
-  .player-box{background:#000;border-radius:16px;aspect-ratio:16/9;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#5C6478;text-align:center;padding:24px}
+  .player-wk{font-size:12.5px;color:var(--navy-soft);margin-bottom:20px}
+  .player-box{background:var(--navy);border-radius:16px;aspect-ratio:16/9;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#8A93A8;text-align:center;padding:24px}
   .player-box .ic{font-size:34px}
-  .player-box .msg{font-size:13.5px;color:#8A93A8}
-  .player-box .sub{font-size:11.5px;color:#4B5468}
+  .player-box .msg{font-size:13.5px;color:#C7C9D6}
+  .player-box .sub{font-size:11.5px;color:#7B819A}
 
-  .loading{flex:1;display:flex;align-items:center;justify-content:center;color:#5C6478;font-size:13px}
+  .loading{flex:1;display:flex;align-items:center;justify-content:center;color:#A8ABB6;font-size:13px}
 </style>
 </head>
 <body>
@@ -248,40 +333,124 @@ async function doLogout(){
 }
 
 /* ── 화면 ── */
-function topBar(){
-  if(['loading','browse','otp-phone','otp-code','otp-name','student-login'].includes(ST.screen))return'';
-  const who=ST.mode==='student'
-    ?`${esc(ST.student?.student?.name||'')} · ${esc(ST.student?.school?.name||'')}`
-    :`${esc(ST.member?.name||'')} · ${esc(ST.member?.phone||ST.member?.email||'')}`;
-  return`<div class="top">
-    <div class="brand"><span class="dot"></span>OHENG 인강</div>
-    <div style="display:flex;align-items:center;gap:12px">
-      <span class="who">${who}</span>
-      <button class="btn" id="btn-logout">로그아웃</button>
+function navBar(){
+  const loggedIn=['list','player'].includes(ST.screen) && (ST.mode==='student'||ST.mode==='member');
+  const showLanding=ST.screen==='browse';
+  const right=loggedIn
+    ?`<span class="who">${ST.mode==='student'?`${esc(ST.student?.student?.name||'')} · ${esc(ST.student?.school?.name||'')}`:`${esc(ST.member?.name||'')} · ${esc(ST.member?.phone||ST.member?.email||'')}`}</span><button class="btn" id="btn-logout">로그아웃</button>`
+    :`<button class="nav-textlink" id="nav-student-link">학생 로그인</button><button class="btn btn-primary" id="nav-cta">무료체험 신청</button>`;
+  const links=showLanding
+    ?`<div class="navlinks"><a href="#courses">강좌</a><a href="#instructor">원장님 소개</a><a href="#reviews">합격 후기</a></div>`
+    :'';
+  return`<div class="navbar">
+    <div class="logo" id="nav-logo">OHENG<span class="dot"></span></div>
+    ${links}
+    <div class="navright">${right}</div>
+  </div>`;
+}
+
+function courseBadge(i){
+  const set=[['BEST','#FF6B4A'],['NEW','#2A9D8F'],['인기','#8B5CF6']];
+  return set[i%set.length];
+}
+function courseThumbGrad(i){
+  const set=[['#4C5FD5','#242A56'],['#FF8A5C','#D9432E'],['#2FB39E','#0F5A5A']];
+  return set[i%set.length];
+}
+function courseCard(c,i){
+  const[badge,badgeColor]=courseBadge(i);
+  const[g1,g2]=courseThumbGrad(i);
+  return`<div class="ccard">
+    <div class="ccard-thumb" style="background:linear-gradient(135deg,${g1},${g2})">
+      <span class="ccard-badge" style="background:${badgeColor}">${badge}</span>
+    </div>
+    <div class="ccard-body">
+      <div class="ccard-title">${esc(c.title)}</div>
+      <div class="ccard-meta">${esc(c.description||'')||'영상 '+c.videoCount+'개'} · 수강기간 ${c.durationDays}일</div>
+      <div class="ccard-price">${won(c.price)}</div>
+      <button class="btn btn-primary btn-block" data-apply-course="${c.id}">🙋 신청하기</button>
     </div>
   </div>`;
 }
 
 function browseScreen(){
   const courses=ST.courses||[];
-  const list=courses.length
-    ?courses.map(c=>`<div class="course-card">
-        <div class="course-title">${esc(c.title)}</div>
-        <div class="course-desc">${esc(c.description||'')}</div>
-        <div class="course-meta"><span>영상 ${c.videoCount}개 · 수강기간 ${c.durationDays}일</span><span class="course-price">${won(c.price)}</span></div>
-        <button class="btn btn-primary" data-apply-course="${c.id}" style="width:100%;margin-top:12px;padding:10px">🙋 신청하기</button>
-      </div>`).join('')
-    :`<div class="empty"><div class="ic">🎬</div><div style="font-size:14px;font-weight:600;color:#C8CFDD;margin-bottom:6px">아직 등록된 강좌가 없습니다</div></div>`;
-  const errBox=ST.googleError?`<div class="login-err" style="margin:0 0 14px">${esc(ST.googleError)}</div>`:'';
-  return`<div class="intro">
-      <div class="intro-title">OHENG 인강</div>
-      <div class="intro-sub">휴대폰 번호로 3초 만에 가입하고 바로 학습을 시작하세요</div>
-      ${errBox}
-      <button class="btn btn-primary" id="btn-start" style="padding:12px 24px">휴대폰 인증하고 시작하기</button>
-      <button class="btn" id="btn-google" style="padding:12px 24px;margin-top:8px">Google로 계속하기</button>
-      <div class="login-foot"><button class="link-btn" id="btn-student-link">학원 학생이신가요? 학생 로그인</button></div>
+  const grid=courses.length
+    ?courses.map(courseCard).join('')
+    :`<div class="empty-courses"><div class="ic">🎬</div><div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:4px">곧 새로운 강좌가 열립니다</div><div style="font-size:12.5px">무료체험을 신청하시면 개강 소식을 가장 먼저 알려드려요</div></div>`;
+  const errBox=ST.googleError?`<div class="login-err" style="text-align:center;margin:0 0 10px">${esc(ST.googleError)}</div>`:'';
+  return`
+    <section class="hero">
+      <div class="hero-inner">
+        <div class="hero-left">
+          <span class="badge-pill">전국 수강생과 함께하는 온라인 영어</span>
+          <h1 class="hero-title">오은실쌤과 함께<br>전국 어디서든 1등급 영어</h1>
+          <p class="hero-sub">20년 경력 오은실 원장님의 노하우를 그대로 담은 커리큘럼. 초등부터 수능까지, 전국 어디서든 같은 강의실에서 시작하세요.</p>
+          ${errBox}
+          <div class="cta-row">
+            <button class="btn btn-primary" id="btn-start">무료체험 신청하기 →</button>
+            <a class="btn" href="#courses">커리큘럼 둘러보기</a>
+          </div>
+          <div class="stats-row">
+            <div><div class="stat-n">12,400+</div><div class="stat-l">누적 수강생</div></div>
+            <div><div class="stat-n">4.9 / 5</div><div class="stat-l">평균 만족도</div></div>
+            <div><div class="stat-n">97%</div><div class="stat-l">재수강율</div></div>
+          </div>
+        </div>
+        <div class="hero-image">🎓</div>
+      </div>
+    </section>
+
+    <div class="trust-bar">
+      <span>🏆 3년 연속 학부모 만족도 1위</span>
+      <span>📈 평균 내신 1.8등급 상승</span>
+      <span>🗺️ 전국 500+ 지역 수강생</span>
+      <span>📞 1:1 학습 컨설팅 무료 제공</span>
     </div>
-    ${list}`;
+
+    <section class="section" id="courses">
+      <div class="section-inner">
+        <div class="section-head">
+          <div class="section-title">레벨에 맞는 커리큘럼을 선택하세요</div>
+          <div class="section-sub">초등부터 수능 특강까지, 전국 어디서든 같은 퀄리티로</div>
+          <div class="tabs">
+            <span class="tab">초등</span><span class="tab">중등</span><span class="tab active">고등/수능</span><span class="tab">특강</span>
+          </div>
+        </div>
+        <div class="course-grid">${grid}</div>
+      </div>
+    </section>
+
+    <section class="section instructor" id="instructor">
+      <div class="section-inner">
+        <div class="instructor-photo">👩‍🏫</div>
+        <div>
+          <div class="instructor-eyebrow">INSTRUCTOR</div>
+          <div class="instructor-name">오은실 원장</div>
+          <p class="instructor-quote">"20년간 전국 학생들의 성적표를 직접 봐온 사람만이 만들 수 있는 커리큘럼입니다. 인강이지만, 옆에서 봐주는 것처럼 만들었어요."</p>
+          <div class="cred-row"><span>· 오은실 영어학원 대표원장</span><span>· 前 대치동 어학원 강사</span><span>· 토익/수능 영어 전문 20년</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="reviews" style="background:var(--lightbg)">
+      <div class="section-inner">
+        <div class="section-head" style="text-align:left;margin-bottom:0">
+          <div class="section-title" style="font-size:20px">전국에서 보내주신 후기</div>
+        </div>
+        <div class="review-grid">
+          <div class="rcard"><div class="stars">★★★★★</div><div class="body">지방에 살아서 학원 선택지가 없었는데, 서울 명강사 수업을 그대로 들을 수 있어서 좋았어요.</div><div class="who">고2 학부모 · 부산</div></div>
+          <div class="rcard"><div class="stars">★★★★★</div><div class="body">내신 등급이 두 등급이나 올랐어요. 커리큘럼이 진짜 촘촘합니다.</div><div class="who">고1 · 대전</div></div>
+          <div class="rcard"><div class="stars">★★★★★</div><div class="body">아이가 스스로 강의를 찾아 들을 정도로 몰입도가 좋아요.</div><div class="who">중3 학부모 · 창원</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="footer-cta">
+      <h2>전국 어디서든, 오늘부터 시작하세요</h2>
+      <button class="btn" id="btn-start-2">무료체험 신청하기 →</button>
+      <div class="site-footer">© 오은실 영어학원 · oheng.co.kr</div>
+    </section>`;
 }
 
 function otpPhoneScreen(){
@@ -291,7 +460,9 @@ function otpPhoneScreen(){
       <div class="login-sub">인증번호를 받을 번호를 입력하세요</div>
       <input class="finp" id="otp-phone" placeholder="01012345678" inputmode="numeric" autocomplete="tel">
       <div class="login-err" id="otp-err"></div>
-      <button class="btn btn-primary" id="otp-req-btn" style="width:100%;padding:12px">인증번호 받기</button>
+      <button class="btn btn-primary btn-block" id="otp-req-btn">인증번호 받기</button>
+      <div class="divider-or">또는</div>
+      <button class="btn btn-block" id="btn-google">Google로 계속하기</button>
       <div class="login-foot"><button class="link-btn" id="btn-back-browse">‹ 뒤로</button></div>
     </div>
   </div>`;
@@ -304,7 +475,7 @@ function otpCodeScreen(){
       <div class="login-sub">${esc(ST.otpPhone)}로 전송된 6자리 번호를 입력하세요</div>
       <input class="finp" id="otp-code" placeholder="123456" inputmode="numeric" maxlength="6">
       <div class="login-err" id="otp-err"></div>
-      <button class="btn btn-primary" id="otp-verify-btn" style="width:100%;padding:12px">확인</button>
+      <button class="btn btn-primary btn-block" id="otp-verify-btn">확인</button>
       <div class="login-foot"><button class="link-btn" id="btn-resend">인증번호 다시 받기</button></div>
     </div>
   </div>`;
@@ -317,7 +488,7 @@ function otpNameScreen(){
       <div class="login-sub">마지막 단계예요</div>
       <input class="finp" id="otp-name" placeholder="이름">
       <div class="login-err" id="otp-err"></div>
-      <button class="btn btn-primary" id="otp-name-btn" style="width:100%;padding:12px">완료</button>
+      <button class="btn btn-primary btn-block" id="otp-name-btn">완료</button>
     </div>
   </div>`;
 }
@@ -330,7 +501,7 @@ function loginScreen(){
       <input class="finp" id="lg-id" placeholder="학생 ID" autocomplete="username">
       <input class="finp" id="lg-pw" type="password" placeholder="비밀번호" autocomplete="current-password">
       <div class="login-err" id="lg-err"></div>
-      <button class="btn btn-primary" id="lg-btn" style="width:100%;padding:12px">로그인</button>
+      <button class="btn btn-primary btn-block" id="lg-btn">로그인</button>
       <div class="login-foot"><button class="link-btn" id="btn-back-browse">‹ 뒤로</button></div>
     </div>
   </div>`;
@@ -347,7 +518,7 @@ function listScreen(){
   if(!videos.length){
     const msg=ST.mode==='member'?'아직 구매한 강좌가 없습니다':'아직 볼 수 있는 영상이 없습니다';
     const sub=ST.mode==='member'?'강좌를 구매하면 여기에 표시됩니다':'선생님이 영상을 등록하면 여기에 표시됩니다';
-    return`<div class="empty"><div class="ic">🎬</div><div style="font-size:14px;font-weight:600;color:#C8CFDD;margin-bottom:6px">${msg}</div><div style="font-size:12.5px">${sub}</div></div>`;
+    return`<div class="empty"><div class="ic">🎬</div><div style="font-size:14px;font-weight:600;color:var(--navy);margin-bottom:6px">${msg}</div><div style="font-size:12.5px">${sub}</div></div>`;
   }
   if(ST.mode==='member'){
     const groups=[...new Set(videos.map(v=>v.courseTitle))];
@@ -385,25 +556,29 @@ function playerScreen(){
 function render(){
   const app=document.getElementById('app');
   if(ST.screen==='loading'){app.innerHTML='<div class="loading">불러오는 중...</div>';return;}
-  if(ST.screen==='browse'){app.innerHTML=topBar()+`<main>${browseScreen()}</main>`;wireBrowse();return;}
-  if(ST.screen==='otp-phone'){app.innerHTML=topBar()+otpPhoneScreen();wireOtpPhone();return;}
-  if(ST.screen==='otp-code'){app.innerHTML=topBar()+otpCodeScreen();wireOtpCode();return;}
-  if(ST.screen==='otp-name'){app.innerHTML=topBar()+otpNameScreen();wireOtpName();return;}
-  if(ST.screen==='student-login'){app.innerHTML=topBar()+loginScreen();wireStudentLogin();return;}
+  if(ST.screen==='browse'){app.innerHTML=navBar()+`<main>${browseScreen()}</main>`;wireBrowse();return;}
+  if(ST.screen==='otp-phone'){app.innerHTML=navBar()+otpPhoneScreen();wireOtpPhone();return;}
+  if(ST.screen==='otp-code'){app.innerHTML=navBar()+otpCodeScreen();wireOtpCode();return;}
+  if(ST.screen==='otp-name'){app.innerHTML=navBar()+otpNameScreen();wireOtpName();return;}
+  if(ST.screen==='student-login'){app.innerHTML=navBar()+loginScreen();wireStudentLogin();return;}
   const body=ST.screen==='player'?playerScreen():listScreen();
-  app.innerHTML=topBar()+`<main>${body}</main>`;
+  app.innerHTML=navBar()+`<main><div class="app-main">${body}</div></main>`;
   wireApp();
 }
 
+function goStart(){ST.screen='otp-phone';render();}
+
 function wireBrowse(){
-  document.getElementById('btn-start').addEventListener('click',()=>{ST.screen='otp-phone';render();});
-  document.getElementById('btn-google').addEventListener('click',()=>{location.href='/api/member-auth/google-start';});
-  document.getElementById('btn-student-link').addEventListener('click',()=>{ST.screen='student-login';render();});
+  document.getElementById('nav-logo').addEventListener('click',()=>{window.scrollTo({top:0,behavior:'smooth'});});
+  document.getElementById('nav-cta').addEventListener('click',goStart);
+  document.getElementById('nav-student-link').addEventListener('click',()=>{ST.screen='student-login';render();});
+  document.getElementById('btn-start').addEventListener('click',goStart);
+  document.getElementById('btn-start-2').addEventListener('click',goStart);
   document.querySelectorAll('[data-apply-course]').forEach(btn=>{
     btn.addEventListener('click',()=>{
       setPendingApply(btn.dataset.applyCourse);
       alert('먼저 로그인해주세요 — 로그인/가입이 끝나면 자동으로 신청됩니다.');
-      ST.screen='otp-phone';render();
+      goStart();
     });
   });
 }
@@ -414,6 +589,7 @@ function wireOtpPhone(){
   const submit=()=>doOtpRequest(phoneEl.value.trim(),err,btn);
   btn.onclick=submit;
   phoneEl.addEventListener('keydown',e=>{if(e.key==='Enter')submit();});
+  document.getElementById('btn-google').addEventListener('click',()=>{location.href='/api/member-auth/google-start';});
   document.getElementById('btn-back-browse').addEventListener('click',()=>{ST.screen='browse';render();});
 }
 

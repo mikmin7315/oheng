@@ -340,7 +340,7 @@ function navBar(){
     ?`<span class="who">${ST.mode==='student'?`${esc(ST.student?.student?.name||'')} · ${esc(ST.student?.school?.name||'')}`:`${esc(ST.member?.name||'')} · ${esc(ST.member?.phone||ST.member?.email||'')}`}</span><button class="btn" id="btn-logout">로그아웃</button>`
     :`<button class="nav-textlink" id="nav-student-link">학생 로그인</button><button class="btn btn-primary" id="nav-cta">무료체험 신청</button>`;
   const links=showLanding
-    ?`<div class="navlinks"><a href="#courses">강좌</a><a href="#instructor">원장님 소개</a><a href="#reviews">합격 후기</a></div>`
+    ?`<div class="navlinks"><a href="#courses">강좌</a><a href="#instructor">원장님 소개</a><a href="#features">학습 관리</a></div>`
     :'';
   return`<div class="navbar">
     <div class="logo" id="nav-logo">OHENG<span class="dot"></span></div>
@@ -391,21 +391,16 @@ function browseScreen(){
             <button class="btn btn-primary" id="btn-start">무료체험 신청하기 →</button>
             <a class="btn" href="#courses">커리큘럼 둘러보기</a>
           </div>
-          <div class="stats-row">
-            <div><div class="stat-n">12,400+</div><div class="stat-l">누적 수강생</div></div>
-            <div><div class="stat-n">4.9 / 5</div><div class="stat-l">평균 만족도</div></div>
-            <div><div class="stat-n">97%</div><div class="stat-l">재수강율</div></div>
-          </div>
         </div>
         <div class="hero-image">🎓</div>
       </div>
     </section>
 
     <div class="trust-bar">
-      <span>🏆 3년 연속 학부모 만족도 1위</span>
-      <span>📈 평균 내신 1.8등급 상승</span>
-      <span>🗺️ 전국 500+ 지역 수강생</span>
-      <span>📞 1:1 학습 컨설팅 무료 제공</span>
+      <span>👩‍🏫 오은실 원장 20년 경력 직강</span>
+      <span>📚 초등부터 수능까지 전 과정</span>
+      <span>🖥️ 인강 + 현강 병행 가능</span>
+      <span>🗺️ 전국 어디서나 수강 가능</span>
     </div>
 
     <section class="section" id="courses">
@@ -433,15 +428,15 @@ function browseScreen(){
       </div>
     </section>
 
-    <section class="section" id="reviews" style="background:var(--lightbg)">
+    <section class="section" id="features" style="background:var(--lightbg)">
       <div class="section-inner">
         <div class="section-head" style="text-align:left;margin-bottom:0">
-          <div class="section-title" style="font-size:20px">전국에서 보내주신 후기</div>
+          <div class="section-title" style="font-size:20px">이렇게 관리받습니다</div>
         </div>
         <div class="review-grid">
-          <div class="rcard"><div class="stars">★★★★★</div><div class="body">지방에 살아서 학원 선택지가 없었는데, 서울 명강사 수업을 그대로 들을 수 있어서 좋았어요.</div><div class="who">고2 학부모 · 부산</div></div>
-          <div class="rcard"><div class="stars">★★★★★</div><div class="body">내신 등급이 두 등급이나 올랐어요. 커리큘럼이 진짜 촘촘합니다.</div><div class="who">고1 · 대전</div></div>
-          <div class="rcard"><div class="stars">★★★★★</div><div class="body">아이가 스스로 강의를 찾아 들을 정도로 몰입도가 좋아요.</div><div class="who">중3 학부모 · 창원</div></div>
+          <div class="rcard"><div class="body" style="font-weight:800;margin-bottom:6px">📊 주간 성적 리포트</div><div class="body">매주 성적과 출결을 정리해 학부모님께 공유해드려요.</div></div>
+          <div class="rcard"><div class="body" style="font-weight:800;margin-bottom:6px">✅ 인강/현강 출석 체크</div><div class="body">영상을 진짜 들었는지 매주 확인하고 관리합니다.</div></div>
+          <div class="rcard"><div class="body" style="font-weight:800;margin-bottom:6px">👩‍🏫 오은실 원장 직강</div><div class="body">외주 강사 없이 원장님이 직접 커리큘럼을 만들고 가르칩니다.</div></div>
         </div>
       </div>
     </section>

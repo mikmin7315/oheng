@@ -531,6 +531,34 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true });
   }
 
+  // 저장/발송 이력 보관 기준(30/300)을 낮췄을 때, 이미 쌓여있던 기존 학교 데이터는
+  // append-* 엔드포인트가 다음에 호출될 때까지 줄어들지 않는다 — 일반 PUT은 saveLogs/
+  // sendLogs를 항상 서버 값 그대로 유지하므로(클라이언트의 오래된 캐시로 덮어쓰지 않기
+  // 위해) 이 전용 엔드포인트로만 지금 쌓인 기존 이력을 바로 정리할 수 있다.
+  if (action === 'trim-logs') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    const masterCheck = await requireMasterAdminSessionOrApiToken(req);
+    if (!masterCheck) return res.status(403).json({ success: false, message: '원장님 계정만 가능합니다' });
+
+    const { schoolId } = req.body || {};
+    if (!schoolId) return res.status(400).json({ success: false, message: 'Missing schoolId' });
+
+    const sc = await getSchool(schoolId);
+    if (!sc) return res.status(404).json({ success: false, message: '학교를 찾을 수 없습니다' });
+    const beforeSave = (sc.saveLogs || []).length;
+    const beforeSend = (sc.sendLogs || []).length;
+    sc.saveLogs = Array.isArray(sc.saveLogs) ? sc.saveLogs.slice(-30) : [];
+    sc.sendLogs = Array.isArray(sc.sendLogs) ? sc.sendLogs.slice(-300) : [];
+    sc.version = (sc.version || 0) + 1;
+    await getRedis().set('school:' + schoolId, sc);
+    return res.status(200).json({
+      success: true,
+      saveLogs: { before: beforeSave, after: sc.saveLogs.length },
+      sendLogs: { before: beforeSend, after: sc.sendLogs.length },
+    });
+  }
+
   if (action === 'school-summary') {
     if (req.method !== 'GET') return res.status(405).end();
     const index = await getSchoolIndex();

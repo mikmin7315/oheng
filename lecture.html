@@ -104,6 +104,13 @@
     .cred-row{justify-content:center}
   }
 
+  /* ── 수업 특징 ── */
+  .feature-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;margin-top:26px}
+  .fcard{border:1px solid var(--border);border-radius:14px;padding:22px 20px;background:#fff}
+  .fcard .ic{font-size:22px;margin-bottom:10px}
+  .fcard h3{font-size:14.5px;font-weight:800;margin-bottom:6px}
+  .fcard p{font-size:12.5px;line-height:1.6;color:var(--navy-soft)}
+
   /* ── 후기 ── */
   .review-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;margin-top:26px}
   .rcard{border:1px solid var(--border);border-radius:14px;padding:20px;background:#fff}
@@ -340,7 +347,7 @@ function navBar(){
     ?`<span class="who">${ST.mode==='student'?`${esc(ST.student?.student?.name||'')} · ${esc(ST.student?.school?.name||'')}`:`${esc(ST.member?.name||'')} · ${esc(ST.member?.phone||ST.member?.email||'')}`}</span><button class="btn" id="btn-logout">로그아웃</button>`
     :`<button class="nav-textlink" id="nav-student-link">학생 로그인</button><button class="btn btn-primary" id="nav-cta">무료체험 신청</button>`;
   const links=showLanding
-    ?`<div class="navlinks"><a href="#courses">강좌</a><a href="#instructor">원장님 소개</a><a href="#features">학습 관리</a></div>`
+    ?`<div class="navlinks"><a href="#courses">강좌</a><a href="#instructor">원장님 소개</a><a href="#features">커리큘럼</a><a href="#reviews">실제 후기</a></div>`
     :'';
   return`<div class="navbar">
     <div class="logo" id="nav-logo"><img src="/assets/logo-symbol.png" alt="OHENG" style="height:24px;width:auto;display:block"></div>
@@ -383,13 +390,18 @@ function browseScreen(){
     <section class="hero">
       <div class="hero-inner">
         <div class="hero-left">
-          <span class="badge-pill">전국 수강생과 함께하는 온라인 영어</span>
+          <span class="badge-pill">고양외고·고양국제고·운정고 최다마감 강사</span>
           <h1 class="hero-title">오은실쌤과 함께<br>전국 어디서든 1등급 영어</h1>
-          <p class="hero-sub">20년 경력 오은실 원장님의 노하우를 그대로 담은 커리큘럼. 초등부터 수능까지, 전국 어디서든 같은 강의실에서 시작하세요.</p>
+          <p class="hero-sub">번역사 출신 오은실 원장님이 직접 만드는 심도있는 커리큘럼. 초등부터 수능까지, 전국 어디서든 같은 강의실에서 시작하세요.</p>
           ${errBox}
           <div class="cta-row">
             <button class="btn btn-primary" id="btn-start">무료체험 신청하기 →</button>
             <a class="btn" href="#courses">커리큘럼 둘러보기</a>
+          </div>
+          <div class="stats-row">
+            <div><div class="stat-n">514개</div><div class="stat-l">누적 강의</div></div>
+            <div><div class="stat-n">434명</div><div class="stat-l">누적 수강생</div></div>
+            <div><div class="stat-n">'21~'23</div><div class="stat-l">최다마감</div></div>
           </div>
         </div>
         <div class="hero-image">🎓</div>
@@ -397,10 +409,10 @@ function browseScreen(){
     </section>
 
     <div class="trust-bar">
-      <span>👩‍🏫 오은실 원장 20년 경력 직강</span>
-      <span>📚 초등부터 수능까지 전 과정</span>
+      <span>🏫 대치동 특목·자사고 전담 강사 출신</span>
+      <span>🎓 한국외국어대학교대학원 영어번역학</span>
+      <span>📝 외신·논문 번역가 출신</span>
       <span>🖥️ 인강 + 현강 병행 가능</span>
-      <span>🗺️ 전국 어디서나 수강 가능</span>
     </div>
 
     <section class="section" id="courses">
@@ -422,8 +434,8 @@ function browseScreen(){
         <div>
           <div class="instructor-eyebrow">INSTRUCTOR</div>
           <div class="instructor-name">오은실 원장</div>
-          <p class="instructor-quote">"20년간 전국 학생들의 성적표를 직접 봐온 사람만이 만들 수 있는 커리큘럼입니다. 인강이지만, 옆에서 봐주는 것처럼 만들었어요."</p>
-          <div class="cred-row"><span>· 오은실 영어학원 대표원장</span><span>· 前 대치동 어학원 강사</span><span>· 토익/수능 영어 전문 20년</span></div>
+          <p class="instructor-quote">"일산에서 고등강사로 이름이 알려지게 된 이유는, 만들어낸 광고와 입소문이 아닌 학부모님들과 학생들의 진실된 목소리 덕분입니다."</p>
+          <div class="cred-row"><span>· 대치이강학원 특목·자사고 전담 & 외고 공인영어특강</span><span>· 前 이투스 목동 / 대학나무학원</span><span>· 한국외국어대학교대학원 영어번역학</span></div>
         </div>
       </div>
     </section>
@@ -431,12 +443,26 @@ function browseScreen(){
     <section class="section" id="features" style="background:var(--lightbg)">
       <div class="section-inner">
         <div class="section-head" style="text-align:left;margin-bottom:0">
-          <div class="section-title" style="font-size:20px">이렇게 관리받습니다</div>
+          <div class="section-title" style="font-size:20px">이런 커리큘럼으로 관리받습니다</div>
+        </div>
+        <div class="feature-grid">
+          <div class="fcard"><div class="ic">📚</div><h3>최상의 퀄리티 수업·자료</h3><p>특목고·자사고·자공고 수업은 학교별 최적의 자료를 직접 제작합니다.</p></div>
+          <div class="fcard"><div class="ic">🔍</div><h3>깊이있는 독해와 문법</h3><p>단순 풀이스킬이 아닌 진짜 분석독해. 번역사 출신 원장님의 배경지식을 녹여 이해 안 되는 지문이 없도록 분석합니다.</p></div>
+          <div class="fcard"><div class="ic">🧩</div><h3>최대 9단계 내신대비</h3><p>지문분석 → 워크북 → 변형문제 1~3차 → 전국기출 → 매주학교시험 → 족집게 포인트자료 → FINAL</p></div>
+          <div class="fcard"><div class="ic">📊</div><h3>주간 성적·출결 리포트</h3><p>매주 성적과 출결을 정리해 학부모님께 공유해드리고, 인강도 실제로 들었는지 매주 확인합니다.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="reviews">
+      <div class="section-inner">
+        <div class="section-head" style="text-align:left;margin-bottom:0">
+          <div class="section-title" style="font-size:20px">학생·학부모님이 남겨주신 실제 후기</div>
         </div>
         <div class="review-grid">
-          <div class="rcard"><div class="body" style="font-weight:800;margin-bottom:6px">📊 주간 성적 리포트</div><div class="body">매주 성적과 출결을 정리해 학부모님께 공유해드려요.</div></div>
-          <div class="rcard"><div class="body" style="font-weight:800;margin-bottom:6px">✅ 인강/현강 출석 체크</div><div class="body">영상을 진짜 들었는지 매주 확인하고 관리합니다.</div></div>
-          <div class="rcard"><div class="body" style="font-weight:800;margin-bottom:6px">👩‍🏫 오은실 원장 직강</div><div class="body">외주 강사 없이 원장님이 직접 커리큘럼을 만들고 가르칩니다.</div></div>
+          <div class="rcard"><div class="stars">★★★★★</div><div class="body">3모때 2등급 뜨길래 학원 등록했어요. 그 뒤로 학원에서 말고 영어공부 안 했는데 6모 9모 10모 다 1등급 떴어요! 오은실영어 짱</div><div class="who">김지후 · 2025-12-06</div></div>
+          <div class="rcard"><div class="stars">★★★★★</div><div class="body">등록한 지 얼마 안 된 학생입니다. 학원 등록 후 본 모의고사에서 1등급 안정권 점수를 받았습니다. 숙제로 주시는 문제들도 퀄리티가 높아서 실력 향상에 큰 도움이 됐습니다.</div><div class="who">김민주 · 2025-12-06</div></div>
+          <div class="rcard"><div class="stars">★★★★★</div><div class="body">선생님께서 수업 시간에 짚어주시는 부분들과 기출 자료들이 내신 뿐만 아니라 모의고사 실력 향상에도 큰 도움이 됐습니다. 동생에게도 자랑스럽게 추천했어요!</div><div class="who">송준영 · 2025-12-06</div></div>
         </div>
       </div>
     </section>
@@ -444,6 +470,7 @@ function browseScreen(){
     <section class="footer-cta">
       <h2>전국 어디서든, 오늘부터 시작하세요</h2>
       <button class="btn" id="btn-start-2">무료체험 신청하기 →</button>
+      <div style="font-size:13px;margin-top:14px;opacity:.9">📞 010-9008-0851 · 네이버에 "오은실영어" 검색</div>
       <div class="site-footer">© 오은실 영어학원 · oheng.co.kr</div>
     </section>`;
 }

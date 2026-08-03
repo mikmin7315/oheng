@@ -33,10 +33,53 @@ export async function removeFromSchoolIndex(id) {
   await redis.set(INDEX_KEY, next);
 }
 
+// 학교 목록 화면(GET /api/admin/schools)이 매번 학교 전체 블롭(수백 KB~1MB)을 전부 읽어와야
+// 했던 게 느려진 핵심 원인이었다. 이름/인원수/성적건수 같은 가벼운 요약만 해시에 필드별로
+// 캐시해두고, 목록 화면은 이 해시 하나만 통째로 읽게 한다(HGETALL 1회). 학교를 만들거나
+// 저장할 때마다 그 학교 필드만 HSET으로 갱신(아래 세 함수) — 다른 학교 요약을 읽고 다시 쓸
+// 필요가 없어 다른 학교 저장과 경쟁(레이스)할 일도 없다.
+const SUMMARY_KEY = 'school:summary';
+
+export function summarizeSchool(school) {
+  return {
+    id: school.id, name: school.name, grade: school.grade,
+    type: school.type === 'lecture' ? 'lecture' : 'regular',
+    studentCount: (school.students || []).length,
+    recordCount: (school.records || []).length,
+  };
+}
+
+export async function getSchoolSummaries() {
+  const redis = getRedis();
+  const map = await redis.hgetall(SUMMARY_KEY);
+  if (!map) return [];
+  // @upstash/redis의 해시 필드 자동 역직렬화 여부에 기대지 않고, 문자열로 오면 직접 파싱
+  // (필드 값을 저장할 때도 JSON.stringify로 명시적으로 직렬화해서 이 파싱과 항상 짝을 맞춘다)
+  return Object.values(map).map(v => {
+    if (typeof v === 'string') { try { return JSON.parse(v); } catch { return null; } }
+    return v;
+  }).filter(Boolean);
+}
+
+export async function setSchoolSummaryEntry(entry) {
+  const redis = getRedis();
+  await redis.hset(SUMMARY_KEY, { [entry.id]: JSON.stringify(entry) });
+}
+
+export async function upsertSchoolSummary(school) {
+  await setSchoolSummaryEntry(summarizeSchool(school));
+}
+
+export async function removeSchoolSummary(id) {
+  const redis = getRedis();
+  await redis.hdel(SUMMARY_KEY, id);
+}
+
 export async function deleteSchool(id) {
   const redis = getRedis();
   await redis.del(SCHOOL_PREFIX + id);
   await removeFromSchoolIndex(id);
+  await removeSchoolSummary(id);
 }
 
 export async function createSchool(name, grade, type) {
@@ -51,6 +94,7 @@ export async function createSchool(name, grade, type) {
   const redis = getRedis();
   await redis.set(SCHOOL_PREFIX + id, school);
   await addToSchoolIndex(id);
+  await upsertSchoolSummary(school);
   return school;
 }
 
@@ -168,6 +212,7 @@ export async function saveSchool(id, incoming, expectedVersion) {
   normalized.version = currentVersion + 1;
   normalized._aggregates = computeAggregates(normalized);
   await redis.set(SCHOOL_PREFIX + id, normalized);
+  await upsertSchoolSummary(normalized);
   return normalized;
 }
 
@@ -179,6 +224,7 @@ export async function putSchoolRaw(school) {
   normalized._aggregates = computeAggregates(normalized);
   await redis.set(SCHOOL_PREFIX + school.id, normalized);
   await addToSchoolIndex(school.id);
+  await upsertSchoolSummary(normalized);
   return normalized;
 }
 

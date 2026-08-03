@@ -10,6 +10,7 @@ import {
 import { getRedis } from '../_lib/redis.js';
 import {
   getSchoolIndex, getSchool, createSchool, putSchoolRaw,
+  getSchoolSummaries, summarizeSchool, setSchoolSummaryEntry,
 } from '../_lib/school.js';
 import { getMessageHistory } from '../_lib/sms.js';
 
@@ -124,13 +125,25 @@ export default async function handler(req, res) {
 
   if (action === 'schools') {
     if (req.method === 'GET') {
-      const index = await getSchoolIndex();
-      const schools = await Promise.all(index.map(async id => {
-        const sc = await getSchool(id);
-        if (!sc) return null;
-        return { id: sc.id, name: sc.name, grade: sc.grade, type: sc.type === 'lecture' ? 'lecture' : 'regular', studentCount: (sc.students || []).length, recordCount: (sc.records || []).length };
-      }));
-      return res.status(200).json({ success: true, schools: schools.filter(Boolean) });
+      // 예전엔 학교마다 전체 블롭(수백 KB~1MB)을 다 읽어와서 이름/인원수만 뽑아 썼는데,
+      // 이게 학교 목록 화면을 매번 1초 이상 걸리게 만든 핵심 원인이었다. 이제는 가벼운
+      // 요약 캐시(school:summary 해시)만 읽는다. 캐시에 없는 학교(최초 배포 직후이거나
+      // 드물게 캐시가 누락된 경우)만 그때그때 전체를 읽어 캐시를 채워 넣고 자연 치유한다.
+      const [index, summaries] = await Promise.all([getSchoolIndex(), getSchoolSummaries()]);
+      const summaryMap = new Map(summaries.map(s => [s.id, s]));
+      const missingIds = index.filter(id => !summaryMap.has(id));
+      if (missingIds.length) {
+        const filled = await Promise.all(missingIds.map(async id => {
+          const sc = await getSchool(id);
+          return sc ? summarizeSchool(sc) : null;
+        }));
+        const validEntries = filled.filter(Boolean);
+        await Promise.all(validEntries.map(entry => setSchoolSummaryEntry(entry)));
+        validEntries.forEach(entry => summaryMap.set(entry.id, entry));
+      }
+      // index에 없는(삭제된) 학교는 캐시에 남아있어도 여기서 자연스럽게 걸러짐
+      const schools = index.filter(id => summaryMap.has(id)).map(id => summaryMap.get(id));
+      return res.status(200).json({ success: true, schools });
     }
     if (req.method === 'POST') {
       if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });

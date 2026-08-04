@@ -2,6 +2,9 @@
   "name": "oheng",
   "version": "1.0.0",
   "private": true,
+  "scripts": {
+    "test": "node --experimental-test-module-mocks --test tests/*.test.mjs"
+  },
   "dependencies": {
     "solapi": "latest",
     "web-push": "^3.6.7",

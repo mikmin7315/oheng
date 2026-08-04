@@ -1,5 +1,5 @@
 import { getRedis } from './redis.js';
-import { listAllVideos, canMemberAccessVideo } from './video.js';
+import { listAllVideos } from './video.js';
 
 const COURSE_PREFIX = 'course:';
 const COURSE_INDEX_KEY = 'course:index';
@@ -24,6 +24,12 @@ export async function listAllCourses() {
 
 const COURSE_LEVELS = ['초등', '중등', '고등/수능', '특강'];
 
+// CSS background:url(...)에 그대로 들어가므로 http(s) 스킴만 허용 — data:/javascript: 등 차단.
+function sanitizeThumbnailUrl(raw) {
+  const url = String(raw || '').trim().slice(0, 500);
+  return /^https?:\/\//i.test(url) ? url : '';
+}
+
 function normalizeCourse(incoming, existing) {
   return {
     id: existing?.id || incoming.id || ('crs' + Date.now()),
@@ -33,7 +39,7 @@ function normalizeCourse(incoming, existing) {
     durationDays: Math.max(1, parseInt(incoming.durationDays, 10) || 30),
     videoIds: Array.isArray(incoming.videoIds) ? incoming.videoIds : [],
     level: COURSE_LEVELS.includes(incoming.level) ? incoming.level : '',
-    thumbnailUrl: String(incoming.thumbnailUrl || '').trim().slice(0, 500),
+    thumbnailUrl: sanitizeThumbnailUrl(incoming.thumbnailUrl),
     published: !!incoming.published,
     createdAt: existing?.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -101,6 +107,8 @@ export async function removeApplicant(courseId, memberId) {
 // 회원이 실제 구매(active + 미만료)한 강좌들의 영상 목록.
 // /api/videos/mine과 같은 필드 모양(id/title/month/week/mediaKey)에 courseId/courseTitle을 더해
 // lecture.html의 기존 렌더링 로직을 재사용하면서 강좌 단위로도 묶을 수 있게 한다.
+// course.videoIds 배열 순서(관리자가 강좌 관리에서 ▲▼로 지정한 재생 순서) 그대로 반환 —
+// listAllVideos() 전체 목록 순서를 쓰면 관리자가 지정한 순서가 무시되므로 주의.
 export async function listVideosForMember(member) {
   const now = Date.now();
   const activeCourseIds = new Set(
@@ -110,13 +118,21 @@ export async function listVideosForMember(member) {
   );
   const courses = await listAllCourses();
   const videos = await listAllVideos();
+  const videoById = new Map(videos.map(v => [v.id, v]));
   const entitledCourses = courses.filter(c => activeCourseIds.has(c.id));
-  const accessible = videos.filter(v => canMemberAccessVideo(v, member, courses));
-  return accessible.map(v => {
-    const owner = entitledCourses.find(c => (c.videoIds || []).includes(v.id));
-    return {
-      id: v.id, title: v.title, month: v.month, week: v.week, mediaKey: v.mediaKey,
-      courseId: owner ? owner.id : null, courseTitle: owner ? owner.title : '',
-    };
-  });
+  const seen = new Set();
+  const result = [];
+  for (const course of entitledCourses) {
+    for (const vid of course.videoIds || []) {
+      if (seen.has(vid)) continue;
+      const v = videoById.get(vid);
+      if (!v) continue;
+      seen.add(vid);
+      result.push({
+        id: v.id, title: v.title, month: v.month, week: v.week, mediaKey: v.mediaKey,
+        courseId: course.id, courseTitle: course.title,
+      });
+    }
+  }
+  return result;
 }

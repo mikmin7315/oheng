@@ -35,7 +35,7 @@ export default async function handler(req, res) {
     const { courseId } = req.body || {};
     if (!courseId) return res.status(400).json({ success: false, message: 'Missing courseId' });
     const course = await getCourse(courseId);
-    if (!course) return res.status(404).json({ success: false, message: '강좌를 찾을 수 없습니다' });
+    if (!course || !course.published) return res.status(404).json({ success: false, message: '강좌를 찾을 수 없습니다' });
     await applyToCourse(courseId, session.memberId);
     return res.status(200).json({ success: true });
   }

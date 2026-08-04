@@ -22,6 +22,8 @@ export async function listAllCourses() {
   return courses.filter(Boolean);
 }
 
+const COURSE_LEVELS = ['초등', '중등', '고등/수능', '특강'];
+
 function normalizeCourse(incoming, existing) {
   return {
     id: existing?.id || incoming.id || ('crs' + Date.now()),
@@ -30,6 +32,8 @@ function normalizeCourse(incoming, existing) {
     price: Math.max(0, parseInt(incoming.price, 10) || 0),
     durationDays: Math.max(1, parseInt(incoming.durationDays, 10) || 30),
     videoIds: Array.isArray(incoming.videoIds) ? incoming.videoIds : [],
+    level: COURSE_LEVELS.includes(incoming.level) ? incoming.level : '',
+    thumbnailUrl: String(incoming.thumbnailUrl || '').trim().slice(0, 500),
     published: !!incoming.published,
     createdAt: existing?.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -66,6 +70,7 @@ export async function listPublishedCoursesForPublic() {
     .map(c => ({
       id: c.id, title: c.title, description: c.description,
       price: c.price, durationDays: c.durationDays, videoCount: (c.videoIds || []).length,
+      level: c.level || '', thumbnailUrl: c.thumbnailUrl || '',
     }));
 }
 

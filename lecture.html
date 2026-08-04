@@ -359,14 +359,16 @@ function navBar(){
   </div>`;
 }
 
+const COURSE_LEVELS=['초등','중등','고등/수능','특강'];
 function courseThumbGrad(i){
   const set=[['#4C5FD5','#242A56'],['#FF8A5C','#D9432E'],['#2FB39E','#0F5A5A']];
   return set[i%set.length];
 }
 function courseCard(c,i){
   const[g1,g2]=courseThumbGrad(i);
+  const thumbStyle=c.thumbnailUrl?`background:center/cover no-repeat url('${esc(c.thumbnailUrl)}')`:`background:linear-gradient(135deg,${g1},${g2})`;
   return`<div class="ccard">
-    <div class="ccard-thumb" style="background:linear-gradient(135deg,${g1},${g2})"></div>
+    <div class="ccard-thumb" style="${thumbStyle};position:relative">${c.level?`<span style="position:absolute;top:12px;left:12px;background:rgba(23,28,46,.72);color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px">${esc(c.level)}</span>`:''}</div>
     <div class="ccard-body">
       <div class="ccard-title">${esc(c.title)}</div>
       <div class="ccard-meta">${esc(c.description||'')||'영상 '+c.videoCount+'개'} · 수강기간 ${c.durationDays}일</div>
@@ -376,11 +378,41 @@ function courseCard(c,i){
   </div>`;
 }
 
+// 탭(레벨) + 강좌 그리드만 담당 — 탭 클릭 시 히어로 등 나머지 화면을 다시 그리지 않고
+// 이 조각만 갱신해서 스크롤 위치가 안 튀게 한다.
+function courseSectionHtml(){
+  const all=ST.courses||[];
+  const filtered=ST.levelFilter?all.filter(c=>c.level===ST.levelFilter):all;
+  const tabs=['<span class="tab'+(!ST.levelFilter?' active':'')+'" data-level="">전체</span>']
+    .concat(COURSE_LEVELS.map(l=>`<span class="tab${ST.levelFilter===l?' active':''}" data-level="${l}">${l}</span>`))
+    .join('<span class="sep">·</span>');
+  const grid=filtered.length
+    ?filtered.map(courseCard).join('')
+    :(all.length
+      ?`<div class="empty-courses"><div class="ic" aria-hidden="true">🔍</div><div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:4px">해당 레벨의 강좌가 아직 없습니다</div><div style="font-size:12.5px">다른 레벨을 선택해보세요</div></div>`
+      :`<div class="empty-courses"><div class="ic" aria-hidden="true">🎬</div><div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:4px">곧 새로운 강좌가 열립니다</div><div style="font-size:12.5px">무료체험을 신청하시면 개강 소식을 가장 먼저 알려드려요</div></div>`);
+  return`<div class="tabs" id="course-tabs">${tabs}</div><div class="course-grid">${grid}</div>`;
+}
+function wireCourseSection(){
+  document.querySelectorAll('#course-tabs [data-level]').forEach(t=>{
+    t.addEventListener('click',()=>{
+      ST.levelFilter=t.dataset.level||null;
+      const wrap=document.getElementById('course-section-wrap');
+      if(wrap)wrap.innerHTML=courseSectionHtml();
+      wireCourseSection();
+      document.querySelectorAll('[data-apply-course]').forEach(bindApplyBtn);
+    });
+  });
+}
+function bindApplyBtn(btn){
+  btn.addEventListener('click',()=>{
+    setPendingApply(btn.dataset.applyCourse);
+    alert('먼저 로그인해주세요 — 로그인/가입이 끝나면 자동으로 신청됩니다.');
+    goStart();
+  });
+}
+
 function browseScreen(){
-  const courses=ST.courses||[];
-  const grid=courses.length
-    ?courses.map(courseCard).join('')
-    :`<div class="empty-courses"><div class="ic" aria-hidden="true">🎬</div><div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:4px">곧 새로운 강좌가 열립니다</div><div style="font-size:12.5px">무료체험을 신청하시면 개강 소식을 가장 먼저 알려드려요</div></div>`;
   const errBox=ST.googleError?`<div class="login-err" style="text-align:center;margin:0 0 10px">${esc(ST.googleError)}</div>`:'';
   return`
     <section class="hero">
@@ -416,11 +448,8 @@ function browseScreen(){
         <div class="section-head">
           <h2 class="section-title">레벨에 맞는 커리큘럼을 선택하세요</h2>
           <div class="section-sub">초등부터 수능 특강까지, 전국 어디서든 같은 퀄리티로</div>
-          <div class="tabs">
-            <span class="tab">초등</span><span class="sep">·</span><span class="tab">중등</span><span class="sep">·</span><span class="tab active">고등/수능</span><span class="sep">·</span><span class="tab">특강</span>
-          </div>
         </div>
-        <div class="course-grid">${grid}</div>
+        <div id="course-section-wrap">${courseSectionHtml()}</div>
       </div>
     </section>
 
@@ -592,13 +621,8 @@ function wireBrowse(){
   document.getElementById('nav-student-link').addEventListener('click',()=>{ST.screen='student-login';render();});
   document.getElementById('btn-start').addEventListener('click',goStart);
   document.getElementById('btn-start-2').addEventListener('click',goStart);
-  document.querySelectorAll('[data-apply-course]').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      setPendingApply(btn.dataset.applyCourse);
-      alert('먼저 로그인해주세요 — 로그인/가입이 끝나면 자동으로 신청됩니다.');
-      goStart();
-    });
-  });
+  wireCourseSection();
+  document.querySelectorAll('[data-apply-course]').forEach(bindApplyBtn);
 }
 
 function wireOtpPhone(){

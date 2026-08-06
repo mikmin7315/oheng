@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>OHENG 인강 — 오은실쌤과 함께하는 전국 온라인 영어</title>
 <meta name="theme-color" content="#FF6B4A">
+<script src="https://cdn.portone.io/v2/browser-sdk.js" async defer></script>
 <style>
   :root{
     --navy:#171C2E; --navy-soft:#5C6478; --coral:#FF6B4A; --coral-dark:#E8552F;
@@ -216,24 +217,71 @@ async function loadPublicCourses(){
   }catch(e){return [];}
 }
 
-// 결제 연동 전까지 "신청하기"는 로그인이 필요해서, 비로그인 상태로 누르면 신청할 강좌를
-// 기억해뒀다가 로그인(휴대폰 OTP든 구글 리다이렉트 왕복이든) 완료 직후 자동으로 신청 처리한다.
-function setPendingApply(courseId){ try{ sessionStorage.setItem('oheng_pending_apply',courseId); }catch(e){} }
-function takePendingApply(){
+// 무료 강좌는 "신청하기"가, 유료 강좌는 "구매하기"가 로그인을 필요로 해서, 비로그인 상태로
+// 누르면 어떤 강좌를 어떤 동작(신청/구매)으로 처리할지 기억해뒀다가 로그인(휴대폰 OTP든
+// 구글 리다이렉트 왕복이든) 완료 직후 자동으로 이어서 처리한다.
+function setPendingCourseAction(courseId,kind){ try{ sessionStorage.setItem('oheng_pending_course',JSON.stringify({courseId,kind})); }catch(e){} }
+function takePendingCourseAction(){
   try{
-    const id=sessionStorage.getItem('oheng_pending_apply');
-    sessionStorage.removeItem('oheng_pending_apply');
-    return id;
+    const raw=sessionStorage.getItem('oheng_pending_course');
+    sessionStorage.removeItem('oheng_pending_course');
+    return raw?JSON.parse(raw):null;
   }catch(e){ return null; }
 }
 async function tryAutoApply(){
-  const courseId=takePendingApply();
-  if(!courseId)return;
+  const pending=takePendingCourseAction();
+  if(!pending)return;
+  if(pending.kind==='purchase'){ await startCoursePayment(pending.courseId); return; }
   try{
-    const res=await fetch('/api/courses/apply',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({courseId})});
+    const res=await fetch('/api/courses/apply',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({courseId:pending.courseId})});
     const d=await res.json();
     if(d.success)alert('신청이 완료됐습니다! 확인 후 연락드릴게요.');
   }catch(e){}
+}
+
+// 포트원 SDK는 async defer로 불러오기 때문에, 로그인 리다이렉트 직후처럼 페이지가
+// 막 뜬 시점엔 아직 안 실렸을 수 있어 최대 5초 정도 짧게 기다려준다.
+function waitForPortOne(){
+  return new Promise(resolve=>{
+    if(window.PortOne){resolve(true);return;}
+    let waited=0;
+    const iv=setInterval(()=>{
+      waited+=100;
+      if(window.PortOne){clearInterval(iv);resolve(true);}
+      else if(waited>=5000){clearInterval(iv);resolve(false);}
+    },100);
+  });
+}
+
+// 결제창 호출 → 서버 검증까지 한 번에. 실패해도 결제 자체는 포트원 쪽에 남아있으니
+// 사용자에게 안내만 하고, 다음 로그인 때 다시 시도할 수 있게 강좌 목록으로 돌려보낸다.
+async function startCoursePayment(courseId){
+  try{
+    if(!await waitForPortOne()){alert('결제 모듈을 불러오지 못했습니다. 새로고침 후 다시 시도해주세요.');return;}
+    const res=await fetch('/api/courses/create-payment',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({courseId})});
+    const d=await res.json();
+    if(!d.success){alert(d.message||'결제 준비에 실패했습니다');return;}
+    const p=d.payment;
+    const payment=await PortOne.requestPayment({
+      storeId:p.storeId, channelKey:p.channelKey, paymentId:p.paymentId,
+      orderName:p.orderName, totalAmount:p.totalAmount, currency:p.currency,
+      payMethod:'CARD',
+    });
+    if(payment.code!==undefined){
+      alert('결제가 취소되었거나 실패했습니다'+(payment.message?': '+payment.message:''));
+      return;
+    }
+    const completeRes=await fetch('/api/courses/complete-payment',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({paymentId:p.paymentId})});
+    const completeData=await completeRes.json();
+    if(completeData.success){
+      alert(`결제가 완료됐습니다! "${completeData.courseTitle}" 강좌를 바로 시청하실 수 있어요.`);
+      ST.videos=await loadMemberVideos();ST.screen='list';render();
+    }else{
+      alert(completeData.message||'결제 확인에 실패했습니다. 잠시 후 다시 시도해주세요.');
+    }
+  }catch(e){
+    alert('결제 중 오류가 발생했습니다.');
+  }
 }
 
 async function boot(){
@@ -373,7 +421,9 @@ function courseCard(c,i){
       <div class="ccard-title">${esc(c.title)}</div>
       <div class="ccard-meta">${esc(c.description||'')||'영상 '+c.videoCount+'개'} · 수강기간 ${c.durationDays}일</div>
       <div class="ccard-price">${won(c.price)}</div>
-      <button class="btn btn-primary btn-block" data-apply-course="${c.id}"><span aria-hidden="true">🙋</span>&nbsp;신청하기</button>
+      ${c.price>0
+        ?`<button class="btn btn-primary btn-block" data-apply-course="${c.id}" data-course-kind="purchase"><span aria-hidden="true">💳</span>&nbsp;구매하기</button>`
+        :`<button class="btn btn-primary btn-block" data-apply-course="${c.id}" data-course-kind="apply"><span aria-hidden="true">🙋</span>&nbsp;신청하기</button>`}
     </div>
   </div>`;
 }
@@ -406,8 +456,11 @@ function wireCourseSection(){
 }
 function bindApplyBtn(btn){
   btn.addEventListener('click',()=>{
-    setPendingApply(btn.dataset.applyCourse);
-    alert('먼저 로그인해주세요 — 로그인/가입이 끝나면 자동으로 신청됩니다.');
+    const kind=btn.dataset.courseKind||'apply';
+    setPendingCourseAction(btn.dataset.applyCourse, kind);
+    alert(kind==='purchase'
+      ?'먼저 로그인해주세요 — 로그인/가입이 끝나면 바로 결제창이 열립니다.'
+      :'먼저 로그인해주세요 — 로그인/가입이 끝나면 자동으로 신청됩니다.');
     goStart();
   });
 }

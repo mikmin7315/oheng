@@ -5,6 +5,7 @@ import {
   listPublishedCoursesForPublic, listVideosForMember,
   applyToCourse, listApplicants, removeApplicant,
 } from '../_lib/course.js';
+import { createPendingPayment, verifyAndCompletePayment } from '../_lib/payment.js';
 
 export default async function handler(req, res) {
   const { action } = req.query;
@@ -38,6 +39,34 @@ export default async function handler(req, res) {
     if (!course || !course.published) return res.status(404).json({ success: false, message: '강좌를 찾을 수 없습니다' });
     await applyToCourse(courseId, session.memberId);
     return res.status(200).json({ success: true });
+  }
+
+  // 유료 강좌 결제 시작 — 결제창에 넘길 정보(결제ID/상점/채널/가격)를 서버가 발급한다.
+  // 가격은 반드시 여기서 강좌 레코드를 다시 조회해 정하고, 클라이언트가 보낸 값은 쓰지 않는다.
+  if (action === 'create-payment') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    const session = await requireMemberSession(req);
+    if (!session) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    const { courseId } = req.body || {};
+    if (!courseId) return res.status(400).json({ success: false, message: 'Missing courseId' });
+    const payment = await createPendingPayment(courseId, session.memberId);
+    if (!payment) return res.status(404).json({ success: false, message: '강좌를 찾을 수 없습니다' });
+    return res.status(200).json({ success: true, payment });
+  }
+
+  // 결제창에서 결제가 끝난 직후 클라이언트가 호출 — 서버가 포트원에 직접 재조회해 검증하고,
+  // 통과하면 수강권을 자동 부여한다(관리자 승인 단계 없음). 웹훅에서도 같은 함수를 호출하므로 멱등하게 동작한다.
+  if (action === 'complete-payment') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    const session = await requireMemberSession(req);
+    if (!session) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    const { paymentId } = req.body || {};
+    if (!paymentId) return res.status(400).json({ success: false, message: 'Missing paymentId' });
+    const result = await verifyAndCompletePayment(paymentId);
+    if (!result.ok) return res.status(400).json({ success: false, message: result.message });
+    return res.status(200).json({ success: true, courseTitle: result.courseTitle, expiresAt: result.expiresAt });
   }
 
   const admin = await requireAdminSessionOrApiToken(req);

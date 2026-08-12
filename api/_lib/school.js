@@ -6,29 +6,59 @@ const INDEX_KEY = 'school:index';
 
 export class VersionConflictError extends Error {}
 
-// 관리자 저장(saveSchool)은 클라이언트가 보낸 expectedVersion으로 충돌을 막지만, 학생이 직접
-// 쓰는 소규모 API(비밀번호 변경/제안 제출/답변 읽음 등)는 그런 체크 없이 그냥 학교 전체를
-// 읽고 자기 필드만 고쳐 통째로 다시 썼다. 그 사이에 관리자의 큰 저장(수백 KB, 2~3초 이상
-// 걸림)이 끼어들면 서로의 쓰기가 서로를 지워버릴 수 있다(admin/[action].js의 append-save-log
-// 경쟁 버그와 같은 종류). mutateFn을 호출한 뒤 저장 직전에 버전을 한 번 더 확인해서, 그 사이
-// 바뀌었으면 최신 데이터를 다시 읽어 mutateFn을 재적용하는 방식으로 이 경쟁 창을 좁힌다.
-// 완벽한 원자성(Redis 트랜잭션)은 아니지만, 학생 쪽은 애초에 충돌 빈도가 낮아 이 정도로 충분.
 export class SchoolMutationError extends Error {
   constructor(status, message) { super(message); this.status = status; }
 }
 
-export async function mutateSchool(id, mutateFn, maxAttempts = 3) {
+// "쓰기 직전에 버전을 다시 읽어 확인" 방식은 재확인 자체와 실제 SET 사이에도 여전히 아주 짧은
+// 틈이 남는다(둘 다 별도의 네트워크 왕복이라, 그 사이에 다른 쓰기가 끼어들 수 있음) — 실제
+// 동시 요청 테스트로 이 틈에서 데이터가 유실되는 걸 재현해서 확인했다. GET과 SET을 하나의
+// Redis Lua 스크립트로 묶으면 Redis가 스크립트 실행 도중 다른 명령이 끼어들지 못하게 보장해줘서
+// (next-student-id 카운터에 이미 쓰던 것과 같은 방식) "버전이 여전히 기대값과 같을 때만 저장"을
+// 진짜 원자적으로 만들 수 있다.
+const CAS_SET_SCRIPT = `
+  local cur = redis.call('GET', KEYS[1])
+  if not cur then
+    return {'not_found', ''}
+  end
+  local obj = cjson.decode(cur)
+  local expected = tonumber(ARGV[1])
+  local curVersion = obj.version or 0
+  if curVersion ~= expected then
+    return {'conflict', cur}
+  end
+  redis.call('SET', KEYS[1], ARGV[2])
+  return {'ok', ARGV[2]}
+`;
+
+// expectedVersion일 때만 newSchoolObj를 원자적으로 저장. 실패 시 {ok:false, notFound} 또는
+// {ok:false, current: 최신 학교 객체}를 돌려줘서 호출부가 최신 데이터로 재시도할 수 있게 한다.
+async function casWriteSchool(id, expectedVersion, newSchoolObj) {
   const redis = getRedis();
+  const [status, payload] = await redis.eval(
+    CAS_SET_SCRIPT,
+    [SCHOOL_PREFIX + id],
+    [String(expectedVersion), JSON.stringify(newSchoolObj)]
+  );
+  if (status === 'ok') return { ok: true };
+  if (status === 'not_found') return { ok: false, notFound: true };
+  return { ok: false, current: JSON.parse(payload) };
+}
+
+// 학생이 직접 쓰는 소규모 API(비밀번호 변경/제안 제출/답변 읽음 등)용 — 원자적 CAS 쓰기가
+// 실패하면(다른 쓰기가 그 사이 끼어들었으면) 최신 데이터를 다시 읽어 같은 mutateFn을
+// 재적용하고 재시도한다.
+export async function mutateSchool(id, mutateFn, maxAttempts = 5) {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const sc = await getSchool(id);
     if (!sc) return null;
     const versionAtRead = sc.version || 0;
     const extra = await mutateFn(sc); // 검증 실패 시 여기서 던진 에러는 재시도 없이 그대로 전파됨
     sc.version = versionAtRead + 1;
-    const check = await getSchool(id);
-    if ((check?.version || 0) !== versionAtRead) continue; // 그 사이 다른 쓰기가 있었음 — 최신 데이터로 재시도
-    await redis.set(SCHOOL_PREFIX + id, sc);
-    return { school: sc, extra };
+    const result = await casWriteSchool(id, versionAtRead, sc);
+    if (result.ok) return { school: sc, extra };
+    if (result.notFound) return null;
+    // 충돌 — 다음 루프에서 최신 데이터를 다시 읽어 재시도
   }
   throw new SchoolMutationError(409, '다른 저장과 계속 충돌했습니다. 잠시 후 다시 시도해주세요');
 }
@@ -229,7 +259,6 @@ export function hashSchoolForMigration(school) {
 
 // 버전 체크(낙관적 락) 포함 저장. expectedVersion이 서버 현재값과 다르면 VersionConflictError.
 export async function saveSchool(id, incoming, expectedVersion) {
-  const redis = getRedis();
   const existing = await getSchool(id);
   const currentVersion = existing?.version || 0;
   if (expectedVersion !== undefined && expectedVersion !== null && expectedVersion !== currentVersion) {
@@ -238,17 +267,16 @@ export async function saveSchool(id, incoming, expectedVersion) {
   const normalized = normalizeSchoolForWrite(incoming, existing);
   normalized.version = currentVersion + 1;
   normalized._aggregates = computeAggregates(normalized);
-  // normalizeSchoolForWrite/computeAggregates가 학교가 클수록(학생 수백 명) 시간이 걸리는데,
-  // 그 사이 학생 쪽 API(비밀번호 변경/제안 제출 등, mutateSchool 사용)가 먼저 저장을 끝내버리면
-  // 위에서 확인한 currentVersion은 이미 낡은 값이라 그대로 덮어써버릴 뻔했다(실제 경쟁 테스트로
-  // 재현). 무거운 계산이 다 끝난 뒤, 실제 쓰기 직전에 버전을 한 번 더 확인해 늦게 감지된
-  // 충돌도 잡아낸다 — 여기서 던지는 VersionConflictError는 클라이언트가 이미 처리하는
-  // 409 재시도/병합 로직을 그대로 타므로 클라이언트 쪽은 손댈 필요가 없다.
-  const stillCurrent = await getSchool(id);
-  if ((stillCurrent?.version || 0) !== currentVersion) {
-    throw new VersionConflictError(`버전 충돌(쓰기 직전 재확인): 서버=${stillCurrent?.version || 0}, 요청=${expectedVersion}`);
+  // normalizeSchoolForWrite/computeAggregates가 학교가 클수록(학생 수백 명) 시간이 걸리는데, 그 사이
+  // 학생 쪽 API(비밀번호 변경/제안 제출 등)가 먼저 저장을 끝내버리면 위에서 확인한 currentVersion은
+  // 이미 낡은 값이다. CAS 쓰기(casWriteSchool)가 실제 SET 시점에 Redis 안에서 원자적으로 버전을
+  // 다시 확인해주므로, 여기서 던지는 VersionConflictError는 클라이언트가 이미 처리하는 409 재시도/
+  // 병합 로직을 그대로 타면 된다 — 프런트엔드는 손댈 필요 없음.
+  const result = await casWriteSchool(id, currentVersion, normalized);
+  if (!result.ok) {
+    if (result.notFound) throw new VersionConflictError('학교를 찾을 수 없습니다');
+    throw new VersionConflictError(`버전 충돌: 서버=${result.current?.version ?? '?'}, 요청=${expectedVersion}`);
   }
-  await redis.set(SCHOOL_PREFIX + id, normalized);
   await upsertSchoolSummary(normalized);
   return normalized;
 }

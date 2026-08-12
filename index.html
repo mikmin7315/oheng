@@ -3381,13 +3381,15 @@ function rAttendance(sc){
   <div class="section-card">
     <div class="section-ttl" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <span>🖥️ 인강/현강 체크</span>
-      <div style="display:flex;align-items:center;gap:6px">
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
         <button id="att-prev" class="abtn" ${monIdx<=0?'disabled':''} style="padding:5px 12px">‹</button>
         <span style="font-size:13px;font-weight:700;color:#1A237E;min-width:44px;text-align:center">${mon}</span>
         <button id="att-next" class="abtn" ${monIdx>=MONTHS.length-1?'disabled':''} style="padding:5px 12px">›</button>
+        ${sc.students.length?`<button class="abtn abtn-green" id="btn-att-save-top" style="padding:6px 14px;font-size:12.5px;font-weight:700;margin-left:4px">💾 저장하기${dirtyCount?` (${dirtyCount}건 변경됨)`:''}</button>`:''}
       </div>
     </div>
-    <div style="font-size:12px;color:#9BA3AF;margin-bottom:14px;line-height:1.6">주차별로 현강(O)·인강·결석 중 선택한 뒤, 아래 저장하기 버튼을 눌러야 실제로 저장됩니다. 성적 입력과 별개로 관리돼요.</div>
+    ${sc.students.length?`<div id="att-save-msg-top" style="font-size:12px;font-weight:600;text-align:right;margin-bottom:4px"></div>`:''}
+    <div style="font-size:12px;color:#9BA3AF;margin-bottom:14px;line-height:1.6">주차별로 현강(O)·인강·결석 중 선택한 뒤, 저장하기 버튼을 눌러야 실제로 저장됩니다. 성적 입력과 별개로 관리돼요.</div>
     ${!sc.students.length?`<div style="text-align:center;padding:40px 0;color:#9BA3AF;font-size:13px">등록된 학생이 없습니다</div>`:`
     <div style="overflow-x:auto"><table class="rec-tbl" style="min-width:520px">
       <thead><tr><th style="text-align:left">이름</th>${WEEKS.map(wk=>`<th>${wk}</th>`).join('')}</tr></thead>
@@ -4013,11 +4015,16 @@ function bAdmin(){
     });
     // 체크할 때마다 바로 저장하지 않고 sc.records에만 반영 + dirty로 표시해두고,
     // "저장하기"를 눌렀을 때 한 번에 저장한다(달을 옮겨도 sc.records에 남아있어 안 사라짐).
+    // 학생이 많으면 아래 버튼까지 스크롤해야 해서, 위쪽 헤더에도 같은 버튼을 하나 더 두고
+    // 두 버튼/두 메시지 영역을 항상 같이 갱신한다.
+    const attSaveBtnIds=['btn-att-save-top','btn-att-save'];
+    const attMsgIds=['att-save-msg-top','att-save-msg'];
     const updateAttSaveBtn=()=>{
-      const btn=document.getElementById('btn-att-save');
-      if(!btn)return;
       const n=ST.attDirty?ST.attDirty.size:0;
-      btn.textContent=n?`💾 저장하기 (${n}건 변경됨)`:'💾 저장하기';
+      attSaveBtnIds.forEach(id=>{
+        const btn=document.getElementById(id);
+        if(btn)btn.textContent=n?`💾 저장하기 (${n}건 변경됨)`:'💾 저장하기';
+      });
     };
     document.querySelectorAll('[data-att-sid]').forEach(sel=>{
       const sid=sel.dataset.attSid, wk=sel.dataset.attWk, mon=ST.attMon||curMonWk().mon;
@@ -4030,19 +4037,21 @@ function bAdmin(){
         updateAttSaveBtn();
       });
     });
-    document.getElementById('btn-att-save')?.addEventListener('click',async()=>{
-      const btn=document.getElementById('btn-att-save');
-      const msgEl=document.getElementById('att-save-msg');
+    const doAttSave=async()=>{
       const dirty=ST.attDirty;
-      if(!dirty||!dirty.size){ if(msgEl){msgEl.textContent='변경된 내용이 없습니다';msgEl.style.color='#9BA3AF';} return; }
-      btn.disabled=true;
-      if(msgEl){msgEl.textContent='저장 중...';msgEl.style.color='#9BA3AF';}
+      if(!dirty||!dirty.size){
+        attMsgIds.forEach(id=>{const m=document.getElementById(id);if(m){m.textContent='변경된 내용이 없습니다';m.style.color='#9BA3AF';}});
+        return;
+      }
+      attSaveBtnIds.forEach(id=>{const b=document.getElementById(id);if(b)b.disabled=true;});
+      attMsgIds.forEach(id=>{const m=document.getElementById(id);if(m){m.textContent='저장 중...';m.style.color='#9BA3AF';}});
       await saveDB({dirtyKeys:new Set(dirty)});
       ST.attDirty=new Set();
-      btn.disabled=false;
+      attSaveBtnIds.forEach(id=>{const b=document.getElementById(id);if(b)b.disabled=false;});
       updateAttSaveBtn();
-      if(msgEl){msgEl.textContent='✓ 저장 완료'+(ST.serverAdminSession?' (서버 반영 확인됨)':'');msgEl.style.color='#00897B';}
-    });
+      attMsgIds.forEach(id=>{const m=document.getElementById(id);if(m){m.textContent='✓ 저장 완료'+(ST.serverAdminSession?' (서버 반영 확인됨)':'');m.style.color='#00897B';}});
+    };
+    attSaveBtnIds.forEach(id=>{document.getElementById(id)?.addEventListener('click',doAttSave);});
     document.querySelectorAll('[data-goto-student]').forEach(b=>{
       b.onclick=()=>{
         const s=sc.students.find(x=>x.id===b.dataset.gotoStudent);if(!s)return;

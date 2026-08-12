@@ -708,16 +708,26 @@ async function syncSchoolToServer(sc,attempt,intent){
 // 순서대로 내보내면, 각 저장이 직전 저장이 반영된 최신 버전을 보고 나가게 되어 이 경쟁
 // 상태 자체가 생기지 않는다.
 let _saveQueue=Promise.resolve();
+// saveDB()뿐 아니라, 성적 저장 시 같이 불리는 활동 로그 기록(pushLogEntry)·발송 이력 기록
+// (addSendLog)도 각자 학교 전체를 읽어와 saveLogs/sendLogs만 붙이고 다시 통째로 저장하는
+// 방식이라 이 큐를 거치지 않으면 saveDB()의 PUT과 경쟁한다. 실제로 "전체 저장"을 누르면
+// addLog()가 await 없이 먼저 fetch를 날리고 나서 saveDB()가 또 저장을 보내는데, 학교 데이터가
+// 커져서(수백 KB) PUT이 2~3초씩 걸리는 지금은 몸집이 작은 로그 기록 쪽이 먼저 끝나버려서,
+// 로그 기록이 자기가 읽은 "저장 전" 데이터에 로그 한 줄만 얹어 그대로 덮어써버리고, 뒤늦게
+// 끝난 PUT의 결과(방금 입력한 성적)가 통째로 사라지는 사고로 이어졌다. 같은 학교에 대한
+// 모든 쓰기(성적 저장이든 로그 기록이든)를 이 큐 하나로 직렬화하면 항상 직전 쓰기가 반영된
+// 상태를 보고 다음 쓰기가 나가서 이런 덮어쓰기 자체가 생기지 않는다.
+function queueSchoolWrite(fn){
+  const result=_saveQueue.then(fn);
+  _saveQueue=result.catch(()=>{}); // 하나가 실패해도 큐 자체는 계속 이어지게
+  return result;
+}
 function saveDB(intent){
   try{localStorage.setItem(SKEY,JSON.stringify({...DB,adminPwd:ADMIN_PWD,adminId:ADMIN_ID}));}
   catch(e){console.warn('saveDB 오류(무시):', e);}
   if(ST.role==='admin'&&ST.serverAdminSession&&ST.school){
     const sc=DB.schools.find(s=>s.id===ST.school);
-    if(sc){
-      const result=_saveQueue.then(()=>syncSchoolToServer(sc,0,intent));
-      _saveQueue=result.catch(()=>{}); // 하나가 실패해도 큐 자체는 계속 이어지게
-      return result; // 호출부에서 await하면 서버 반영 확인 후 성공 메시지를 띄울 수 있음(선택)
-    }
+    if(sc)return queueSchoolWrite(()=>syncSchoolToServer(sc,0,intent)); // 호출부에서 await하면 서버 반영 확인 후 성공 메시지를 띄울 수 있음(선택)
   }
   return Promise.resolve();
 }
@@ -4915,10 +4925,10 @@ function addSendLog(sc, entry){
     sc.sendLogs = Array.isArray(sc.sendLogs) ? sc.sendLogs : [];
     sc.sendLogs.push(entry);
     if(sc.sendLogs.length > 300) sc.sendLogs = sc.sendLogs.slice(-300);
-    fetch('/api/admin/append-send-log', {
+    queueSchoolWrite(()=>fetch('/api/admin/append-send-log', {
       method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({schoolId: sc.id, entry})
-    }).catch(e=>console.warn('발송 이력 서버 저장 실패(화면에는 반영됨):', e));
+    }).catch(e=>console.warn('발송 이력 서버 저장 실패(화면에는 반영됨):', e)));
     return;
   }
   try{
@@ -5587,10 +5597,10 @@ function pushLogEntry(sc,entry){
     // 무거운 스냅샷(건당 최대 수십 KB)만 떼어낸다 — canUndo가 snapshot 유무로 버튼을 알아서 숨김
     const KEEP_SNAPSHOT=5;
     sc.saveLogs.forEach((e,i)=>{if(i<sc.saveLogs.length-KEEP_SNAPSHOT&&e.snapshot)delete e.snapshot;});
-    fetch('/api/admin/append-save-log',{
+    queueSchoolWrite(()=>fetch('/api/admin/append-save-log',{
       method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({schoolId:sc.id,entry})
-    }).catch(e=>console.warn('활동 로그 서버 기록 실패(화면에는 반영됨):',e));
+    }).catch(e=>console.warn('활동 로그 서버 기록 실패(화면에는 반영됨):',e)));
     return;
   }
   try{

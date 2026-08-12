@@ -42,7 +42,10 @@ async function casWriteSchool(id, expectedVersion, newSchoolObj) {
   );
   if (status === 'ok') return { ok: true };
   if (status === 'not_found') return { ok: false, notFound: true };
-  return { ok: false, current: JSON.parse(payload) };
+  // @upstash/redis가 JSON처럼 보이는 문자열 결과를 알아서 객체로 역직렬화해주는 경우가 있어
+  // (school:summary 해시 읽을 때도 같은 문제 발견) 문자열일 때만 직접 파싱한다.
+  const current = typeof payload === 'string' ? JSON.parse(payload) : payload;
+  return { ok: false, current };
 }
 
 // 학생이 직접 쓰는 소규모 API(비밀번호 변경/제안 제출/답변 읽음 등)용 — 원자적 CAS 쓰기가

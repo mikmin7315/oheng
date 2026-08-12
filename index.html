@@ -2416,17 +2416,16 @@ function rReport(recs){
     return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">${items.join('')}</div>`;
   })()}
 
-  <!-- 선생님 메시지 -->
-  ${(notice||rec.comment)?`<div style="border:1.5px solid #D9E0EA;border-radius:12px;padding:15px 16px;margin-bottom:20px;display:flex;flex-direction:column;gap:14px;background:#fff">
-    ${notice?`<div>
-      <div style="display:flex;align-items:center;gap:7px;font-size:11px;font-weight:800;letter-spacing:0.6px;text-transform:uppercase;color:#B45309;margin-bottom:6px">${ic('notice')}우리 반 공지</div>
-      <div style="font-size:13.5px;line-height:1.65;color:#2B3341;white-space:pre-wrap">${linkify(esc(notice))}</div>
-    </div>`:''}
-    ${notice&&rec.comment?'<div style="border-top:1.5px solid #D9E0EA"></div>':''}
-    ${rec.comment?`<div>
-      <div style="display:flex;align-items:center;gap:7px;font-size:11px;font-weight:800;letter-spacing:0.6px;text-transform:uppercase;color:#1E40AF;margin-bottom:6px">${ic('comment')}${esc(ST.user.name)} 학생에게</div>
-      <div style="font-size:13.5px;line-height:1.65;color:#2B3341;white-space:pre-wrap">${esc(rec.comment)}</div>
-    </div>`:''}
+  <!-- 선생님 코멘트: 이 학생 개인에게 남긴 메시지라 공지보다 눈에 띄게 별도 카드+강조색으로 표시 -->
+  ${rec.comment?`<div style="border:1.5px solid #BFDBFE;background:#EFF6FF;border-radius:12px;padding:16px 18px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;gap:7px;font-size:12px;font-weight:800;letter-spacing:0.3px;color:#1E40AF;margin-bottom:8px">${ic('comment')}${esc(ST.user.name)} 학생에게 선생님 코멘트</div>
+    <div style="font-size:14.5px;line-height:1.7;color:#10192B;font-weight:500;white-space:pre-wrap">${esc(rec.comment)}</div>
+  </div>`:''}
+
+  <!-- 우리 반 공지 -->
+  ${notice?`<div style="border:1.5px solid #D9E0EA;border-radius:12px;padding:15px 16px;margin-bottom:20px;background:#fff">
+    <div style="display:flex;align-items:center;gap:7px;font-size:11px;font-weight:800;letter-spacing:0.6px;text-transform:uppercase;color:#B45309;margin-bottom:6px">${ic('notice')}우리 반 공지</div>
+    <div style="font-size:13.5px;line-height:1.65;color:#2B3341;white-space:pre-wrap">${linkify(esc(notice))}</div>
   </div>`:''}
   <button id="btn-save-report-img" class="no-print rpt-focus" style="width:100%;padding:12px;background:#fff;border:1.5px solid #D9E0EA;border-radius:10px;font-size:13px;font-weight:700;color:#1E40AF;cursor:pointer;margin-bottom:16px;display:flex;align-items:center;justify-content:center;gap:7px">${ic('camera')}성적표 이미지 저장</button>
 
@@ -4451,6 +4450,7 @@ function renderSavedTable(sc,mon,wk){
       +'<td style="font-size:12px">'+hw2Val+'</td>'
       +'<td style="white-space:nowrap;display:flex;gap:4px">'
       +'<button class="abtn" data-cm="'+gi+'" style="'+(r.comment?'background:#1A237E;color:#fff;border-color:#1A237E':'')+'" title="선생님 코멘트">💬</button>'
+      +'<button class="abtn" data-preview="'+r.sid+'" title="학생 성적표 보기">👁️</button>'
       +'<button class="abtn abtn-red" data-dr="'+gi+'">삭제</button></td>'
       +'</tr>';
   });
@@ -4479,6 +4479,9 @@ function wireCommentBtns(root,sc){
       root.querySelectorAll('[data-dr]').forEach(db=>{db.onclick=()=>{const _i=parseInt(db.dataset.dr);const _r=sc.records[_i];sc.records.splice(_i,1);saveDB(_r?{deletedKeys:new Set([_r.sid+'|'+_r.month+'|'+_r.week])}:undefined);root.innerHTML=renderSavedTable(sc,ST.bMon,ST.bWk);wireCommentBtns(root,sc);};});
     };
   });
+  root.querySelectorAll('[data-preview]').forEach(b=>{
+    b.onclick=()=>openReportPreview(sc,b.dataset.preview);
+  });
   // 체크박스로 고른 학생만 골라 성적 알림 발송 — "전체 선택" 헤더 체크박스와 연동
   const selectedBtn=document.getElementById('btn-ppurio-notify-selected');
   const updateSelectedBtn=()=>{
@@ -4500,6 +4503,61 @@ function wireCommentBtns(root,sc){
     updateSelectedBtn();
   });
   updateSelectedBtn();
+}
+
+// 선생님이 "저장 결과" 표에서 학생을 직접 골라 실제 학생용 성적표(rReport)를 그대로 미리보기.
+// rReport()는 ST.user/ST.userSchool/ST.vMon/ST.vWk를 읽는 순수 템플릿 함수라, 팝업이 열려있는
+// 동안만 이 값들을 대상 학생으로 바꿔두고 팝업을 닫을 때 원래 값(관리자 화면에서는 보통 비어있음)
+// 으로 되돌린다. ST.role은 그대로 'admin'이라 팝업이 떠있는 동안 배경의 render()가 다시 불려도
+// rAdmin() 경로 그대로라 이 값들과는 무관 — 화면이 깨질 위험 없음.
+function openReportPreview(sc,sid){
+  const s=sc.students.find(x=>x.id===sid);
+  if(!s)return;
+  if(!sRecs(sid,sc).length){alert(`${s.name} 학생은 아직 등록된 성적이 없습니다.`);return;}
+
+  const prevUser=ST.user,prevUserSchool=ST.userSchool,prevVMon=ST.vMon,prevVWk=ST.vWk;
+  ST.user=s;ST.userSchool=sc;ST.vMon=null;ST.vWk=null;
+
+  const popup=document.createElement('div');
+  popup.className='report-preview-popup';
+  popup.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  popup.innerHTML=`
+    <div style="background:#F7F9FC;border-radius:18px;max-width:480px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.25)">
+      <div style="position:sticky;top:0;background:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;border-bottom:1.5px solid #E8ECF0;border-radius:18px 18px 0 0;z-index:1">
+        <div style="font-size:14px;font-weight:800;color:#1A237E">👁️ ${esc(s.name)} 학생 성적표 미리보기</div>
+        <button class="btn-close-preview" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9BA3AF">✕</button>
+      </div>
+      <div id="report-preview-body"></div>
+    </div>`;
+  document.body.appendChild(popup);
+
+  const close=()=>{ST.user=prevUser;ST.userSchool=prevUserSchool;ST.vMon=prevVMon;ST.vWk=prevVWk;popup.remove();};
+  popup.querySelector('.btn-close-preview').onclick=close;
+  popup.onclick=e=>{if(e.target===popup)close();};
+
+  const body=popup.querySelector('#report-preview-body');
+  const renderInto=()=>{
+    const curRecs=sRecs(sid,sc);
+    body.innerHTML=rReport(curRecs);
+    const opts0=curRecs.map(r=>`${r.month} ${r.week}`);
+    const wp=body.querySelector('#wk-pick');
+    if(wp)wp.onchange=()=>{const[m,w]=wp.value.split(' ');ST.vMon=m;ST.vWk=w;renderInto();};
+    const curIdx=opts0.indexOf(wp?wp.value:(ST.vMon?`${ST.vMon} ${ST.vWk}`:opts0[opts0.length-1]));
+    const prevBtn=body.querySelector('#wk-prev');
+    const nextBtn=body.querySelector('#wk-next');
+    if(prevBtn)prevBtn.onclick=()=>{if(curIdx>0){const[m,w]=opts0[curIdx-1].split(' ');ST.vMon=m;ST.vWk=w;renderInto();}};
+    if(nextBtn)nextBtn.onclick=()=>{if(curIdx<opts0.length-1){const[m,w]=opts0[curIdx+1].split(' ');ST.vMon=m;ST.vWk=w;renderInto();}};
+    const saveImgBtn=body.querySelector('#btn-save-report-img');
+    if(saveImgBtn)saveImgBtn.onclick=()=>saveReportImage(saveImgBtn);
+    const d=bD(curRecs);
+    setTimeout(()=>{
+      mkLine('mini-wt',d.labels,d.wt,d.wtAvg,'#1E40AF');
+      mkLine('mini-rt',d.labels,d.rt,d.rt.map(()=>null),'#3B82F6',0,100);
+      const tv=[...d.tot,...d.totAvg].filter(v=>v!=null);
+      mkLine('mini-tot',d.labels,d.tot,d.totAvg,'#0F2A5C',tv.length?Math.max(0,Math.floor(Math.min(...tv)/10)*10-10):0,tv.length?Math.ceil(Math.max(...tv)/10)*10+10:200);
+    },50);
+  };
+  renderInto();
 }
 
 function renderScoreDropAlert(sc, mon, wk){

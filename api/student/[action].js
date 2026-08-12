@@ -1,6 +1,5 @@
 import { requireStudentSession, isSameOrigin, verifyPassword, hashPassword, encryptPwd } from '../_lib/auth.js';
-import { getSchool } from '../_lib/school.js';
-import { getRedis } from '../_lib/redis.js';
+import { getSchool, mutateSchool, SchoolMutationError } from '../_lib/school.js';
 
 function todayStr() {
   const d = new Date();
@@ -42,18 +41,23 @@ export default async function handler(req, res) {
     if (!currentPw || !newPw) return res.status(400).json({ success: false, message: '현재/새 비밀번호를 입력하세요' });
     if (String(newPw).length < 4) return res.status(400).json({ success: false, message: '4자 이상 입력하세요' });
 
-    const sc = await getSchool(session.schoolId);
-    if (!sc) return res.status(404).json({ success: false, message: '학교를 찾을 수 없습니다' });
-    const idx = (sc.students || []).findIndex(s => s.id === session.studentId);
-    if (idx < 0) return res.status(404).json({ success: false, message: '학생 정보를 찾을 수 없습니다' });
-    if (!verifyPassword(currentPw, sc.students[idx].pwdHash)) {
-      return res.status(400).json({ success: false, message: '현재 비밀번호가 틀렸습니다' });
+    try {
+      const result = await mutateSchool(session.schoolId, (sc) => {
+        const idx = (sc.students || []).findIndex(s => s.id === session.studentId);
+        if (idx < 0) throw new SchoolMutationError(404, '학생 정보를 찾을 수 없습니다');
+        // 재시도마다 다시 읽은 최신 pwdHash로 검증 — 그 사이 비밀번호가 바뀌었어도 정확히 판정됨
+        if (!verifyPassword(currentPw, sc.students[idx].pwdHash)) {
+          throw new SchoolMutationError(400, '현재 비밀번호가 틀렸습니다');
+        }
+        sc.students[idx].pwd = encryptPwd(newPw);
+        sc.students[idx].pwdHash = hashPassword(newPw);
+      });
+      if (!result) return res.status(404).json({ success: false, message: '학교를 찾을 수 없습니다' });
+      return res.status(200).json({ success: true });
+    } catch (e) {
+      if (e instanceof SchoolMutationError) return res.status(e.status).json({ success: false, message: e.message });
+      return res.status(500).json({ success: false, message: e.message });
     }
-    sc.students[idx].pwd = encryptPwd(newPw);
-    sc.students[idx].pwdHash = hashPassword(newPw);
-    sc.version = (sc.version || 0) + 1;
-    await getRedis().set('school:' + session.schoolId, sc);
-    return res.status(200).json({ success: true });
   }
 
   if (action === 'suggestions') {
@@ -63,14 +67,18 @@ export default async function handler(req, res) {
     const text = String(txt || '').trim();
     if (!text) return res.status(400).json({ success: false, message: '내용을 입력하세요' });
 
-    const sc = await getSchool(session.schoolId);
-    if (!sc) return res.status(404).json({ success: false, message: '학교를 찾을 수 없습니다' });
     const suggestion = { id: 'sug' + Date.now(), sid: session.studentId, cat: cat || '기타', txt: text, date: todayStr(), read: false };
-    sc.suggestions = Array.isArray(sc.suggestions) ? sc.suggestions : [];
-    sc.suggestions.push(suggestion);
-    sc.version = (sc.version || 0) + 1;
-    await getRedis().set('school:' + session.schoolId, sc);
-    return res.status(200).json({ success: true, suggestion });
+    try {
+      const result = await mutateSchool(session.schoolId, (sc) => {
+        sc.suggestions = Array.isArray(sc.suggestions) ? sc.suggestions : [];
+        sc.suggestions.push(suggestion);
+      });
+      if (!result) return res.status(404).json({ success: false, message: '학교를 찾을 수 없습니다' });
+      return res.status(200).json({ success: true, suggestion });
+    } catch (e) {
+      if (e instanceof SchoolMutationError) return res.status(e.status).json({ success: false, message: e.message });
+      return res.status(500).json({ success: false, message: e.message });
+    }
   }
 
   if (action === 'suggestion-read') {
@@ -79,14 +87,18 @@ export default async function handler(req, res) {
     const { id } = req.body || {};
     if (!id) return res.status(400).json({ success: false, message: 'Missing id' });
 
-    const sc = await getSchool(session.schoolId);
-    if (!sc) return res.status(404).json({ success: false, message: '학교를 찾을 수 없습니다' });
-    const sug = (sc.suggestions || []).find(s => s.id === id && s.sid === session.studentId);
-    if (!sug) return res.status(404).json({ success: false, message: '제안을 찾을 수 없습니다' });
-    sug.replyRead = true;
-    sc.version = (sc.version || 0) + 1;
-    await getRedis().set('school:' + session.schoolId, sc);
-    return res.status(200).json({ success: true });
+    try {
+      const result = await mutateSchool(session.schoolId, (sc) => {
+        const sug = (sc.suggestions || []).find(s => s.id === id && s.sid === session.studentId);
+        if (!sug) throw new SchoolMutationError(404, '제안을 찾을 수 없습니다');
+        sug.replyRead = true;
+      });
+      if (!result) return res.status(404).json({ success: false, message: '학교를 찾을 수 없습니다' });
+      return res.status(200).json({ success: true });
+    } catch (e) {
+      if (e instanceof SchoolMutationError) return res.status(e.status).json({ success: false, message: e.message });
+      return res.status(500).json({ success: false, message: e.message });
+    }
   }
 
   return res.status(404).json({ success: false, message: 'Not found' });

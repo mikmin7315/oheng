@@ -981,8 +981,15 @@ function attOptionsHtml(val){
   return ATT_OPTS.map(o=>`<option value="${esc(o.v)}" ${o.v===val?'selected':''}>${o.l}</option>`).join('')
     + (isCustom?`<option value="${esc(val)}" selected>${esc(val)}</option>`:'');
 }
-// select가 "직접입력"으로 바뀌면 프롬프트로 텍스트를 받아 setAttendance로 저장하고, 취소하면 이전 값으로 되돌린다.
-function bindAttSelect(sel, sc, sid, month, week){
+// select가 바뀌면(또는 "직접입력"으로 텍스트를 받으면) 화면에만 반영하고, 저장은 절대 여기서
+// 바로 하지 않는다. 예전엔 여기서 매번 즉시 saveDB()를 호출했는데, 학교 데이터가 커지면서
+// (성적표 등) 저장 한 번에 2~3초씩 걸리게 됐고, 인강/현강 체크처럼 학생 여러 명을 빠르게
+// 연달아 클릭하는 화면에서는 그 요청들이 다 처리되기 전에 화면을 떠나면 뒤쪽 체크가 통째로
+// 유실됐다. 또 성적 일괄입력 화면에서는 "전체 저장"이 그 주차 레코드를 폼에서 읽은 값으로
+// 통째로 새로 만들어 덮어써서, 이 방식으로 미리 저장해둔 출석값이 "전체 저장"을 누르는
+// 순간 같이 지워지는 문제도 있었다. 이제는 각 화면(전체 저장/저장하기 버튼)이 저장 시점에
+// 이 select의 현재 값을 직접 읽어가거나, onLocalChange 콜백으로 로컬 상태만 갱신한다.
+function bindAttSelectDraft(sel, onLocalChange){
   sel.dataset.prevVal = sel.value;
   sel.onchange=()=>{
     if(sel.value==='__custom__'){
@@ -992,24 +999,15 @@ function bindAttSelect(sel, sc, sid, month, week){
       let opt=[...sel.options].find(o=>o.value===custom);
       if(!opt){opt=document.createElement('option');opt.value=custom;opt.textContent=custom;sel.insertBefore(opt,null);}
       sel.value=custom;
-      setAttendance(sc, sid, month, week, custom);
       sel.style.color=attColorFor(custom);
       sel.dataset.prevVal=custom;
+      onLocalChange?.(custom);
       return;
     }
-    setAttendance(sc, sid, month, week, sel.value);
     sel.style.color=attColorFor(sel.value);
     sel.dataset.prevVal=sel.value;
+    onLocalChange?.(sel.value);
   };
-}
-function setAttendance(sc, sid, month, week, val){
-  let rec = sc.records.find(r=>r.sid===sid&&r.month===month&&r.week===week);
-  if(!rec){
-    rec = {sid, month, week, rtSkip:false, rtScore:null, wtSkip:false, wtScore:null, totalScore:null, comment:'', hw1:'', hw2:'', homework:'', retestTime:''};
-    sc.records.push(rec);
-  }
-  rec.attendType = val || '';
-  saveDB({dirtyKeys:new Set([sid+'|'+month+'|'+week])});
 }
 function curSch(){return DB.schools.find(s=>s.id===ST.school)||DB.schools[0]}
 function sRecs(sid,sc){const s=sc||(ST.role==='admin'?curSch():ST.userSchool);if(!s)return[];return s.records.filter(r=>r.sid===sid).sort((a,b)=>moI(a.month)-moI(b.month)||wkI(a.week)-wkI(b.week));}
@@ -3343,6 +3341,7 @@ function rWithdrawn(sc){
 function rAttendance(sc){
   const mon = ST.attMon || curMonWk().mon;
   const monIdx = MONTHS.indexOf(mon);
+  const dirtyCount = ST.attDirty ? ST.attDirty.size : 0;
   const rows = sc.students.map(s=>{
     const cells = WEEKS.map(wk=>{
       const rec = sc.records.find(r=>r.sid===s.id&&r.month===mon&&r.week===wk);
@@ -3364,12 +3363,16 @@ function rAttendance(sc){
         <button id="att-next" class="abtn" ${monIdx>=MONTHS.length-1?'disabled':''} style="padding:5px 12px">›</button>
       </div>
     </div>
-    <div style="font-size:12px;color:#9BA3AF;margin-bottom:14px;line-height:1.6">주차별로 현강(O)·인강·결석 중 선택하면 바로 저장됩니다. 성적 입력과 별개로 관리돼요.</div>
+    <div style="font-size:12px;color:#9BA3AF;margin-bottom:14px;line-height:1.6">주차별로 현강(O)·인강·결석 중 선택한 뒤, 아래 저장하기 버튼을 눌러야 실제로 저장됩니다. 성적 입력과 별개로 관리돼요.</div>
     ${!sc.students.length?`<div style="text-align:center;padding:40px 0;color:#9BA3AF;font-size:13px">등록된 학생이 없습니다</div>`:`
     <div style="overflow-x:auto"><table class="rec-tbl" style="min-width:520px">
       <thead><tr><th style="text-align:left">이름</th>${WEEKS.map(wk=>`<th>${wk}</th>`).join('')}</tr></thead>
       <tbody>${rows}</tbody>
-    </table></div>`}
+    </table></div>
+    <div style="display:flex;align-items:center;gap:12px;margin-top:16px">
+      <button class="abtn abtn-green" id="btn-att-save" style="padding:11px 24px;font-size:14px;font-weight:700">💾 저장하기${dirtyCount?` (${dirtyCount}건 변경됨)`:''}</button>
+      <div id="att-save-msg" style="font-size:13px;font-weight:600"></div>
+    </div>`}
   </div>`;}
 
 function rVideos(sc){
@@ -3984,8 +3987,37 @@ function bAdmin(){
     document.getElementById('att-next')?.addEventListener('click',()=>{
       const i=MONTHS.indexOf(ST.attMon||curMonWk().mon);if(i<MONTHS.length-1){ST.attMon=MONTHS[i+1];render();}
     });
+    // 체크할 때마다 바로 저장하지 않고 sc.records에만 반영 + dirty로 표시해두고,
+    // "저장하기"를 눌렀을 때 한 번에 저장한다(달을 옮겨도 sc.records에 남아있어 안 사라짐).
+    const updateAttSaveBtn=()=>{
+      const btn=document.getElementById('btn-att-save');
+      if(!btn)return;
+      const n=ST.attDirty?ST.attDirty.size:0;
+      btn.textContent=n?`💾 저장하기 (${n}건 변경됨)`:'💾 저장하기';
+    };
     document.querySelectorAll('[data-att-sid]').forEach(sel=>{
-      bindAttSelect(sel, sc, sel.dataset.attSid, ST.attMon||curMonWk().mon, sel.dataset.attWk);
+      const sid=sel.dataset.attSid, wk=sel.dataset.attWk, mon=ST.attMon||curMonWk().mon;
+      bindAttSelectDraft(sel, val=>{
+        let rec=sc.records.find(r=>r.sid===sid&&r.month===mon&&r.week===wk);
+        if(!rec){rec={sid,month:mon,week:wk,rtSkip:false,rtScore:null,wtSkip:false,wtScore:null,totalScore:null,comment:'',hw1:'',hw2:'',homework:'',retestTime:''};sc.records.push(rec);}
+        rec.attendType=val||'';
+        ST.attDirty=ST.attDirty||new Set();
+        ST.attDirty.add(sid+'|'+mon+'|'+wk);
+        updateAttSaveBtn();
+      });
+    });
+    document.getElementById('btn-att-save')?.addEventListener('click',async()=>{
+      const btn=document.getElementById('btn-att-save');
+      const msgEl=document.getElementById('att-save-msg');
+      const dirty=ST.attDirty;
+      if(!dirty||!dirty.size){ if(msgEl){msgEl.textContent='변경된 내용이 없습니다';msgEl.style.color='#9BA3AF';} return; }
+      btn.disabled=true;
+      if(msgEl){msgEl.textContent='저장 중...';msgEl.style.color='#9BA3AF';}
+      await saveDB({dirtyKeys:new Set(dirty)});
+      ST.attDirty=new Set();
+      btn.disabled=false;
+      updateAttSaveBtn();
+      if(msgEl){msgEl.textContent='✓ 저장 완료'+(ST.serverAdminSession?' (서버 반영 확인됨)':'');msgEl.style.color='#00897B';}
     });
     document.querySelectorAll('[data-goto-student]').forEach(b=>{
       b.onclick=()=>{
@@ -4243,7 +4275,7 @@ function bAdmin(){
   document.getElementById('thr-rt')?.addEventListener('input',()=>{recalc();scheduleDraftSave();});
   document.getElementById('thr-wt')?.addEventListener('input',()=>{recalc();scheduleDraftSave();});
   document.querySelectorAll('.att-sel').forEach(sel=>{
-    bindAttSelect(sel, sc, sel.dataset.sid, ST.bMon||curMonWk().mon, ST.bWk||curMonWk().wk);
+    bindAttSelectDraft(sel);
   });
   recalc();
   document.getElementById('btn-save').onclick=async()=>{
@@ -4294,7 +4326,8 @@ function bAdmin(){
         homework:r.querySelector('.inp-hw1')?.value||'',
         hwName1:(()=>{const _k=mon+'_'+wk;return sc.hwNames&&sc.hwNames[_k]?sc.hwNames[_k].hw1:sc.hw1||'숙제1';})(),
         hwName2:(()=>{const _k=mon+'_'+wk;return sc.hwNames&&sc.hwNames[_k]?sc.hwNames[_k].hw2:sc.hw2||'숙제2';})(),
-        retestTime:r.querySelector('.inp-rt2').value,comment:existingComment};
+        retestTime:r.querySelector('.inp-rt2').value,comment:existingComment,
+        attendType:r.querySelector('.att-sel')?.value||''};
       if(existingIdx>=0)sc.records[existingIdx]=rec;else sc.records.push(rec);saved++;savedSids.push(sid);
     });
     addLog(sc,mon,wk,saved,thrRt,thrWt,snapshot);

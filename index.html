@@ -567,6 +567,19 @@ const KAKAO_CHANNEL_ID='_QXNZX';
 const VAPID_PUBLIC_KEY='BClrX5_mErAwCfnxMnn7JxqUECaVChgQ8zTADG7HWfg8vCcNTGE2Xx0vzX-Gl3UE6lhj6RZgJYxCu6cjjVcgIHg';
 // 관리 학교 선택 화면에 표시할 업데이트 내역 — 배포할 때마다 최신 항목을 맨 위에 직접 추가
 const CHANGELOG=[
+  {date:'2026-08-12',items:[
+    '인강/현강 체크와 성적 일괄입력의 출석 체크를 즉시저장 방식에서 일괄저장 방식으로 전환 (체크가 반영 안 되거나 화면이 자꾸 새로고침되던 문제 해결)',
+    '성적 일괄입력 "전체 저장" 시 미리 체크해둔 출석이 함께 지워지던 버그 수정',
+    '활동 로그·발송 이력 기록이 방금 저장한 성적을 조용히 덮어쓸 수 있었던 저장 순서 문제 수정',
+    '학생 성적표에 선생님 코멘트가 눈에 잘 띄도록 강조 카드로 분리',
+    '성적 일괄입력 화면에서 선생님이 바로 학생 성적표를 미리볼 수 있는 버튼 추가',
+  ]},
+  {date:'2026-08-06',items:[
+    '포트원(PortOne) 결제 연동 — 강좌 구매 시 자동으로 수강권 부여',
+  ]},
+  {date:'2026-08-04',items:[
+    '강좌 관리에 썸네일·레벨·영상 순서·검색 기능 추가',
+  ]},
   {date:'2026-08-03',items:[
     '성적표·로그인 화면·관리자/학생 전체 상단바에 새로 제작된 오은실영어 로고 이미지 적용',
     '학생 정보(이름·전화번호 등) 수정이 저장 도중 다른 기기와 충돌하면 조용히 원래대로 되돌아가던 버그 수정',
@@ -4192,7 +4205,7 @@ function bAdmin(){
       if(!confirm('모든 발송 이력을 삭제할까요?')) return;
       if(ST.serverAdminSession){
         sc.sendLogs=[];
-        fetch('/api/admin/clear-send-logs',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({schoolId:sc.id})}).catch(()=>{});
+        queueSchoolWrite(()=>fetch('/api/admin/clear-send-logs',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({schoolId:sc.id})}).catch(()=>{}));
       } else {
         localStorage.removeItem('oheng_sendlogs_'+sc.id);
       }
@@ -4954,9 +4967,11 @@ function nowStr(){
 async function resetStudentPassword(sc, student, customPwd){
   if(ST.serverAdminSession){
     try{
-      const res=await fetch('/api/admin/reset-student-password',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({schoolId:sc.id,studentId:student.id,newPwd:customPwd})});
-      const data=await res.json();
-      if(!res.ok||!data.success){alert(data.message||'비밀번호 재설정 실패');return null;}
+      const data=await queueSchoolWrite(async()=>{
+        const res=await fetch('/api/admin/reset-student-password',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({schoolId:sc.id,studentId:student.id,newPwd:customPwd})});
+        return {ok:res.ok,...(await res.json())};
+      });
+      if(!data.ok||!data.success){alert(data.message||'비밀번호 재설정 실패');return null;}
       student.pwd=data.password;
       return data.password;
     }catch(e){alert('오류: '+e.message);return null;}

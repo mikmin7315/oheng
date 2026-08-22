@@ -568,7 +568,7 @@ const VAPID_PUBLIC_KEY='BClrX5_mErAwCfnxMnn7JxqUECaVChgQ8zTADG7HWfg8vCcNTGE2Xx0v
 // 관리 학교 선택 화면에 표시할 업데이트 내역 — 배포할 때마다 최신 항목을 맨 위에 직접 추가
 const CHANGELOG=[
   {date:'2026-08-22',items:[
-    '학생 관리에 정렬 선택(등록순·가나다순·등록일순) 추가 — 원본 순서를 바꾸지 않는 보기 방식이라 즉시 반영되고, 성적 일괄입력·인강/현강 체크 화면에도 같은 순서로 표시됩니다 (마지막 선택은 브라우저에 기억됨)',
+    '학생 관리에 정렬 선택(등록순·가나다순) 추가 — 원본 순서를 바꾸지 않는 보기 방식이라 즉시 반영되고, 성적 일괄입력·인강/현강 체크 화면에도 같은 순서로 표시됩니다 (마지막 선택은 브라우저에 기억됨)',
     '성적 일괄입력의 "숙제 이름" 칸에서 전체 학생의 숙제1·숙제2 상태(완료·미완료 등)를 한 번에 지정하는 "상태 일괄" 기능 추가',
   ]},
   {date:'2026-08-12',items:[
@@ -1042,13 +1042,11 @@ function bindAttSelectDraft(sel, onLocalChange){
 function curSch(){return DB.schools.find(s=>s.id===ST.school)||DB.schools[0]}
 function sRecs(sid,sc){const s=sc||(ST.role==='admin'?curSch():ST.userSchool);if(!s)return[];return s.records.filter(r=>r.sid===sid).sort((a,b)=>moI(a.month)-moI(b.month)||wkI(a.week)-wkI(b.week));}
 // 학생 목록을 '보기 정렬' 설정(ST.stuSort)에 따라 정렬해 반환한다. 원본 sc.students는 건드리지 않음(비파괴적) — 서버 저장도 없다.
-// reg=등록순(원본), name=이름 가나다순, date=등록일순(빠른 순, 없으면 ID 순번). 학생 목록·성적 입력·인강/현강 세 화면이 공통으로 이 순서를 따른다.
+// name=이름 가나다순, 그 외(reg 등)=등록순(원본 배열 순서). 학생 목록·성적 입력·인강/현강 세 화면이 공통으로 이 순서를 따른다.
 function sortedStudents(sc){
   const arr=(sc&&Array.isArray(sc.students))?sc.students:[];
-  const mode=ST.stuSort||'reg';
-  if(mode==='name')return [...arr].sort((a,b)=>(a.name||'').localeCompare(b.name||'','ko'));
-  if(mode==='date')return [...arr].sort((a,b)=>{const ca=a.createdAt||'',cb=b.createdAt||'';if(ca!==cb)return ca<cb?-1:1;return (a.id||'').localeCompare(b.id||'');});
-  return arr; // reg
+  if((ST.stuSort||'reg')==='name')return [...arr].sort((a,b)=>(a.name||'').localeCompare(b.name||'','ko'));
+  return arr; // 등록순(원본)
 }
 function lastThr(sc,mon,wk){
   const prev=sc.records.filter(r=>moI(r.month)<moI(mon)||(moI(r.month)===moI(mon)&&wkI(r.week)<wkI(wk)));
@@ -3268,9 +3266,8 @@ function rStudentMgmt(sc){
         <option value="transfer" ${ST.stuFilterType==='transfer'?'selected':''}>전입생</option>
       </select>
       <select id="stu-sort" title="학생 목록 정렬 (성적 입력·인강/현강 화면에도 반영)" style="padding:8px 12px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px;background:#fff;color:#0D1117;outline:none">
-        <option value="reg" ${(ST.stuSort||'reg')==='reg'?'selected':''}>↕️ 등록순(기본)</option>
+        <option value="reg" ${ST.stuSort==='name'?'':'selected'}>↕️ 등록순(기본)</option>
         <option value="name" ${ST.stuSort==='name'?'selected':''}>🔤 가나다순</option>
-        <option value="date" ${ST.stuSort==='date'?'selected':''}>🗓️ 등록일순</option>
       </select>
     </div>
     <div id="student-list-print" style="overflow-x:auto"><div id="student-list-wrap"></div></div>

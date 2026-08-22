@@ -568,7 +568,7 @@ const VAPID_PUBLIC_KEY='BClrX5_mErAwCfnxMnn7JxqUECaVChgQ8zTADG7HWfg8vCcNTGE2Xx0v
 // 관리 학교 선택 화면에 표시할 업데이트 내역 — 배포할 때마다 최신 항목을 맨 위에 직접 추가
 const CHANGELOG=[
   {date:'2026-08-22',items:[
-    '학생 관리에 정렬 선택(등록순·가나다순·등록일순) 추가 — 원본 순서를 바꾸지 않는 보기 방식이라 즉시 반영되고, 성적 일괄입력·인강/현강 체크 화면에도 같은 순서로 표시됩니다',
+    '학생 관리에 정렬 선택(등록순·가나다순·등록일순) 추가 — 원본 순서를 바꾸지 않는 보기 방식이라 즉시 반영되고, 성적 일괄입력·인강/현강 체크 화면에도 같은 순서로 표시됩니다 (마지막 선택은 브라우저에 기억됨)',
     '성적 일괄입력의 "숙제 이름" 칸에서 전체 학생의 숙제1·숙제2 상태(완료·미완료 등)를 한 번에 지정하는 "상태 일괄" 기능 추가',
   ]},
   {date:'2026-08-12',items:[
@@ -624,7 +624,9 @@ const CHANGELOG=[
 let DB={schools:INIT_SCHOOLS.map(s=>({...s,students:[...s.students],records:[...s.records],notices:{...s.notices}}))};
 let ST={loggedIn:false,role:null,user:null,userSchool:null,school:null,
   tab:'report',atab:'dashboard',lmode:'student',
-  bMon:curMonWk().mon,bWk:curMonWk().wk,attMon:curMonWk().mon,vMon:null,vWk:null,histTab:'wt',showAddSchool:false,_dirty:false};
+  bMon:curMonWk().mon,bWk:curMonWk().wk,attMon:curMonWk().mon,vMon:null,vWk:null,histTab:'wt',showAddSchool:false,_dirty:false,
+  // 학생 목록 정렬(보기 설정) — 마지막 선택을 브라우저에 저장해 새로고침 후에도 유지한다.
+  stuSort:(()=>{try{return localStorage.getItem('oheng_stu_sort')||'reg';}catch(e){return 'reg';}})()};
 
 function loadDB(){
   try{
@@ -4021,6 +4023,7 @@ function bAdmin(){
     // 학생 목록·성적 입력·인강/현강 세 화면이 공통으로 이 설정을 따르므로, 여기서 바꾸면 다른 화면에도 자동 반영된다.
     document.getElementById('stu-sort')?.addEventListener('change',e=>{
       ST.stuSort=e.target.value||'reg';
+      try{localStorage.setItem('oheng_stu_sort',ST.stuSort);}catch(err){} // 마지막 선택 기억
       renderStudentTable(sc);
     });
     renderStudentTable(sc);

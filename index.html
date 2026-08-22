@@ -568,8 +568,8 @@ const VAPID_PUBLIC_KEY='BClrX5_mErAwCfnxMnn7JxqUECaVChgQ8zTADG7HWfg8vCcNTGE2Xx0v
 // 관리 학교 선택 화면에 표시할 업데이트 내역 — 배포할 때마다 최신 항목을 맨 위에 직접 추가
 const CHANGELOG=[
   {date:'2026-08-22',items:[
-    '학생 관리에 "가나다순 정렬" 버튼 추가 — 명단을 이름 가나다순으로 정렬하면 성적 일괄입력·인강/현강 체크 화면에도 같은 순서로 반영됩니다',
-    '성적 일괄입력에 "숙제 일괄" 기능 추가 — 전체 학생의 숙제1·숙제2 상태(완료·미완료 등)를 한 번에 지정할 수 있습니다',
+    '학생 관리에 "가나다순 정렬" 버튼 추가 — 재학생을 이름 가나다순으로 배치하고 전입·신규 학생은 가장 아래로 내려 정렬합니다 (성적 일괄입력·인강/현강 체크 화면에도 같은 순서로 반영)',
+    '성적 일괄입력의 "숙제 이름" 칸에서 전체 학생의 숙제1·숙제2 상태(완료·미완료 등)를 한 번에 지정하는 "상태 일괄" 기능 추가',
   ]},
   {date:'2026-08-12',items:[
     '인강/현강 체크와 성적 일괄입력의 출석 체크를 즉시저장 방식에서 일괄저장 방식으로 전환 (체크가 반영 안 되거나 화면이 자꾸 새로고침되던 문제 해결)',
@@ -3053,23 +3053,43 @@ function rBulk(sc){
       <div class="thr-item"><label>WT 합격 기준점수</label><input id="thr-wt" type="number" placeholder="예: 70" value="${dispWt??''}"></div>
     </div>
   </div>
-  <!-- 숙제 이름 인라인 편집 -->
-  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;background:#FFF8E1;border:1.5px solid #FFE082;border-radius:10px;flex-wrap:wrap">
-    <span style="font-size:11px;font-weight:700;color:#92400E;white-space:nowrap">📋 숙제 이름</span>
-    <div style="display:flex;align-items:center;gap:6px">
-      <label style="font-size:11px;color:#92400E;font-weight:600;white-space:nowrap">숙제1</label>
-      <input id="hw1-name" value="${hw1}" placeholder="이번 주 숙제1 이름" style="padding:5px 10px;border:1.5px solid #FFD54F;border-radius:7px;font-size:12px;font-weight:600;color:#78350F;background:#fff;width:110px;outline:none;font-family:inherit">
+  <!-- 숙제 이름 편집 + 상태 일괄 적용 (한 박스로 통합) -->
+  <div style="margin-bottom:12px;padding:10px 14px;background:#FFF8E1;border:1.5px solid #FFE082;border-radius:10px">
+    <!-- 윗줄: 숙제 이름 -->
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-size:11px;font-weight:700;color:#92400E;white-space:nowrap;min-width:64px">📋 숙제 이름</span>
+      <div style="display:flex;align-items:center;gap:6px">
+        <label style="font-size:11px;color:#92400E;font-weight:600;white-space:nowrap">숙제1</label>
+        <input id="hw1-name" value="${hw1}" placeholder="이번 주 숙제1 이름" style="padding:5px 10px;border:1.5px solid #FFD54F;border-radius:7px;font-size:12px;font-weight:600;color:#78350F;background:#fff;width:110px;outline:none;font-family:inherit">
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <label style="font-size:11px;color:#92400E;font-weight:600;white-space:nowrap">숙제2</label>
+        <input id="hw2-name" value="${hw2}" placeholder="이번 주 숙제2 이름" style="padding:5px 10px;border:1.5px solid #FFD54F;border-radius:7px;font-size:12px;font-weight:600;color:#78350F;background:#fff;width:110px;outline:none;font-family:inherit">
+      </div>
+      <div style="display:flex;align-items:center;gap:5px">
+        <input type="checkbox" id="hw2-skip" ${hw2Skip?'checked':''} style="width:15px;height:15px;accent-color:#1A237E;cursor:pointer">
+        <label for="hw2-skip" style="font-size:11px;color:#92400E;font-weight:600;cursor:pointer;white-space:nowrap">숙제2 생략</label>
+      </div>
+      <button id="btn-hw-name-save" style="padding:5px 12px;background:#F59E0B;color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">저장</button>
+      <span id="hw-name-msg" style="font-size:11px;color:#00897B;font-weight:600"></span>
     </div>
-    <div style="display:flex;align-items:center;gap:6px">
-      <label style="font-size:11px;color:#92400E;font-weight:600;white-space:nowrap">숙제2</label>
-      <input id="hw2-name" value="${hw2}" placeholder="이번 주 숙제2 이름" style="padding:5px 10px;border:1.5px solid #FFD54F;border-radius:7px;font-size:12px;font-weight:600;color:#78350F;background:#fff;width:110px;outline:none;font-family:inherit">
+    <!-- 구분선 -->
+    <div style="border-top:1px dashed #FFD54F;margin:10px 0"></div>
+    <!-- 아랫줄: 숙제 상태 일괄 적용 — 선택한 값을 전체 학생 칸에 한 번에 채운다(저장 버튼을 눌러야 영구 반영). -->
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span style="font-size:11px;font-weight:700;color:#92400E;white-space:nowrap;min-width:64px">✅ 상태 일괄</span>
+      <span style="font-size:11px;color:#78350F;font-weight:700">${esc(hw1)}</span>
+      <select id="bulk-hw1" class="cs" style="font-size:11px;padding:4px 8px;border:1.5px solid #FFD54F;border-radius:6px">
+        <option value="">— 변경 안 함 —</option>
+        ${HW.map(o=>`<option>${o}</option>`).join('')}
+      </select>
+      <span style="font-size:11px;color:#78350F;font-weight:700;margin-left:6px">${esc(hw2)}</span>
+      <select id="bulk-hw2" class="cs" ${hw2Skip?'disabled style="opacity:0.35"':''} style="font-size:11px;padding:4px 8px;border:1.5px solid #FFD54F;border-radius:6px">
+        <option value="">— 변경 안 함 —</option>
+        ${HW.map(o=>`<option>${o}</option>`).join('')}
+      </select>
+      <button class="abtn" id="btn-hw-bulk" style="background:#F59E0B;color:#fff;border-color:#F59E0B;font-size:11px;padding:5px 12px">전체 적용</button>
     </div>
-    <div style="display:flex;align-items:center;gap:5px">
-      <input type="checkbox" id="hw2-skip" ${hw2Skip?'checked':''} style="width:15px;height:15px;accent-color:#1A237E;cursor:pointer">
-      <label for="hw2-skip" style="font-size:11px;color:#92400E;font-weight:600;cursor:pointer;white-space:nowrap">숙제2 생략</label>
-    </div>
-    <button id="btn-hw-name-save" style="padding:5px 12px;background:#F59E0B;color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">저장</button>
-    <span id="hw-name-msg" style="font-size:11px;color:#00897B;font-weight:600"></span>
   </div>
   <div class="avg-row">
     <div class="s-item"><label>REVIEW 반평균 <span style="font-size:9px;color:#689f38;font-weight:400">(자동)</span></label><input id="cmn-rva" class="ci-auto" style="background:#f1f8e9;color:#33691e;width:100%;padding:5px 7px;border:0.5px solid #c8e6c9;border-radius:5px;font-size:12px" readonly tabindex="-1" value="${dispRvAvg}"></div>
@@ -3088,21 +3108,6 @@ function rBulk(sc){
     <span class="skip-lbl" style="margin-left:10px">WT 생략:</span>
     <button class="abtn" id="btn-wt-all" style="background:#1565c0;color:#fff;border-color:#1565c0;font-size:11px;padding:5px 10px">전체생략</button>
     <button class="abtn abtn-gray" id="btn-wt-none" style="font-size:11px;padding:5px 10px">전체해제</button>
-  </div>
-  <!-- 숙제 상태 일괄 적용 — 선택한 값을 전체 학생의 숙제1/숙제2 칸에 한 번에 채운다(저장 버튼을 눌러야 영구 반영). -->
-  <div class="skip-group" style="margin-top:-4px;flex-wrap:wrap">
-    <span class="skip-lbl">📋 숙제 일괄:</span>
-    <span style="font-size:11px;color:#78350F;font-weight:700">${esc(hw1)}</span>
-    <select id="bulk-hw1" class="cs" style="font-size:11px;padding:4px 8px;border:1.5px solid #FFD54F;border-radius:6px">
-      <option value="">— 변경 안 함 —</option>
-      ${HW.map(o=>`<option>${o}</option>`).join('')}
-    </select>
-    <span style="font-size:11px;color:#78350F;font-weight:700;margin-left:6px">${esc(hw2)}</span>
-    <select id="bulk-hw2" class="cs" ${hw2Skip?'disabled style="opacity:0.35"':''} style="font-size:11px;padding:4px 8px;border:1.5px solid #FFD54F;border-radius:6px">
-      <option value="">— 변경 안 함 —</option>
-      ${HW.map(o=>`<option>${o}</option>`).join('')}
-    </select>
-    <button class="abtn" id="btn-hw-bulk" style="background:#F59E0B;color:#fff;border-color:#F59E0B;font-size:11px;padding:5px 12px">전체 적용</button>
   </div>
   <div class="btbl-wrap"><table class="btbl">
     <thead><tr>
@@ -3999,10 +4004,16 @@ function bAdmin(){
     });
     document.getElementById('stu-search').oninput=e=>{ST.stuSearch=e.target.value;renderStudentTable(sc);};
     document.getElementById('stu-filter-type').onchange=e=>{ST.stuFilterType=e.target.value;renderStudentTable(sc);};
-    // 명단을 이름 가나다순으로 재정렬(한글 로케일). 한 번 정렬하면 저장되어 성적 입력·인강/현강 표에도 그대로 반영된다.
+    // 명단을 이름 가나다순으로 재정렬(한글 로케일). 단, 구분이 '전입/신규'인 학생은 재학생 뒤(가장 아래)로 내린다.
+    // 재학생 그룹 → 전입/신규 그룹 순서이며, 각 그룹 안에서는 이름 가나다순. 한 번 정렬하면 저장되어 성적 입력·인강/현강 표에도 반영된다.
     document.getElementById('btn-sort-name')?.addEventListener('click',()=>{
-      if(!confirm('학생 명단을 이름 가나다순으로 정렬할까요?\n\n정렬된 순서는 성적 입력·인강/현강 화면에도 그대로 반영되며, 저장됩니다.'))return;
-      sc.students.sort((a,b)=>(a.name||'').localeCompare(b.name||'','ko'));
+      if(!confirm('학생 명단을 이름 가나다순으로 정렬할까요?\n\n• 재학생을 가나다순으로 먼저 배치하고\n• 전입·신규 학생은 가장 아래에 (역시 가나다순) 배치합니다.\n\n정렬된 순서는 성적 입력·인강/현강 화면에도 그대로 반영되며, 저장됩니다.'))return;
+      const isBottom=s=>{const t=s.type||'regular';return t==='new'||t==='transfer';};
+      sc.students.sort((a,b)=>{
+        const ab=isBottom(a)?1:0, bb=isBottom(b)?1:0;
+        if(ab!==bb)return ab-bb; // 재학생(0)이 위, 전입/신규(1)가 아래
+        return (a.name||'').localeCompare(b.name||'','ko');
+      });
       saveDB();
       render();
     });

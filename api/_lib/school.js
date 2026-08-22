@@ -6,6 +6,66 @@ const INDEX_KEY = 'school:index';
 
 export class VersionConflictError extends Error {}
 
+export class SchoolMutationError extends Error {
+  constructor(status, message) { super(message); this.status = status; }
+}
+
+// "쓰기 직전에 버전을 다시 읽어 확인" 방식은 재확인 자체와 실제 SET 사이에도 여전히 아주 짧은
+// 틈이 남는다(둘 다 별도의 네트워크 왕복이라, 그 사이에 다른 쓰기가 끼어들 수 있음) — 실제
+// 동시 요청 테스트로 이 틈에서 데이터가 유실되는 걸 재현해서 확인했다. GET과 SET을 하나의
+// Redis Lua 스크립트로 묶으면 Redis가 스크립트 실행 도중 다른 명령이 끼어들지 못하게 보장해줘서
+// (next-student-id 카운터에 이미 쓰던 것과 같은 방식) "버전이 여전히 기대값과 같을 때만 저장"을
+// 진짜 원자적으로 만들 수 있다.
+const CAS_SET_SCRIPT = `
+  local cur = redis.call('GET', KEYS[1])
+  if not cur then
+    return {'not_found', ''}
+  end
+  local obj = cjson.decode(cur)
+  local expected = tonumber(ARGV[1])
+  local curVersion = obj.version or 0
+  if curVersion ~= expected then
+    return {'conflict', cur}
+  end
+  redis.call('SET', KEYS[1], ARGV[2])
+  return {'ok', ARGV[2]}
+`;
+
+// expectedVersion일 때만 newSchoolObj를 원자적으로 저장. 실패 시 {ok:false, notFound} 또는
+// {ok:false, current: 최신 학교 객체}를 돌려줘서 호출부가 최신 데이터로 재시도할 수 있게 한다.
+async function casWriteSchool(id, expectedVersion, newSchoolObj) {
+  const redis = getRedis();
+  const [status, payload] = await redis.eval(
+    CAS_SET_SCRIPT,
+    [SCHOOL_PREFIX + id],
+    [String(expectedVersion), JSON.stringify(newSchoolObj)]
+  );
+  if (status === 'ok') return { ok: true };
+  if (status === 'not_found') return { ok: false, notFound: true };
+  // @upstash/redis가 JSON처럼 보이는 문자열 결과를 알아서 객체로 역직렬화해주는 경우가 있어
+  // (school:summary 해시 읽을 때도 같은 문제 발견) 문자열일 때만 직접 파싱한다.
+  const current = typeof payload === 'string' ? JSON.parse(payload) : payload;
+  return { ok: false, current };
+}
+
+// 학생이 직접 쓰는 소규모 API(비밀번호 변경/제안 제출/답변 읽음 등)용 — 원자적 CAS 쓰기가
+// 실패하면(다른 쓰기가 그 사이 끼어들었으면) 최신 데이터를 다시 읽어 같은 mutateFn을
+// 재적용하고 재시도한다.
+export async function mutateSchool(id, mutateFn, maxAttempts = 5) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const sc = await getSchool(id);
+    if (!sc) return null;
+    const versionAtRead = sc.version || 0;
+    const extra = await mutateFn(sc); // 검증 실패 시 여기서 던진 에러는 재시도 없이 그대로 전파됨
+    sc.version = versionAtRead + 1;
+    const result = await casWriteSchool(id, versionAtRead, sc);
+    if (result.ok) return { school: sc, extra };
+    if (result.notFound) return null;
+    // 충돌 — 다음 루프에서 최신 데이터를 다시 읽어 재시도
+  }
+  throw new SchoolMutationError(409, '다른 저장과 계속 충돌했습니다. 잠시 후 다시 시도해주세요');
+}
+
 export async function getSchoolIndex() {
   const redis = getRedis();
   const idx = await redis.get(INDEX_KEY);
@@ -33,10 +93,53 @@ export async function removeFromSchoolIndex(id) {
   await redis.set(INDEX_KEY, next);
 }
 
+// 학교 목록 화면(GET /api/admin/schools)이 매번 학교 전체 블롭(수백 KB~1MB)을 전부 읽어와야
+// 했던 게 느려진 핵심 원인이었다. 이름/인원수/성적건수 같은 가벼운 요약만 해시에 필드별로
+// 캐시해두고, 목록 화면은 이 해시 하나만 통째로 읽게 한다(HGETALL 1회). 학교를 만들거나
+// 저장할 때마다 그 학교 필드만 HSET으로 갱신(아래 세 함수) — 다른 학교 요약을 읽고 다시 쓸
+// 필요가 없어 다른 학교 저장과 경쟁(레이스)할 일도 없다.
+const SUMMARY_KEY = 'school:summary';
+
+export function summarizeSchool(school) {
+  return {
+    id: school.id, name: school.name, grade: school.grade,
+    type: school.type === 'lecture' ? 'lecture' : 'regular',
+    studentCount: (school.students || []).length,
+    recordCount: (school.records || []).length,
+  };
+}
+
+export async function getSchoolSummaries() {
+  const redis = getRedis();
+  const map = await redis.hgetall(SUMMARY_KEY);
+  if (!map) return [];
+  // @upstash/redis의 해시 필드 자동 역직렬화 여부에 기대지 않고, 문자열로 오면 직접 파싱
+  // (필드 값을 저장할 때도 JSON.stringify로 명시적으로 직렬화해서 이 파싱과 항상 짝을 맞춘다)
+  return Object.values(map).map(v => {
+    if (typeof v === 'string') { try { return JSON.parse(v); } catch { return null; } }
+    return v;
+  }).filter(Boolean);
+}
+
+export async function setSchoolSummaryEntry(entry) {
+  const redis = getRedis();
+  await redis.hset(SUMMARY_KEY, { [entry.id]: JSON.stringify(entry) });
+}
+
+export async function upsertSchoolSummary(school) {
+  await setSchoolSummaryEntry(summarizeSchool(school));
+}
+
+export async function removeSchoolSummary(id) {
+  const redis = getRedis();
+  await redis.hdel(SUMMARY_KEY, id);
+}
+
 export async function deleteSchool(id) {
   const redis = getRedis();
   await redis.del(SCHOOL_PREFIX + id);
   await removeFromSchoolIndex(id);
+  await removeSchoolSummary(id);
 }
 
 export async function createSchool(name, grade, type) {
@@ -51,6 +154,7 @@ export async function createSchool(name, grade, type) {
   const redis = getRedis();
   await redis.set(SCHOOL_PREFIX + id, school);
   await addToSchoolIndex(id);
+  await upsertSchoolSummary(school);
   return school;
 }
 
@@ -85,7 +189,26 @@ export function normalizeSchoolForWrite(incoming, existing) {
     const prev = existingStudentsById.get(s.id);
     const { pwd, pwdHash, ...rest } = s;
     if (prev) return { ...rest, pwd: prev.pwd, pwdHash: prev.pwdHash };
-    const initialPwd = pwd || '1234';
+    // 숫자만 허용 — 숫자가 아닌 문자가 섞여 들어오면 안전하게 무작위 4자리 숫자로 대체한다
+    // (여기는 일반 학교 저장 경로라 400으로 거절하기보다 정제해서 저장을 막지 않는 쪽을 택함).
+    const digitsOnly = String(pwd || '').replace(/\D/g, '');
+    const initialPwd = digitsOnly || String(Math.floor(1000 + Math.random() * 9000));
+    return { ...rest, pwd: encryptPwd(initialPwd), pwdHash: hashPassword(initialPwd) };
+  });
+
+  // 탈퇴 학생 목록도 학생과 동일하게 암호화된 pwd/pwdHash를 유지해야 한다. 관리자 화면은
+  // pwd를 복호화된 평문으로 보여주므로, 여기서 손대지 않고 클라이언트가 보낸 값을 그대로
+  // 저장하면 탈퇴 처리(단건/일괄) 시 비밀번호 평문이 그대로 Redis에 남는다(Codex 리뷰에서
+  // 지적됨). 이미 탈퇴 목록에 있던 학생이면 그 암호화값을, 이번에 막 탈퇴 처리돼 방금까지
+  // 재학생이었던 학생이면 재학 시절의 암호화값을 그대로 이어받아 복구했을 때도 로그인
+  // 정보가 그대로 유지되게 한다.
+  const existingWithdrawnById = new Map((existing?.withdrawnStudents || []).map(s => [s.id, s]));
+  const withdrawnStudents = (Array.isArray(incoming.withdrawnStudents) ? incoming.withdrawnStudents : (existing?.withdrawnStudents || [])).map(s => {
+    const prev = existingWithdrawnById.get(s.id) || existingStudentsById.get(s.id);
+    const { pwd, pwdHash, ...rest } = s;
+    if (prev) return { ...rest, pwd: prev.pwd, pwdHash: prev.pwdHash };
+    const digitsOnly = String(pwd || '').replace(/\D/g, '');
+    const initialPwd = digitsOnly || String(Math.floor(1000 + Math.random() * 9000));
     return { ...rest, pwd: encryptPwd(initialPwd), pwdHash: hashPassword(initialPwd) };
   });
 
@@ -98,7 +221,7 @@ export function normalizeSchoolForWrite(incoming, existing) {
     records: Array.isArray(incoming.records) ? incoming.records : [],
     notices: incoming.notices || {},
     suggestions: Array.isArray(incoming.suggestions) ? incoming.suggestions : (existing?.suggestions || []),
-    withdrawnStudents: Array.isArray(incoming.withdrawnStudents) ? incoming.withdrawnStudents : (existing?.withdrawnStudents || []),
+    withdrawnStudents,
     inquiries: Array.isArray(incoming.inquiries) ? incoming.inquiries : (existing?.inquiries || []),
     // sendLogs는 전용 append/clear 엔드포인트로만 바뀜 — 일반 저장(PUT)에서는 클라이언트가 들고 있던
     // 오래된 값으로 덮어쓰지 않도록 항상 서버의 기존 값을 그대로 유지
@@ -139,7 +262,6 @@ export function hashSchoolForMigration(school) {
 
 // 버전 체크(낙관적 락) 포함 저장. expectedVersion이 서버 현재값과 다르면 VersionConflictError.
 export async function saveSchool(id, incoming, expectedVersion) {
-  const redis = getRedis();
   const existing = await getSchool(id);
   const currentVersion = existing?.version || 0;
   if (expectedVersion !== undefined && expectedVersion !== null && expectedVersion !== currentVersion) {
@@ -148,7 +270,17 @@ export async function saveSchool(id, incoming, expectedVersion) {
   const normalized = normalizeSchoolForWrite(incoming, existing);
   normalized.version = currentVersion + 1;
   normalized._aggregates = computeAggregates(normalized);
-  await redis.set(SCHOOL_PREFIX + id, normalized);
+  // normalizeSchoolForWrite/computeAggregates가 학교가 클수록(학생 수백 명) 시간이 걸리는데, 그 사이
+  // 학생 쪽 API(비밀번호 변경/제안 제출 등)가 먼저 저장을 끝내버리면 위에서 확인한 currentVersion은
+  // 이미 낡은 값이다. CAS 쓰기(casWriteSchool)가 실제 SET 시점에 Redis 안에서 원자적으로 버전을
+  // 다시 확인해주므로, 여기서 던지는 VersionConflictError는 클라이언트가 이미 처리하는 409 재시도/
+  // 병합 로직을 그대로 타면 된다 — 프런트엔드는 손댈 필요 없음.
+  const result = await casWriteSchool(id, currentVersion, normalized);
+  if (!result.ok) {
+    if (result.notFound) throw new VersionConflictError('학교를 찾을 수 없습니다');
+    throw new VersionConflictError(`버전 충돌: 서버=${result.current?.version ?? '?'}, 요청=${expectedVersion}`);
+  }
+  await upsertSchoolSummary(normalized);
   return normalized;
 }
 
@@ -160,6 +292,7 @@ export async function putSchoolRaw(school) {
   normalized._aggregates = computeAggregates(normalized);
   await redis.set(SCHOOL_PREFIX + school.id, normalized);
   await addToSchoolIndex(school.id);
+  await upsertSchoolSummary(normalized);
   return normalized;
 }
 

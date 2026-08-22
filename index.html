@@ -47,7 +47,7 @@ body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-s
 .school-inner{width:100%;max-width:680px}
 .school-title{font-size:22px;font-weight:800;color:#1A237E;margin-bottom:6px;text-align:center;letter-spacing:-0.5px}
 .school-sub{font-size:13px;color:var(--tx2);text-align:center;margin-bottom:28px}
-.school-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:20px}
+.school-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,180px));justify-content:start;gap:14px;margin-bottom:20px}
 .school-card{position:relative;background:#fff;border:none;border-radius:16px;padding:22px 16px;cursor:pointer;text-align:center;box-shadow:0 2px 12px rgba(0,0,0,0.06);transition:all 0.18s}
 .school-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(26,35,126,0.15)}
 .school-card-name{font-size:15px;font-weight:700;color:#1A237E;margin-bottom:6px}
@@ -565,6 +565,58 @@ const APP_URL='https://oheng.vercel.app';
 const KAKAO_APP_KEY='';  // TODO: Kakao Developers → 앱 키 → JavaScript 키 입력
 const KAKAO_CHANNEL_ID='_QXNZX';
 const VAPID_PUBLIC_KEY='BClrX5_mErAwCfnxMnn7JxqUECaVChgQ8zTADG7HWfg8vCcNTGE2Xx0vzX-Gl3UE6lhj6RZgJYxCu6cjjVcgIHg';
+// 관리 학교 선택 화면에 표시할 업데이트 내역 — 배포할 때마다 최신 항목을 맨 위에 직접 추가
+const CHANGELOG=[
+  {date:'2026-08-12',items:[
+    '인강/현강 체크와 성적 일괄입력의 출석 체크를 즉시저장 방식에서 일괄저장 방식으로 전환 (체크가 반영 안 되거나 화면이 자꾸 새로고침되던 문제 해결)',
+    '성적 일괄입력 "전체 저장" 시 미리 체크해둔 출석이 함께 지워지던 버그 수정',
+    '활동 로그·발송 이력 기록이 방금 저장한 성적을 조용히 덮어쓸 수 있었던 저장 순서 문제 수정',
+    '학생이 비밀번호 변경·제안 제출 등을 하는 도중 선생님이 동시에 성적을 저장해도 서로 지워지지 않도록 저장 안전장치 강화',
+    '학생 성적표에 선생님 코멘트가 눈에 잘 띄도록 강조 카드로 분리',
+    '성적 일괄입력 화면에서 선생님이 바로 학생 성적표를 미리볼 수 있는 버튼 추가',
+  ]},
+  {date:'2026-08-06',items:[
+    '포트원(PortOne) 결제 연동 — 강좌 구매 시 자동으로 수강권 부여',
+  ]},
+  {date:'2026-08-04',items:[
+    '강좌 관리에 썸네일·레벨·영상 순서·검색 기능 추가',
+  ]},
+  {date:'2026-08-03',items:[
+    '성적표·로그인 화면·관리자/학생 전체 상단바에 새로 제작된 오은실영어 로고 이미지 적용',
+    '학생 정보(이름·전화번호 등) 수정이 저장 도중 다른 기기와 충돌하면 조용히 원래대로 되돌아가던 버그 수정',
+    '인강 소개 페이지 디자인 전면 개편 및 실제와 다른 통계·후기 제거',
+  ]},
+  {date:'2026-08-01',items:[
+    '성적표 "전주 대비 10점 이상 하락" 경고를 총점뿐 아니라 RT·WT 각각 기준으로도 확인 가능하도록 개선',
+  ]},
+  {date:'2026-07-31',items:[
+    '인강/현강 체크에서 학생 여러 명을 빠르게 연달아 체크해도 저장이 씹히거나 화면이 자꾸 새로고침되던 버그 수정',
+  ]},
+  {date:'2026-07-28',items:[
+    '관리자 화면 사이드바를 업무·학생·기록·설정으로 그룹화',
+    '"관리자 설정"을 학교별 설정과, 학교 선택 화면에서 바로 들어가는 전역 "⚙️ 계정 관리" 화면으로 분리',
+  ]},
+  {date:'2026-07-27',items:[
+    '학생 목록에서 여러 명을 선택해 한 번에 탈퇴 처리하는 기능 추가',
+    '학생 ID 발급 카운터 자가 복구 + 비밀번호 숫자 전용 입력 제한',
+    '성적표에 숙제 2주 연속 미완료 시 경고 표시 추가',
+    '조교 계정을 스스로 신청하고 원장님이 승인/거절하는 기능 추가',
+    '관리 학교 선택 화면을 좌우 2단으로 나눠 조교 공지사항 게시판 + 업데이트 내역 추가',
+    '조교 공지 작성 중 화면이 다시 그려져도 입력 내용이 사라지지 않도록 수정',
+    '조교 계정·가입 승인 관련 보안·동시편집 안정성 문제 다수 점검 및 수정',
+  ]},
+  {date:'2026-07-26',items:[
+    '학생 ID 발급을 서버가 직접 관리하도록 전환 (정규/특강 아이디 겹침 방지)',
+    '학생 비밀번호 랜덤 생성 + 관리자 비밀번호 재발급 버튼 복구',
+    '인강 알림톡 발신 채널을 기존 학원 알림과 분리',
+    '성적 저장·지우기·복사를 실수했을 때 되돌리는 기능 추가',
+    "'저장 이력' 화면을 성적 저장·지우기·복사까지 모두 남기는 활동 로그로 확장",
+    '인강(동영상 강좌) 관리 화면 추가',
+    '성적표에 지난주 대비 10점 이상 하락 시 경고(🚨) 표시 추가',
+    '공지사항 속 링크를 눌러서 바로 이동할 수 있도록 개선',
+    '조교 여러 명이 각자 계정으로 동시에 작업할 수 있는 다중 계정 시스템 추가',
+  ]},
+];
 let DB={schools:INIT_SCHOOLS.map(s=>({...s,students:[...s.students],records:[...s.records],notices:{...s.notices}}))};
 let ST={loggedIn:false,role:null,user:null,userSchool:null,school:null,
   tab:'report',atab:'dashboard',lmode:'student',
@@ -582,11 +634,26 @@ function loadDB(){
   }catch(e){console.warn('loadDB 오류(무시):', e);}
 }
 // 현재 선택된 학교 blob을 서버에 백그라운드로 저장 (버전 충돌 시 최신 데이터로 교체 후 재렌더링)
-// 버전 충돌(409) 시 기존엔 로컬 변경사항을 통째로 버리고 서버 최신본으로 덮어써서, 방금 입력한
-// 내용(예: 성적 일괄 입력)이 조용히 사라지는 버그가 있었음. 이제는 로컬 sc.records에 있는 항목(=방금
-// 만졌던 레코드)은 그대로 유지하고, 나머지(다른 주차/다른 학생 변경분)만 서버 최신본으로 채운 뒤 재시도한다.
-async function syncSchoolToServer(sc,attempt){
+// 버전 충돌(409) 시 예전엔 "로컬 sc.records에 있는 항목은 전부 방금 만졌던 레코드"라고 가정하고
+// 그대로 되살렸는데, 이게 조교 여러 명이 같은 로그인을 공유할 때 사고를 냈다: 내 브라우저에 남아있는
+// 다른 주차의 '오래된 캐시'가, 다른 조교가 방금 막 저장한 최신 데이터를 조용히 덮어써버렸다(입력이 섞임).
+// 이제는 저장을 호출하는 쪽이 "이번 저장에서 실제로 의도한 레코드 키(sid|month|week)"를
+// intent.dirtyKeys(수정/추가)·intent.deletedKeys(삭제)로 명시하고, 그 외 레코드는 충돌 시
+// 무조건 서버 최신본을 따르게 한다. intent를 안 넘기면(레코드를 안 건드리는 저장) 안전하게 전부 서버 우선.
+// 학생 정보(sc.students)·탈퇴 학생(sc.withdrawnStudents)도 같은 문제가 있었다 — 예를 들어 학생 이름을
+// 고쳐 저장했는데 그 사이 버전이 밀려 409가 나면, 예전 코드는 학생 목록 전체를 서버 최신본으로
+// 덮어써버려서(비밀번호만 로컬 값 유지) 방금 고친 이름이 조용히 사라지고 재시도에서 원래 이름으로
+// 다시 저장돼버렸다. 레코드와 동일하게 intent.dirtyStudentIds/deletedStudentIds,
+// intent.dirtyWithdrawnIds/deletedWithdrawnIds로 "이번 저장에서 실제로 건드린 학생"을 명시해
+// 그 학생만 로컬 값을 지키고 나머지는 서버 최신본을 따르게 한다.
+async function syncSchoolToServer(sc,attempt,intent){
   attempt=attempt||0;
+  const dirtyKeys=intent?.dirtyKeys||new Set();
+  const deletedKeys=intent?.deletedKeys||new Set();
+  const dirtyStudentIds=intent?.dirtyStudentIds||new Set();
+  const deletedStudentIds=intent?.deletedStudentIds||new Set();
+  const dirtyWithdrawnIds=intent?.dirtyWithdrawnIds||new Set();
+  const deletedWithdrawnIds=intent?.deletedWithdrawnIds||new Set();
   try{
     const res=await fetch('/api/admin/school/'+encodeURIComponent(sc.id),{
       method:'PUT',credentials:'include',headers:{'Content-Type':'application/json'},
@@ -597,17 +664,37 @@ async function syncSchoolToServer(sc,attempt){
       if(data.school&&attempt<3){
         const latest=data.school;
         sc.version=latest.version;
-        sc.students=(latest.students||[]).map(ls=>{const local=sc.students.find(x=>x.id===ls.id);return(local&&local.pwd)?{...ls,pwd:local.pwd}:ls;});
+        const localStudentMap=new Map(sc.students.map(x=>[x.id,x]));
+        const mergedStudents=(latest.students||[])
+          .filter(ls=>!deletedStudentIds.has(ls.id))
+          .map(ls=>{
+            if(dirtyStudentIds.has(ls.id)&&localStudentMap.has(ls.id))return localStudentMap.get(ls.id);
+            const local=localStudentMap.get(ls.id);
+            return(local&&local.pwd)?{...ls,pwd:local.pwd}:ls;
+          });
+        const latestStudentIds=new Set((latest.students||[]).map(x=>x.id));
+        const newLocalDirtyStudents=[...localStudentMap.entries()].filter(([id])=>dirtyStudentIds.has(id)&&!latestStudentIds.has(id)).map(([,x])=>x);
+        sc.students=[...mergedStudents,...newLocalDirtyStudents];
         sc.notices=latest.notices??sc.notices;
-        sc.withdrawnStudents=latest.withdrawnStudents??sc.withdrawnStudents;
+        const localWithdrawnMap=new Map((sc.withdrawnStudents||[]).map(x=>[x.id,x]));
+        const latestWithdrawn=latest.withdrawnStudents||[];
+        const mergedWithdrawn=latestWithdrawn
+          .filter(ws=>!deletedWithdrawnIds.has(ws.id))
+          .map(ws=>(dirtyWithdrawnIds.has(ws.id)&&localWithdrawnMap.has(ws.id))?localWithdrawnMap.get(ws.id):ws);
+        const latestWithdrawnIds=new Set(latestWithdrawn.map(x=>x.id));
+        const newLocalDirtyWithdrawn=[...localWithdrawnMap.entries()].filter(([id])=>dirtyWithdrawnIds.has(id)&&!latestWithdrawnIds.has(id)).map(([,x])=>x);
+        sc.withdrawnStudents=[...mergedWithdrawn,...newLocalDirtyWithdrawn];
         sc.hw1=latest.hw1??sc.hw1;sc.hw2=latest.hw2??sc.hw2;sc.hw2Skip=latest.hw2Skip??sc.hw2Skip;sc.hwNames=latest.hwNames??sc.hwNames;
         sc.kakaoChannel=latest.kakaoChannel??sc.kakaoChannel;
         const key=r=>r.sid+'|'+r.month+'|'+r.week;
         const localMap=new Map(sc.records.map(r=>[key(r),r]));
-        const mergedRecords=(latest.records||[]).map(r=>localMap.has(key(r))?localMap.get(key(r)):r);
+        const mergedRecords=(latest.records||[])
+          .filter(r=>!deletedKeys.has(key(r)))
+          .map(r=>{const k=key(r);return(dirtyKeys.has(k)&&localMap.has(k))?localMap.get(k):r;});
         const latestKeys=new Set((latest.records||[]).map(key));
-        sc.records=[...mergedRecords,...sc.records.filter(r=>!latestKeys.has(key(r)))];
-        return await syncSchoolToServer(sc,attempt+1);
+        const newLocalDirty=[...localMap.entries()].filter(([k])=>dirtyKeys.has(k)&&!latestKeys.has(k)).map(([,r])=>r);
+        sc.records=[...mergedRecords,...newLocalDirty];
+        return await syncSchoolToServer(sc,attempt+1,intent);
       }
       if(data.school){
         const idx=DB.schools.findIndex(s=>s.id===sc.id);
@@ -625,12 +712,36 @@ async function syncSchoolToServer(sc,attempt){
     }
   }catch(e){console.warn('서버 저장 실패(로컬엔 저장됨):',e);}
 }
-function saveDB(){
+// 여러 saveDB() 호출이 동시에 나가면(예: 인강/현강 체크에서 학생 여러 명을 빠르게 연달아
+// 체크) 각 요청이 fetch를 보내는 시점의 sc.version을 그대로 들고 나가기 때문에, 서로의
+// 저장이 반영되기 전에 같은 버전으로 겹쳐 보내 충돌(409)이 연쇄적으로 발생한다. 재시도
+// 로직(최대 3회)이 대부분은 조용히 흡수하지만, 짧은 시간에 여러 건이 겹치면 그중 일부는
+// 3번 다 실패해 "저장 중 충돌이 반복되어..." 경고와 함께 화면 전체가 다시 그려지고, 그
+// 시점에 반영되지 않은 변경(예: 방금 체크한 항목)은 조용히 사라진다 — 사용자에게는 "체크가
+// 자꾸 안 되고 화면이 새로고침된다"로 보임. 같은 학교에 대한 저장을 큐로 한 번에 하나씩만
+// 순서대로 내보내면, 각 저장이 직전 저장이 반영된 최신 버전을 보고 나가게 되어 이 경쟁
+// 상태 자체가 생기지 않는다.
+let _saveQueue=Promise.resolve();
+// saveDB()뿐 아니라, 성적 저장 시 같이 불리는 활동 로그 기록(pushLogEntry)·발송 이력 기록
+// (addSendLog)도 각자 학교 전체를 읽어와 saveLogs/sendLogs만 붙이고 다시 통째로 저장하는
+// 방식이라 이 큐를 거치지 않으면 saveDB()의 PUT과 경쟁한다. 실제로 "전체 저장"을 누르면
+// addLog()가 await 없이 먼저 fetch를 날리고 나서 saveDB()가 또 저장을 보내는데, 학교 데이터가
+// 커져서(수백 KB) PUT이 2~3초씩 걸리는 지금은 몸집이 작은 로그 기록 쪽이 먼저 끝나버려서,
+// 로그 기록이 자기가 읽은 "저장 전" 데이터에 로그 한 줄만 얹어 그대로 덮어써버리고, 뒤늦게
+// 끝난 PUT의 결과(방금 입력한 성적)가 통째로 사라지는 사고로 이어졌다. 같은 학교에 대한
+// 모든 쓰기(성적 저장이든 로그 기록이든)를 이 큐 하나로 직렬화하면 항상 직전 쓰기가 반영된
+// 상태를 보고 다음 쓰기가 나가서 이런 덮어쓰기 자체가 생기지 않는다.
+function queueSchoolWrite(fn){
+  const result=_saveQueue.then(fn);
+  _saveQueue=result.catch(()=>{}); // 하나가 실패해도 큐 자체는 계속 이어지게
+  return result;
+}
+function saveDB(intent){
   try{localStorage.setItem(SKEY,JSON.stringify({...DB,adminPwd:ADMIN_PWD,adminId:ADMIN_ID}));}
   catch(e){console.warn('saveDB 오류(무시):', e);}
   if(ST.role==='admin'&&ST.serverAdminSession&&ST.school){
     const sc=DB.schools.find(s=>s.id===ST.school);
-    if(sc)return syncSchoolToServer(sc); // 호출부에서 await하면 서버 반영 확인 후 성공 메시지를 띄울 수 있음(선택)
+    if(sc)return queueSchoolWrite(()=>syncSchoolToServer(sc,0,intent)); // 호출부에서 await하면 서버 반영 확인 후 성공 메시지를 띄울 수 있음(선택)
   }
   return Promise.resolve();
 }
@@ -727,9 +838,149 @@ function migrateAvgs(sc){
   saveDB();
 }
 
+// 특정 주차만 totalScore/등수/합격여부/반평균을 recalc()와 동일한 기준으로 다시 계산
+// (성적 지우기·다른 주차로 복사 후 그 주차 값을 정합성 있게 맞추기 위해 사용)
+function recomputeWeekAggregates(sc,mon,week){
+  const wkRecs=sc.records.filter(r=>r.month===mon&&r.week===week);
+  const avg=arr=>arr.length?Math.round(arr.reduce((a,b)=>a+b,0)/arr.length*10)/10:null;
+  const rankMap=items=>{
+    const valid=items.filter(x=>!x.skip&&x.v!=null).sort((a,b)=>b.v-a.v);
+    const m={};let rk=1;
+    valid.forEach((x,i)=>{if(i>0&&valid[i-1].v===x.v)m[x.key]=m[valid[i-1].key];else m[x.key]=rk;rk++;});
+    return m;
+  };
+  wkRecs.forEach(r=>{
+    const rsk=!!r.rtSkip,wsk=!!r.wtSkip;
+    const rtOk=rsk||r.rtScore!=null,wtOk=wsk||r.wtScore!=null;
+    const hasAny=(!rsk&&r.rtScore!=null)||(!wsk&&r.wtScore!=null);
+    r.totalScore=(rtOk&&wtOk&&hasAny)?(rsk?0:(r.rtScore||0))+(wsk?0:(r.wtScore||0)):null;
+  });
+  const rtRankMap=rankMap(wkRecs.map(r=>({key:r.sid,skip:!!r.rtSkip,v:r.rtScore})));
+  const wtRankMap=rankMap(wkRecs.map(r=>({key:r.sid,skip:!!r.wtSkip,v:r.wtScore})));
+  const totRankMap=rankMap(wkRecs.map(r=>({key:r.sid,skip:false,v:r.totalScore})));
+  const rvAvg=avg(wkRecs.filter(r=>!r.rtSkip&&r.rtScore!=null).map(r=>r.rtScore));
+  const wtAvg=avg(wkRecs.filter(r=>!r.wtSkip&&r.wtScore!=null).map(r=>r.wtScore));
+  const totAvg=avg(wkRecs.filter(r=>r.totalScore!=null).map(r=>r.totalScore));
+  wkRecs.forEach(r=>{
+    const rsk=!!r.rtSkip,wsk=!!r.wtSkip;
+    r.rvRank=rsk?null:(rtRankMap[r.sid]??null);
+    r.wtRank=wsk?null:(wtRankMap[r.sid]??null);
+    r.totalRank=r.totalScore!=null?(totRankMap[r.sid]??null):null;
+    r.rtPass=(rsk||r.thrRt==null||r.rtScore==null)?null:(r.rtScore>=r.thrRt);
+    r.wtPass=(wsk||r.thrWt==null||r.wtScore==null)?null:(r.wtScore>=r.thrWt);
+    r.rvAvg=rvAvg;r.wtAvg=wtAvg;r.totalAvg=totAvg;
+  });
+}
+
+// 되돌리기 스냅샷에 담는 "입력 필드" — 등수/평균 같은 계산 필드는 여기 없음(되돌린 뒤 recomputeWeekAggregates가 다시 채움)
+const RECORD_INPUT_FIELDS=['thrRt','thrWt','rtSkip','rtScore','wtSkip','wtScore','hw1','hw2','homework','hwName1','hwName2','retestTime','comment','attendType'];
+function snapshotRecord(rec){
+  const fields={};
+  RECORD_INPUT_FIELDS.forEach(f=>{fields[f]=rec[f]??null;});
+  return fields;
+}
+// entry.snapshot으로 그 행동을 되돌림 — wasNew면 레코드 자체를 삭제, 아니면 입력 필드를 복원 후 그 주차 전체를 재계산.
+// 되돌리기 자체도 새 로그(type:'undo')로 남기되, 그 항목은 스냅샷을 갖지 않음(다시 되돌릴 수 없음).
+function undoActionLog(sc,entry){
+  const {month,week,snapshot}=entry;
+  if(!Array.isArray(snapshot)||!snapshot.length)return;
+  snapshot.forEach(snap=>{
+    const idx=sc.records.findIndex(r=>r.sid===snap.sid&&r.month===month&&r.week===week);
+    if(snap.wasNew){
+      if(idx>=0)sc.records.splice(idx,1);
+    }else if(idx>=0){
+      Object.assign(sc.records[idx],snap.fields);
+    }else{
+      sc.records.push({sid:snap.sid,month,week,...snap.fields});
+    }
+  });
+  recomputeWeekAggregates(sc,month,week);
+  const dirtyKeys=new Set(),deletedKeys=new Set();
+  snapshot.forEach(s=>{const k=s.sid+'|'+month+'|'+week;(s.wasNew?deletedKeys:dirtyKeys).add(k);});
+  addActionLog(sc,{type:'undo',month,week,count:snapshot.length,undoneLogId:entry.id});
+  saveDB({dirtyKeys,deletedKeys});
+}
+
+// 이번 주 입력분(성적·숙제·코멘트·출석) 전체를 지움
+function clearWeekScores(sc,mon,week){
+  const wkRecs=sc.records.filter(r=>r.month===mon&&r.week===week);
+  const clearedCount=wkRecs.filter(r=>r.rtScore!=null||r.wtScore!=null||r.retestTime||r.hw1||r.hw2||r.comment||r.attendType).length;
+  const snapshot=wkRecs.map(r=>({sid:r.sid,wasNew:false,fields:snapshotRecord(r)}));
+  wkRecs.forEach(r=>{
+    r.rtScore=null;r.wtScore=null;r.retestTime='';
+    r.hw1='';r.hw2='';r.homework='';r.comment='';r.attendType='';
+  });
+  recomputeWeekAggregates(sc,mon,week);
+  const dirtyKeys=new Set(wkRecs.map(r=>r.sid+'|'+r.month+'|'+r.week));
+  addActionLog(sc,{type:'clear',month:mon,week:week,count:clearedCount,snapshot});
+  saveDB({dirtyKeys});
+}
+
+// srcMon/srcWk의 성적·과제 데이터를 destMon/destWk로 복사(원본은 그대로 유지) — 학생 식별(sid)만
+// 맞춰서 나머지 필드를 통째로 옮기고, 대상 주차 기준으로 등수·반평균을 새로 계산
+function copyWeekTo(sc,srcMon,srcWk,destMon,destWk){
+  const srcRecs=sc.records.filter(r=>r.month===srcMon&&r.week===srcWk);
+  const dirtyKeys=new Set();
+  const snapshot=[];
+  srcRecs.forEach(src=>{
+    let dest=sc.records.find(r=>r.sid===src.sid&&r.month===destMon&&r.week===destWk);
+    const wasNew=!dest;
+    if(!dest){dest={sid:src.sid,month:destMon,week:destWk};sc.records.push(dest);}
+    snapshot.push({sid:src.sid,wasNew,fields:wasNew?{}:snapshotRecord(dest)});
+    const {sid,month,week,...fields}=src;
+    Object.assign(dest,fields);
+    dest.sid=src.sid;dest.month=destMon;dest.week=destWk;
+    dirtyKeys.add(dest.sid+'|'+destMon+'|'+destWk);
+  });
+  recomputeWeekAggregates(sc,destMon,destWk);
+  addActionLog(sc,{type:'copy',month:destMon,week:destWk,srcMonth:srcMon,srcWeek:srcWk,count:srcRecs.length,snapshot});
+  saveDB({dirtyKeys});
+}
+
+function showCopyWeekPopup(sc,srcMon,srcWk){
+  document.querySelector('.copy-week-popup')?.remove();
+  const popup=document.createElement('div');
+  popup.className='copy-week-popup';
+  popup.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center';
+  popup.innerHTML=`
+    <div style="background:#fff;border-radius:16px;padding:24px;max-width:360px;width:92%;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+      <div style="font-size:15px;font-weight:800;color:#1A237E;margin-bottom:4px">📋 다른 주차로 복사</div>
+      <div style="font-size:12px;color:#9BA3AF;margin-bottom:16px">${srcMon} ${srcWk}의 성적·과제를 아래 주차로 복사합니다(원본은 그대로 유지). 대상 주차에 이미 데이터가 있으면 덮어씌워집니다.</div>
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <select id="copy-target-mon" style="flex:1;padding:8px 10px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px">${MONTHS.map(m=>`<option ${m===srcMon?'selected':''}>${m}</option>`).join('')}</select>
+        <select id="copy-target-wk" style="flex:1;padding:8px 10px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px">${WEEKS.map(w=>`<option ${w===srcWk?'selected':''}>${w}</option>`).join('')}</select>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button id="copy-week-cancel" class="abtn abtn-gray" style="flex:1">취소</button>
+        <button id="copy-week-confirm" class="abtn abtn-blue" style="flex:1">복사</button>
+      </div>
+    </div>`;
+  document.body.appendChild(popup);
+  popup.onclick=e=>{if(e.target===popup)popup.remove();};
+  document.getElementById('copy-week-cancel').onclick=()=>popup.remove();
+  document.getElementById('copy-week-confirm').onclick=()=>{
+    const destMon=document.getElementById('copy-target-mon').value;
+    const destWk=document.getElementById('copy-target-wk').value;
+    if(destMon===srcMon&&destWk===srcWk){alert('원본과 같은 주차입니다. 다른 주차를 선택해주세요.');return;}
+    if(!confirm(`${srcMon} ${srcWk} 데이터를 ${destMon} ${destWk}에 복사합니다.\n\n${destMon} ${destWk}에 이미 입력된 데이터가 있다면 덮어씌워집니다. 계속하시겠습니까?`))return;
+    copyWeekTo(sc,srcMon,srcWk,destMon,destWk);
+    popup.remove();
+    alert(`${destMon} ${destWk}로 복사 완료했습니다.`);
+    render();
+  };
+}
+
 function moI(m){return MONTHS.indexOf(m)}
 function wkI(w){return WEEKS.indexOf(w)}
 function esc(str){return String(str??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+// esc()로 이스케이프된 문자열 안의 URL을 클릭 가능한 링크로 바꿈 — 반드시 esc() 결과에만 적용
+function linkify(escapedHtml){
+  return escapedHtml.replace(/(https?:\/\/[^\s<]+)/g,url=>{
+    let trail='';let u=url;
+    while(u&&/[.,)\]!?;:]$/.test(u)){trail=u.slice(-1)+trail;u=u.slice(0,-1);}
+    return `<a href="${u}" target="_blank" rel="noopener noreferrer" style="color:#1A73E8;text-decoration:underline;word-break:break-all">${u}</a>${trail}`;
+  });
+}
 function ic(name){
   const m={
     notice:'<path d="M3 8h3l5-4v12l-5-4H3z"/><path d="M13 7c1 1 1 5 0 6"/>',
@@ -754,8 +1005,15 @@ function attOptionsHtml(val){
   return ATT_OPTS.map(o=>`<option value="${esc(o.v)}" ${o.v===val?'selected':''}>${o.l}</option>`).join('')
     + (isCustom?`<option value="${esc(val)}" selected>${esc(val)}</option>`:'');
 }
-// select가 "직접입력"으로 바뀌면 프롬프트로 텍스트를 받아 setAttendance로 저장하고, 취소하면 이전 값으로 되돌린다.
-function bindAttSelect(sel, sc, sid, month, week){
+// select가 바뀌면(또는 "직접입력"으로 텍스트를 받으면) 화면에만 반영하고, 저장은 절대 여기서
+// 바로 하지 않는다. 예전엔 여기서 매번 즉시 saveDB()를 호출했는데, 학교 데이터가 커지면서
+// (성적표 등) 저장 한 번에 2~3초씩 걸리게 됐고, 인강/현강 체크처럼 학생 여러 명을 빠르게
+// 연달아 클릭하는 화면에서는 그 요청들이 다 처리되기 전에 화면을 떠나면 뒤쪽 체크가 통째로
+// 유실됐다. 또 성적 일괄입력 화면에서는 "전체 저장"이 그 주차 레코드를 폼에서 읽은 값으로
+// 통째로 새로 만들어 덮어써서, 이 방식으로 미리 저장해둔 출석값이 "전체 저장"을 누르는
+// 순간 같이 지워지는 문제도 있었다. 이제는 각 화면(전체 저장/저장하기 버튼)이 저장 시점에
+// 이 select의 현재 값을 직접 읽어가거나, onLocalChange 콜백으로 로컬 상태만 갱신한다.
+function bindAttSelectDraft(sel, onLocalChange){
   sel.dataset.prevVal = sel.value;
   sel.onchange=()=>{
     if(sel.value==='__custom__'){
@@ -765,24 +1023,15 @@ function bindAttSelect(sel, sc, sid, month, week){
       let opt=[...sel.options].find(o=>o.value===custom);
       if(!opt){opt=document.createElement('option');opt.value=custom;opt.textContent=custom;sel.insertBefore(opt,null);}
       sel.value=custom;
-      setAttendance(sc, sid, month, week, custom);
       sel.style.color=attColorFor(custom);
       sel.dataset.prevVal=custom;
+      onLocalChange?.(custom);
       return;
     }
-    setAttendance(sc, sid, month, week, sel.value);
     sel.style.color=attColorFor(sel.value);
     sel.dataset.prevVal=sel.value;
+    onLocalChange?.(sel.value);
   };
-}
-function setAttendance(sc, sid, month, week, val){
-  let rec = sc.records.find(r=>r.sid===sid&&r.month===month&&r.week===week);
-  if(!rec){
-    rec = {sid, month, week, rtSkip:false, rtScore:null, wtSkip:false, wtScore:null, totalScore:null, comment:'', hw1:'', hw2:'', homework:'', retestTime:''};
-    sc.records.push(rec);
-  }
-  rec.attendType = val || '';
-  saveDB();
 }
 function curSch(){return DB.schools.find(s=>s.id===ST.school)||DB.schools[0]}
 function sRecs(sid,sc){const s=sc||(ST.role==='admin'?curSch():ST.userSchool);if(!s)return[];return s.records.filter(r=>r.sid===sid).sort((a,b)=>moI(a.month)-moI(b.month)||wkI(a.week)-wkI(b.week));}
@@ -908,6 +1157,7 @@ async function init(){
       const data=await res.json();
       if(data.role==='admin'){
         ST.loggedIn=true;ST.role='admin';ST.school=null;ST.serverAdminSession=true;
+        ST.isMaster=!!data.isMaster;ST.actorName=data.actorName||'';
         await loadServerSchoolsList();
       } else if(data.role==='student'){
         const ok=await loadServerStudentData();
@@ -958,7 +1208,12 @@ function startVersionCheck(){
 function render(){
   const app=document.getElementById('app');
   if(!ST.loggedIn){app.innerHTML=rLogin();bLogin();return;}
-  if(ST.role==='admin'){if(!ST.school){app.innerHTML=rSchoolSelect();bSchoolSelect();return;}app.innerHTML=rAdmin();bAdmin();return;}
+  if(ST.role==='admin'){
+    if(ST.adminView==='courses'){app.innerHTML=rCourseAdmin();bCourseAdmin();return;}
+    if(ST.adminView==='account'){app.innerHTML=rAccountAdmin();bAccountAdmin();return;}
+    if(!ST.school){app.innerHTML=rSchoolSelect();bSchoolSelect();return;}
+    app.innerHTML=rAdmin();bAdmin();return;
+  }
   app.innerHTML=rStudent();bStudent();
 }
 
@@ -968,10 +1223,8 @@ function rLogin(){return`
 
     <!-- 로고 -->
     <div style="text-align:center;margin-bottom:8px">
-      <div style="font-size:32px;font-weight:800;color:#1A237E;letter-spacing:-1px">
-        <span style="color:#E65100">OH</span>ENG
-      </div>
-      <div style="font-size:11px;font-weight:600;letter-spacing:2px;color:#9BA3AF;margin-top:2px">BREAKTHROUGH</div>
+      <img src="/assets/logo-symbol-hero.png" alt="OHENG" style="height:64px;width:auto">
+      <div style="font-size:11px;font-weight:600;letter-spacing:2px;color:#9BA3AF;margin-top:6px">BREAKTHROUGH</div>
     </div>
     <p style="text-align:center;font-size:13px;color:#9BA3AF;margin-bottom:32px">오은실 영어 · 학습 관리 시스템</p>
 
@@ -1012,6 +1265,7 @@ function rLogin(){return`
 
     <p style="text-align:center;font-size:12px;color:#C4C9D4;margin-top:20px">
       <span id="btn-find-idpw" style="color:#9BA3AF;cursor:pointer;text-decoration:underline;font-size:12px">아이디 · 비밀번호 찾기</span>
+      ${ST.lmode==='admin'?`<span style="margin:0 6px;color:#E8ECF0">|</span><span id="btn-ta-signup" style="color:#9BA3AF;cursor:pointer;text-decoration:underline;font-size:12px">조교 계정 신청</span>`:''}
     </p>
   </div>
 </div>
@@ -1139,6 +1393,90 @@ function showFindIdPwModal(){
   };
 }
 
+function showTaSignupModal(){
+  const existing=document.querySelector('.ta-signup-modal');
+  if(existing){existing.remove();return;}
+
+  const modal=document.createElement('div');
+  modal.className='ta-signup-modal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto';
+
+  modal.innerHTML=`
+  <div style="background:#fff;border-radius:20px;padding:32px 28px;width:100%;max-width:380px;box-shadow:0 8px 32px rgba(0,0,0,0.18)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <div style="font-size:17px;font-weight:800;color:#1A237E">조교 계정 신청</div>
+      <button id="tas-close" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9BA3AF;line-height:1">✕</button>
+    </div>
+    <p style="font-size:12px;color:#9BA3AF;margin-bottom:20px">신청 후 원장님이 승인하면 바로 로그인할 수 있어요</p>
+
+    <div style="margin-bottom:12px">
+      <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">이름</label>
+      <input id="tas-name" placeholder="예: 김민지"
+        style="width:100%;padding:12px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit;transition:border-color 0.15s"
+        onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">사용할 아이디</label>
+      <input id="tas-id" placeholder="영문/숫자 4자 이상"
+        style="width:100%;padding:12px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit;transition:border-color 0.15s"
+        onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">비밀번호</label>
+      <input id="tas-pw" type="password" placeholder="4자 이상"
+        style="width:100%;padding:12px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit;transition:border-color 0.15s"
+        onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">
+    </div>
+    <div style="margin-bottom:16px">
+      <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">비밀번호 확인</label>
+      <input id="tas-pw2" type="password" placeholder="다시 입력"
+        style="width:100%;padding:12px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit;transition:border-color 0.15s"
+        onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">
+    </div>
+
+    <div id="tas-err" style="font-size:12px;color:#E53935;min-height:18px;margin-bottom:8px;line-height:1.5"></div>
+
+    <button id="tas-submit"
+      style="width:100%;padding:13px;background:#1A237E;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:background 0.15s">
+      신청하기
+    </button>
+  </div>`;
+
+  document.body.appendChild(modal);
+  modal.onclick=e=>{if(e.target===modal)modal.remove();};
+  document.getElementById('tas-close').onclick=()=>modal.remove();
+  document.getElementById('tas-name').focus();
+
+  document.getElementById('tas-submit').onclick=async()=>{
+    const name=document.getElementById('tas-name').value.trim();
+    const id=document.getElementById('tas-id').value.trim().toLowerCase();
+    const pw=document.getElementById('tas-pw').value;
+    const pw2=document.getElementById('tas-pw2').value;
+    const err=document.getElementById('tas-err');
+    err.textContent='';
+    if(!name){err.textContent='이름을 입력해주세요';return;}
+    if(id.length<4||/\s/.test(id)){err.textContent='아이디는 공백 없이 4자 이상이어야 합니다';return;}
+    if(pw.length<4){err.textContent='비밀번호는 4자 이상이어야 합니다';return;}
+    if(pw!==pw2){err.textContent='비밀번호가 일치하지 않습니다';return;}
+
+    const btn=document.getElementById('tas-submit');
+    btn.disabled=true;
+    try{
+      const res=await fetch('/api/admin/ta-signup',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,name,pw})});
+      const data=await res.json();
+      if(!res.ok||!data.success){err.textContent=data.message||'신청 실패';btn.disabled=false;return;}
+      modal.querySelector('div').innerHTML=`
+        <div style="text-align:center;padding:12px 0">
+          <div style="font-size:32px;margin-bottom:12px">✅</div>
+          <div style="font-size:15px;font-weight:700;color:#1A237E;margin-bottom:6px">신청이 완료되었습니다</div>
+          <div style="font-size:12.5px;color:#9BA3AF;line-height:1.6;margin-bottom:20px">원장님이 승인하면 바로 로그인할 수 있어요.</div>
+          <button id="tas-done" style="width:100%;padding:12px;background:#1A237E;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer">닫기</button>
+        </div>`;
+      document.getElementById('tas-done').onclick=()=>modal.remove();
+    }catch(e){err.textContent='오류: '+e.message;btn.disabled=false;}
+  };
+}
+
 // /api/student/me 응답을 ST.user/ST.userSchool로 반영 (본인 기록+집계만 포함된 축소된 학교 객체)
 function applyServerStudentData(data){
   ST.user=data.student;
@@ -1183,6 +1521,7 @@ function doLogout(){
     fetch('/api/auth/logout',{method:'POST',credentials:'include'}).catch(()=>{});
   }
   ST.loggedIn=false;ST.serverAdminSession=false;ST.serverStudentSession=false;
+  ST.isMaster=false;ST.actorName='';ST.taAccounts=undefined;ST.taNotices=undefined;ST.taPending=undefined;ST.taNoticeDraft='';
   render();
 }
 // 관리자 학교 목록/개별 학교 데이터를 서버에서 불러오는 헬퍼 (서버 세션 확립 후 사용)
@@ -1213,31 +1552,34 @@ async function attemptAdminLogin(id,pw){
       method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({role:'admin',id,pw})
     });
-    if(!res.ok)return false;
-    const data=await res.json();
-    if(!data.success)return false;
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok||!data.success)return {ok:false,message:data.message||''};
     ST.loggedIn=true;ST.role='admin';ST.school=null;ST.serverAdminSession=true;
+    ST.isMaster=!!data.isMaster;ST.actorName=data.actorName||'';
     await loadServerSchoolsList();
-    return true;
-  }catch(e){return false;}
+    return {ok:true};
+  }catch(e){return {ok:false,message:''};}
 }
 function bLogin(){
   // 로그인 유지는 이제 서버 쿠키가 전담 — 평문 아이디/비번을 브라우저에 남기지 않음
   document.getElementById('ls-s').onclick=()=>{ST.lmode='student';render()};
   document.getElementById('ls-a').onclick=()=>{ST.lmode='admin';render()};
   document.getElementById('btn-find-idpw')?.addEventListener('click',showFindIdPwModal);
+  document.getElementById('btn-ta-signup')?.addEventListener('click',showTaSignupModal);
   document.getElementById('btn-li').onclick=async()=>{
     const id=document.getElementById('li-id').value.trim().toLowerCase();
     const pw=document.getElementById('li-pw').value.trim();
     const role=ST.lmode;
     const btn=document.getElementById('btn-li');
     btn.disabled=true;
-    const ok=role==='admin'?await attemptAdminLogin(id,pw):await attemptStudentLogin(id,pw);
+    let ok,message;
+    if(role==='admin'){const r=await attemptAdminLogin(id,pw);ok=r.ok;message=r.message;}
+    else ok=await attemptStudentLogin(id,pw);
     btn.disabled=false;
     if(ok){
       render();
     } else {
-      document.getElementById('li-err').textContent=role==='admin'?'ID 또는 비밀번호 오류':'ID 또는 비밀번호를 확인해주세요';
+      document.getElementById('li-err').textContent=message||(role==='admin'?'ID 또는 비밀번호 오류':'ID 또는 비밀번호를 확인해주세요');
     }
   };
 }
@@ -1259,41 +1601,62 @@ function rSchoolSelect(){
   const sortMode=ST.schoolSort||'count';
   return`
   <div class="top-nav">
-    <div class="nav-logo"><span style="font-size:18px;font-weight:800;color:#fff;letter-spacing:-0.5px"><span style="color:#FFB300">OH</span>ENG</span></div>
-    <div class="nav-right"><button class="nbtn" id="btn-alo-main">로그아웃</button></div>
+    <div class="nav-logo"><img src="/assets/logo-symbol-white.png" alt="OHENG" style="height:22px;width:auto;display:block"></div>
+    <div class="nav-right"><button class="nbtn" id="btn-goto-account">⚙️ 계정 관리</button><button class="nbtn" id="btn-goto-courses">🎓 강좌 관리</button><button class="nbtn" id="btn-alo-main">로그아웃</button></div>
   </div>
-  <div class="school-wrap">
-    <div class="school-inner">
-      <div style="text-align:center;margin-bottom:32px">
-        <div style="width:60px;height:60px;border-radius:18px;background:linear-gradient(135deg,#1A237E,#3949AB);display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 14px;box-shadow:0 8px 24px rgba(26,35,126,0.25)">🏫</div>
-        <div class="school-title">관리 학교 선택</div>
-        <div class="school-sub">수업할 학교를 선택하면 해당 학교 전용 관리 화면으로 이동합니다</div>
+  <div class="school-wrap" style="align-items:flex-start;padding-top:40px">
+    <div class="school-inner" style="max-width:1000px;display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1.15;min-width:300px">
+        <div style="text-align:center;margin-bottom:32px">
+          <div style="width:60px;height:60px;border-radius:18px;background:linear-gradient(135deg,#1A237E,#3949AB);display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 14px;box-shadow:0 8px 24px rgba(26,35,126,0.25)">🏫</div>
+          <div class="school-title">관리 학교 선택</div>
+          <div class="school-sub">수업할 학교를 선택하면 해당 학교 전용 관리 화면으로 이동합니다</div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap">
+          <input id="sch-search" value="${esc(ST.schoolSearch||'')}" placeholder="🔍 학교명 검색" style="flex:1;min-width:160px;padding:9px 12px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px;outline:none;font-family:inherit">
+          <select id="sch-filter-type" style="padding:9px 12px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px;background:#fff;color:#0D1117;outline:none">
+            <option value="" ${!typeFilter?'selected':''}>전체</option>
+            <option value="regular" ${typeFilter==='regular'?'selected':''}>정규반</option>
+            <option value="lecture" ${typeFilter==='lecture'?'selected':''}>특강</option>
+          </select>
+          <select id="sch-sort" style="padding:9px 12px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px;background:#fff;color:#0D1117;outline:none">
+            <option value="count" ${sortMode==='count'?'selected':''}>학생 많은 순</option>
+            <option value="name" ${sortMode==='name'?'selected':''}>가나다순</option>
+          </select>
+        </div>
+        <div id="school-grid-wrap"></div>
+        <button class="school-add-btn" id="btn-add-toggle">+ 새 학교 추가</button>
+        ${ST.showAddSchool?`<div class="add-school-form" style="margin-top:12px">
+          <input id="ns-sname" placeholder="학교 이름">
+          <input id="ns-sgrade" placeholder="학년 (예: 2학년)">
+          <select id="ns-stype" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit;background:#fff;margin-top:8px">
+            <option value="regular">정규반 (학교 단위)</option>
+            <option value="lecture">특강 (여러 학교 학생 혼합)</option>
+          </select>
+          <div style="font-size:11px;color:#9BA3AF;margin-top:5px;line-height:1.5">특강으로 만들면 학생 등록 시 학생별 "고등학교" 입력칸이 추가돼요.</div>
+          <div style="display:flex;gap:8px;margin-top:8px"><button class="abtn abtn-blue" id="btn-do-add">추가</button><button class="abtn abtn-gray" id="btn-cancel-add">취소</button></div>
+          <div id="add-msg" style="font-size:12px;margin-top:6px"></div>
+        </div>`:''}
       </div>
-      <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap">
-        <input id="sch-search" value="${esc(ST.schoolSearch||'')}" placeholder="🔍 학교명 검색" style="flex:1;min-width:160px;padding:9px 12px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px;outline:none;font-family:inherit">
-        <select id="sch-filter-type" style="padding:9px 12px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px;background:#fff;color:#0D1117;outline:none">
-          <option value="" ${!typeFilter?'selected':''}>전체</option>
-          <option value="regular" ${typeFilter==='regular'?'selected':''}>정규반</option>
-          <option value="lecture" ${typeFilter==='lecture'?'selected':''}>특강</option>
-        </select>
-        <select id="sch-sort" style="padding:9px 12px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px;background:#fff;color:#0D1117;outline:none">
-          <option value="count" ${sortMode==='count'?'selected':''}>학생 많은 순</option>
-          <option value="name" ${sortMode==='name'?'selected':''}>가나다순</option>
-        </select>
+      <div style="flex:1;min-width:320px;max-width:420px;display:flex;flex-direction:column;gap:16px;margin-top:140px">
+        <div style="background:#fff;border-radius:16px;padding:18px;box-shadow:0 2px 12px rgba(0,0,0,0.06)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div style="font-size:14px;font-weight:800;color:#1A237E">📋 조교 공지사항</div>
+          </div>
+          ${ST.isMaster?`<div style="margin-bottom:12px">
+            <textarea id="ta-notice-input" placeholder="조교 선생님들께 전달할 내용을 입력하세요" style="width:100%;min-height:56px;padding:9px 11px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:12.5px;outline:none;font-family:inherit;resize:vertical">${esc(ST.taNoticeDraft||'')}</textarea>
+            <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:6px">
+              <span id="ta-notice-msg" style="font-size:11px;color:#B3261E"></span>
+              <button id="btn-ta-notice-post" class="abtn abtn-blue" style="padding:6px 14px;font-size:12px">등록</button>
+            </div>
+          </div>`:''}
+          <div id="ta-notice-list" style="max-height:220px;overflow-y:auto">${renderTaNoticeList()}</div>
+        </div>
+        <div style="background:#fff;border-radius:16px;padding:18px;box-shadow:0 2px 12px rgba(0,0,0,0.06)">
+          <div style="font-size:14px;font-weight:800;color:#1A237E;margin-bottom:12px">🆕 업데이트 내역</div>
+          <div style="max-height:260px;overflow-y:auto">${renderChangelog()}</div>
+        </div>
       </div>
-      <div id="school-grid-wrap"></div>
-      <button class="school-add-btn" id="btn-add-toggle">+ 새 학교 추가</button>
-      ${ST.showAddSchool?`<div class="add-school-form" style="margin-top:12px">
-        <input id="ns-sname" placeholder="학교 이름">
-        <input id="ns-sgrade" placeholder="학년 (예: 2학년)">
-        <select id="ns-stype" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit;background:#fff;margin-top:8px">
-          <option value="regular">정규반 (학교 단위)</option>
-          <option value="lecture">특강 (여러 학교 학생 혼합)</option>
-        </select>
-        <div style="font-size:11px;color:#9BA3AF;margin-top:5px;line-height:1.5">특강으로 만들면 학생 등록 시 학생별 "고등학교" 입력칸이 추가돼요.</div>
-        <div style="display:flex;gap:8px;margin-top:8px"><button class="abtn abtn-blue" id="btn-do-add">추가</button><button class="abtn abtn-gray" id="btn-cancel-add">취소</button></div>
-        <div id="add-msg" style="font-size:12px;margin-top:6px"></div>
-      </div>`:''}
     </div>
   </div>`;}
 
@@ -1376,7 +1739,28 @@ function bindSchoolCardHandlers(){
 
 function bSchoolSelect(){
   document.getElementById('btn-alo-main').onclick=doLogout;
+  document.getElementById('btn-goto-courses').onclick=()=>{ST.adminView='courses';render();};
+  document.getElementById('btn-goto-account').onclick=()=>{ST.adminView='account';render();};
   renderSchoolGrid();
+  if(ST.taNotices===undefined){ST.taNotices=null;fetchTaNotices();}
+  else bindTaNoticeDeleteHandlers();
+  document.getElementById('ta-notice-input')?.addEventListener('input',e=>{ST.taNoticeDraft=e.target.value;});
+  document.getElementById('btn-ta-notice-post')?.addEventListener('click',async()=>{
+    const input=document.getElementById('ta-notice-input');
+    const msg=document.getElementById('ta-notice-msg');
+    const text=input.value.trim();
+    if(!text){msg.textContent='내용을 입력하세요';return;}
+    const btn=document.getElementById('btn-ta-notice-post');
+    btn.disabled=true;msg.textContent='';
+    try{
+      const res=await fetch('/api/admin/ta-notice-post',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
+      const data=await res.json();
+      if(!res.ok||!data.success){msg.textContent=data.message||'등록 실패';btn.disabled=false;return;}
+      input.value='';ST.taNoticeDraft='';
+      await fetchTaNotices();
+    }catch(e){msg.textContent='오류: '+e.message;}
+    btn.disabled=false;
+  });
   document.getElementById('sch-search').oninput=()=>renderSchoolGrid();
   document.getElementById('sch-filter-type').onchange=()=>renderSchoolGrid();
   document.getElementById('sch-sort').onchange=()=>renderSchoolGrid();
@@ -1407,6 +1791,434 @@ function bSchoolSelect(){
   }
 }
 
+// 강좌는 특정 학교에 속하지 않는 전역 데이터라 학교 선택과는 별도의 최상위 화면으로 둔다
+// (render()에서 ST.adminView==='courses'일 때 school-select보다 먼저 분기됨).
+const COURSE_LEVELS=['초등','중등','고등/수능','특강'];
+
+// "선택된 영상" 순서 목록만 담당 — 체크박스 토글/재정렬 버튼 클릭마다 이 조각만 다시 그려서
+// 강좌명/설명 등 다른 입력칸에 타이핑 중인 값이 날아가지 않게 한다.
+function crsVideoPickerHtml(){
+  const ids=ST.crsSelectedVideoIds||[];
+  const videos=ST.allVideos||[];
+  const videoById=id=>videos.find(v=>v.id===id);
+  const rows=ids.map((id,idx)=>{
+    const v=videoById(id);
+    return`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #F7F8FA;font-size:12.5px">
+      <span style="color:#9BA3AF;width:18px;flex-shrink:0">${idx+1}.</span>
+      <span style="flex:1">${v?esc(v.title):'(삭제된 영상: '+esc(id)+')'}</span>
+      <button class="abtn" data-crs-up="${id}" ${idx===0?'disabled':''} style="padding:3px 7px;font-size:11px" title="위로">▲</button>
+      <button class="abtn" data-crs-down="${id}" ${idx===ids.length-1?'disabled':''} style="padding:3px 7px;font-size:11px" title="아래로">▼</button>
+      <button class="abtn abtn-red" data-crs-remove="${id}" style="padding:3px 7px;font-size:11px">✕</button>
+    </div>`;
+  }).join('');
+  return`<label class="flbl">선택된 영상 (${ids.length}개 · 이 순서로 재생됩니다)</label>
+    <div style="border:1.5px solid #E8ECF0;border-radius:9px;padding:${ids.length?'6px 10px':'10px'};margin-top:6px">
+      ${ids.length?rows:'<div style="color:#9BA3AF;font-size:12px">아래 목록에서 영상을 선택하세요</div>'}
+    </div>`;
+}
+function bindCrsVideoPicker(){
+  document.querySelectorAll('[data-crs-up]').forEach(b=>b.onclick=()=>{
+    const id=b.dataset.crsUp,i=ST.crsSelectedVideoIds.indexOf(id);
+    if(i>0){[ST.crsSelectedVideoIds[i-1],ST.crsSelectedVideoIds[i]]=[ST.crsSelectedVideoIds[i],ST.crsSelectedVideoIds[i-1]];}
+    updateCrsVideoPicker();
+  });
+  document.querySelectorAll('[data-crs-down]').forEach(b=>b.onclick=()=>{
+    const id=b.dataset.crsDown,i=ST.crsSelectedVideoIds.indexOf(id);
+    if(i>=0&&i<ST.crsSelectedVideoIds.length-1){[ST.crsSelectedVideoIds[i+1],ST.crsSelectedVideoIds[i]]=[ST.crsSelectedVideoIds[i],ST.crsSelectedVideoIds[i+1]];}
+    updateCrsVideoPicker();
+  });
+  document.querySelectorAll('[data-crs-remove]').forEach(b=>b.onclick=()=>{
+    ST.crsSelectedVideoIds=ST.crsSelectedVideoIds.filter(id=>id!==b.dataset.crsRemove);
+    const chk=document.querySelector(`.crs-video-chk[value="${b.dataset.crsRemove}"]`);
+    if(chk)chk.checked=false;
+    updateCrsVideoPicker();
+  });
+}
+function updateCrsVideoPicker(){
+  const wrap=document.getElementById('crs-video-picker-wrap');
+  if(!wrap)return;
+  wrap.innerHTML=crsVideoPickerHtml();
+  bindCrsVideoPicker();
+}
+
+function courseFormHtml(course){
+  const isEdit=!!course;
+  const videos=ST.allVideos||[];
+  if(ST.crsSelectedVideoIds===undefined)ST.crsSelectedVideoIds=[...(course?.videoIds||[])];
+  const selectedIds=new Set(ST.crsSelectedVideoIds);
+  return`
+  <div class="section-card" style="margin-top:12px;text-align:left">
+    <div class="section-ttl">${isEdit?'✏️ 강좌 수정':'➕ 새 강좌'}</div>
+    <div class="form2" style="margin-bottom:14px">
+      <div class="fgrp"><label class="flbl">강좌명</label><input class="finp" id="crs-title" value="${isEdit?esc(course.title):''}" placeholder="예: 여름특강 문법 완성"></div>
+      <div class="fgrp"><label class="flbl">가격(원)</label><input class="finp" id="crs-price" type="number" min="0" value="${isEdit?course.price:0}"></div>
+    </div>
+    <div class="fgrp" style="margin-bottom:14px"><label class="flbl">설명</label><textarea class="finp" id="crs-desc" rows="3" style="width:100%;resize:vertical">${isEdit?esc(course.description):''}</textarea></div>
+    <div class="form2" style="margin-bottom:14px">
+      <div class="fgrp"><label class="flbl">수강기간(일)</label><input class="finp" id="crs-duration" type="number" min="1" value="${isEdit?course.durationDays:30}"></div>
+      <div class="fgrp"><label class="flbl">레벨</label><select class="finp" id="crs-level">
+        <option value="" ${isEdit&&!course.level?'selected':''}>선택 안 함</option>
+        ${COURSE_LEVELS.map(l=>`<option value="${l}" ${isEdit&&course.level===l?'selected':''}>${l}</option>`).join('')}
+      </select></div>
+    </div>
+    <div class="fgrp" style="margin-bottom:14px"><label class="flbl">썸네일 이미지 URL</label><input class="finp" id="crs-thumb" value="${isEdit?esc(course.thumbnailUrl||''):''}" placeholder="https://... (비워두면 기본 색상 썸네일 사용)"></div>
+    <div class="fgrp" style="margin-bottom:14px"><label class="flbl" style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="crs-published" ${isEdit&&course.published?'checked':''} style="width:16px;height:16px"> 공개(비로그인 목록에 표시)</label></div>
+    <div id="crs-video-picker-wrap" style="margin-bottom:14px">${crsVideoPickerHtml()}</div>
+    <div style="margin-bottom:14px">
+      <label class="flbl">전체 영상 목록</label>
+      <div style="max-height:200px;overflow-y:auto;border:1.5px solid #E8ECF0;border-radius:9px;padding:10px;margin-top:6px">
+        ${videos.length?videos.map(v=>`<label style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;cursor:pointer">
+          <input type="checkbox" class="crs-video-chk" value="${v.id}" ${selectedIds.has(v.id)?'checked':''} style="width:15px;height:15px">
+          ${esc(v.title)} ${v.month?`<span style="color:#9BA3AF;font-size:11px">${esc(v.month)} ${esc(v.week||'')}</span>`:''}
+        </label>`).join(''):'<div style="color:#9BA3AF;font-size:12px">등록된 영상이 없습니다. "영상 관리"에서 먼저 영상을 추가하세요.</div>'}
+      </div>
+    </div>
+    <button class="abtn abtn-green" id="btn-course-save" data-edit-id="${isEdit?course.id:''}">저장</button>
+    <button class="abtn abtn-gray" id="btn-course-cancel" style="margin-left:8px">취소</button>
+    <div id="course-form-msg" style="font-size:12px;margin-top:8px"></div>
+  </div>`;
+}
+
+function rCourseAdmin(){
+  const editing=ST.editCourseId?(ST.adminCourses||[]).find(c=>c.id===ST.editCourseId):null;
+  return`
+  <div class="top-nav">
+    <div class="nav-logo"><img src="/assets/logo-symbol-white.png" alt="OHENG" style="height:22px;width:auto;display:block"></div>
+    <div class="nav-right"><button class="nbtn" id="btn-back-schools">‹ 학교 선택으로</button><button class="nbtn" id="btn-alo-main2">로그아웃</button></div>
+  </div>
+  <div class="school-wrap">
+    <div class="school-inner" style="max-width:760px">
+      <div style="text-align:center;margin-bottom:32px">
+        <div style="width:60px;height:60px;border-radius:18px;background:#FF6B4A;display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 14px;box-shadow:0 8px 24px rgba(255,107,74,0.28)">🎓</div>
+        <div class="school-title" style="color:#12151C">강좌 관리</div>
+        <div class="school-sub">oheng.co.kr 인강 사이트에 공개할 강좌를 등록하고 관리합니다</div>
+      </div>
+      <button class="school-add-btn" id="btn-course-add-toggle" style="${ST.showAddCourse?'':'background:#FF6B4A;border:none;color:#fff;font-weight:700;box-shadow:0 4px 14px rgba(255,107,74,0.28)'}">${ST.showAddCourse?'취소':'+ 새 강좌 추가'}</button>
+      <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
+        <input id="crs-search" value="${esc(ST.crsSearch||'')}" placeholder="🔍 강좌명 검색" style="flex:1;min-width:160px;padding:9px 12px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px;outline:none;font-family:inherit">
+        <select id="crs-filter-level" style="padding:9px 12px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px;background:#fff;color:#12151C;outline:none">
+          <option value="" ${!ST.crsFilterLevel?'selected':''}>전체 레벨</option>
+          ${COURSE_LEVELS.map(l=>`<option value="${l}" ${ST.crsFilterLevel===l?'selected':''}>${l}</option>`).join('')}
+        </select>
+        <select id="crs-filter-pub" style="padding:9px 12px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px;background:#fff;color:#12151C;outline:none">
+          <option value="" ${!ST.crsFilterPub?'selected':''}>전체 상태</option>
+          <option value="published" ${ST.crsFilterPub==='published'?'selected':''}>공개만</option>
+          <option value="unpublished" ${ST.crsFilterPub==='unpublished'?'selected':''}>비공개만</option>
+        </select>
+      </div>
+      ${ST.showAddCourse?courseFormHtml(editing):''}
+      <div id="course-list-wrap" style="margin-top:20px"></div>
+    </div>
+  </div>`;
+}
+
+async function renderCourseList(){
+  const wrap=document.getElementById('course-list-wrap');
+  if(!wrap)return;
+  if(ST.adminCourses===undefined){
+    wrap.innerHTML='<div style="text-align:center;padding:30px 0;color:#9BA3AF;font-size:13px">불러오는 중...</div>';
+    try{
+      const res=await fetch('/api/courses/admin-list',{credentials:'include'});
+      const data=await res.json();
+      ST.adminCourses=data.success?data.courses:[];
+    }catch(e){ST.adminCourses=[];}
+    renderCourseList();
+    return;
+  }
+  const all=ST.adminCourses;
+  if(!all.length){wrap.innerHTML='<div style="text-align:center;padding:40px 0;color:#9BA3AF;font-size:13px">등록된 강좌가 없습니다</div>';return;}
+  const q=(document.getElementById('crs-search')?.value||'').trim().toLowerCase();
+  const levelF=document.getElementById('crs-filter-level')?.value||'';
+  const pubF=document.getElementById('crs-filter-pub')?.value||'';
+  ST.crsSearch=document.getElementById('crs-search')?.value||'';
+  ST.crsFilterLevel=levelF;
+  ST.crsFilterPub=pubF;
+  let courses=all.filter(c=>!q||c.title.toLowerCase().includes(q));
+  if(levelF)courses=courses.filter(c=>c.level===levelF);
+  if(pubF==='published')courses=courses.filter(c=>c.published);
+  if(pubF==='unpublished')courses=courses.filter(c=>!c.published);
+  if(!courses.length){wrap.innerHTML='<div style="text-align:center;padding:30px 0;color:#9BA3AF;font-size:13px">조건에 맞는 강좌가 없습니다</div>';return;}
+  wrap.innerHTML=courses.map(c=>`
+    <div class="school-card" style="text-align:left;cursor:default;padding:18px 20px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          ${c.thumbnailUrl?`<img src="${esc(c.thumbnailUrl)}" alt="" style="width:52px;height:52px;border-radius:10px;object-fit:cover;flex-shrink:0;background:#F1F3F5">`:''}
+          <div>
+            <div style="font-weight:700;color:#12151C;font-size:15px">${esc(c.title)}
+              ${c.level?`<span style="font-size:10.5px;font-weight:700;color:#FF6B4A;background:#FFE4DC;border-radius:20px;padding:2px 8px;margin-left:6px">${esc(c.level)}</span>`:''}
+              ${c.published?'<span style="font-size:10.5px;font-weight:700;color:#00897B;background:#E0F2E9;border-radius:20px;padding:2px 8px;margin-left:6px">공개</span>':'<span style="font-size:10.5px;font-weight:700;color:#9BA3AF;background:#F1F3F5;border-radius:20px;padding:2px 8px;margin-left:6px">비공개</span>'}
+            </div>
+            <div style="font-size:12px;color:#9BA3AF;margin-top:4px">${esc(c.description||'')}</div>
+            <div style="font-size:12px;color:#5C6470;margin-top:6px">영상 ${(c.videoIds||[]).length}개 · 수강기간 ${c.durationDays}일 · ${(c.price||0).toLocaleString()}원</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="abtn" data-toggle-applicants="${c.id}" style="font-size:11px;padding:6px 10px">🙋 신청자${ST.expandedApplicantsCourseId===c.id?' 접기':' 관리'}</button>
+          <button class="abtn abtn-blue" data-edit-course="${c.id}" style="font-size:11px;padding:6px 10px">✏️ 수정</button>
+          <button class="abtn abtn-red" data-del-course="${c.id}" style="font-size:11px;padding:6px 10px">🗑️ 삭제</button>
+        </div>
+      </div>
+      ${ST.expandedApplicantsCourseId===c.id?`<div id="applicants-wrap" style="margin-top:14px;padding-top:14px;border-top:1px solid #F0F2F5">불러오는 중...</div>`:''}
+    </div>`).join('');
+  wrap.querySelectorAll('[data-edit-course]').forEach(b=>{
+    b.onclick=()=>{ST.editCourseId=b.dataset.editCourse;ST.showAddCourse=true;ST.crsSelectedVideoIds=undefined;render();};
+  });
+  wrap.querySelectorAll('[data-del-course]').forEach(b=>{
+    b.onclick=async()=>{
+      const c=courses.find(x=>x.id===b.dataset.delCourse);
+      if(!confirm(`[${c?.title||'이 강좌'}]를 삭제할까요?\n되돌릴 수 없습니다.`))return;
+      b.disabled=true;
+      try{
+        const res=await fetch('/api/courses/delete',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:b.dataset.delCourse})});
+        const data=await res.json();
+        if(!res.ok||!data.success){alert(data.message||'삭제 실패');b.disabled=false;return;}
+      }catch(e){alert('오류: '+e.message);b.disabled=false;return;}
+      ST.adminCourses=undefined;
+      renderCourseList();
+    };
+  });
+  wrap.querySelectorAll('[data-toggle-applicants]').forEach(b=>{
+    b.onclick=()=>{
+      ST.expandedApplicantsCourseId=(ST.expandedApplicantsCourseId===b.dataset.toggleApplicants)?null:b.dataset.toggleApplicants;
+      renderCourseList();
+    };
+  });
+  if(ST.expandedApplicantsCourseId)renderApplicants(ST.expandedApplicantsCourseId, courses.find(c=>c.id===ST.expandedApplicantsCourseId));
+}
+
+async function renderApplicants(courseId, course){
+  const box=document.getElementById('applicants-wrap');
+  if(!box)return;
+  let applicants=[];
+  try{
+    const res=await fetch('/api/courses/admin-applicants?courseId='+encodeURIComponent(courseId),{credentials:'include'});
+    const data=await res.json();
+    applicants=data.success?data.applicants:[];
+  }catch(e){}
+  if(!applicants.length){
+    box.innerHTML='<div style="color:#9BA3AF;font-size:12px">아직 신청자가 없습니다.</div>';
+    return;
+  }
+  box.innerHTML=`<div style="font-size:12px;font-weight:700;color:#5C6470;margin-bottom:8px">신청자 ${applicants.length}명</div>`+
+    applicants.map(a=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid #F7F8FA">
+      <div style="font-size:13px">
+        <span style="font-weight:700;color:#12151C">${esc(a.name)}</span>
+        <span style="color:#9BA3AF;margin-left:6px">${esc(a.phone||a.email||'')}</span>
+        <span style="color:#C4C9D4;margin-left:6px;font-size:11px">${esc((a.appliedAt||'').slice(0,10))} 신청</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <input data-grant-days="${a.memberId}" type="number" min="1" value="${course?.durationDays||30}" style="width:60px;padding:5px 6px;border:1.5px solid #E8ECF0;border-radius:7px;font-size:12px" title="수강기간(일)">
+        <button class="abtn abtn-green" data-grant="${a.memberId}" data-course="${courseId}" style="font-size:11px;padding:5px 10px">✓ 수강권 부여</button>
+      </div>
+    </div>`).join('');
+  box.querySelectorAll('[data-grant]').forEach(b=>{
+    b.onclick=async()=>{
+      const days=parseInt(document.querySelector(`[data-grant-days="${b.dataset.grant}"]`)?.value,10)||undefined;
+      b.disabled=true;b.textContent='처리 중...';
+      try{
+        const res=await fetch('/api/courses/grant-entitlement',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({memberId:b.dataset.grant,courseId:b.dataset.course,days})});
+        const data=await res.json();
+        if(!res.ok||!data.success){alert(data.message||'부여 실패');b.disabled=false;b.textContent='✓ 수강권 부여';return;}
+      }catch(e){alert('오류: '+e.message);b.disabled=false;b.textContent='✓ 수강권 부여';return;}
+      renderApplicants(courseId, course);
+    };
+  });
+}
+
+function bCourseAdmin(){
+  document.getElementById('btn-alo-main2').onclick=doLogout;
+  document.getElementById('btn-back-schools').onclick=()=>{
+    ST.adminView=null;ST.adminCourses=undefined;ST.allVideos=undefined;ST.showAddCourse=false;ST.editCourseId=null;render();
+  };
+  if(ST.allVideos===undefined){
+    ST.allVideos=null;
+    fetch('/api/videos/list',{credentials:'include'}).then(r=>r.json()).then(d=>{ST.allVideos=d.success?d.videos:[];render();}).catch(()=>{ST.allVideos=[];render();});
+  }
+  const toggleBtn=document.getElementById('btn-course-add-toggle');
+  if(toggleBtn)toggleBtn.onclick=()=>{ST.showAddCourse=!ST.showAddCourse;ST.editCourseId=null;ST.crsSelectedVideoIds=undefined;render();};
+  document.getElementById('crs-search')?.addEventListener('input',()=>renderCourseList());
+  document.getElementById('crs-filter-level')?.addEventListener('change',()=>renderCourseList());
+  document.getElementById('crs-filter-pub')?.addEventListener('change',()=>renderCourseList());
+  if(ST.showAddCourse){
+    bindCrsVideoPicker();
+    document.querySelectorAll('.crs-video-chk').forEach(chk=>{
+      chk.onchange=()=>{
+        if(chk.checked){if(!ST.crsSelectedVideoIds.includes(chk.value))ST.crsSelectedVideoIds.push(chk.value);}
+        else{ST.crsSelectedVideoIds=ST.crsSelectedVideoIds.filter(id=>id!==chk.value);}
+        updateCrsVideoPicker();
+      };
+    });
+    document.getElementById('btn-course-cancel').onclick=()=>{ST.showAddCourse=false;ST.editCourseId=null;ST.crsSelectedVideoIds=undefined;render();};
+    document.getElementById('btn-course-save').onclick=async()=>{
+      const btn=document.getElementById('btn-course-save');
+      const msg=document.getElementById('course-form-msg');
+      const title=document.getElementById('crs-title').value.trim();
+      if(!title){msg.textContent='강좌명을 입력하세요';msg.style.color='#E53935';return;}
+      const body={
+        id:btn.dataset.editId||undefined,
+        title,
+        description:document.getElementById('crs-desc').value.trim(),
+        price:parseInt(document.getElementById('crs-price').value,10)||0,
+        durationDays:parseInt(document.getElementById('crs-duration').value,10)||30,
+        level:document.getElementById('crs-level').value,
+        thumbnailUrl:document.getElementById('crs-thumb').value.trim(),
+        published:document.getElementById('crs-published').checked,
+        videoIds:[...ST.crsSelectedVideoIds],
+      };
+      btn.disabled=true;
+      try{
+        const res=await fetch('/api/courses/save',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        const data=await res.json();
+        if(!res.ok||!data.success){msg.textContent=data.message||'저장 실패';msg.style.color='#E53935';btn.disabled=false;return;}
+      }catch(e){msg.textContent='오류: '+e.message;msg.style.color='#E53935';btn.disabled=false;return;}
+      ST.adminCourses=undefined;ST.showAddCourse=false;ST.editCourseId=null;ST.crsSelectedVideoIds=undefined;
+      render();
+    };
+  }
+  renderCourseList();
+}
+
+function bAccountAdmin(){
+  document.getElementById('btn-alo-main2').onclick=doLogout;
+  document.getElementById('btn-back-schools').onclick=()=>{
+    ST.adminView=null;ST.taAccounts=undefined;ST.taPending=undefined;render();
+  };
+  document.getElementById('btn-aid-save')?.addEventListener('click',async()=>{
+    const cur=document.getElementById('aid-cur')?.value;const nwRaw=document.getElementById('aid-new')?.value||'';
+    const nw=nwRaw.trim().toLowerCase();
+    const msg=document.getElementById('aid-msg');
+    if(!nw||nw.length<4){msg.textContent='4자 이상 입력하세요';msg.style.color='#E53935';return;}
+    if(/\s/.test(nw)){msg.textContent='공백 없이 입력하세요';msg.style.color='#E53935';return;}
+    if(ST.serverAdminSession){
+      try{
+        const res=await fetch('/api/admin/credentials',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({currentPw:cur,newId:nw})});
+        const data=await res.json();
+        if(!res.ok||!data.success){msg.textContent=data.message||'변경 실패';msg.style.color='#E53935';return;}
+      }catch(e){msg.textContent='오류: '+e.message;msg.style.color='#E53935';return;}
+    } else {
+      if(cur!==ADMIN_PWD){msg.textContent='현재 비밀번호가 틀렸습니다';msg.style.color='#E53935';return;}
+      ADMIN_ID=nw;saveDB();
+    }
+    msg.textContent='✓ 변경 완료';msg.style.color='#00897B';
+    setTimeout(()=>render(),600);
+  });
+  document.getElementById('btn-apw-save')?.addEventListener('click',async()=>{
+    const cur=document.getElementById('apw-cur')?.value;const nw=document.getElementById('apw-new')?.value;const con=document.getElementById('apw-con')?.value;
+    const msg=document.getElementById('apw-msg');
+    if(!nw||nw.length<4){msg.textContent='4자 이상 입력하세요';msg.style.color='#E53935';return;}
+    if(nw!==con){msg.textContent='비밀번호가 일치하지 않습니다';msg.style.color='#E53935';return;}
+    if(ST.serverAdminSession){
+      try{
+        const res=await fetch('/api/admin/credentials',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({currentPw:cur,newPw:nw})});
+        const data=await res.json();
+        if(!res.ok||!data.success){msg.textContent=data.message||'변경 실패';msg.style.color='#E53935';return;}
+      }catch(e){msg.textContent='오류: '+e.message;msg.style.color='#E53935';return;}
+    } else {
+      if(cur!==ADMIN_PWD){msg.textContent='현재 비밀번호가 틀렸습니다';msg.style.color='#E53935';return;}
+      ADMIN_PWD=nw;saveDB();
+    }
+    msg.textContent='✓ 변경 완료';msg.style.color='#00897B';
+  });
+  document.getElementById('btn-ta-create')?.addEventListener('click',async()=>{
+    const name=document.getElementById('ta-new-name')?.value.trim();
+    const id=document.getElementById('ta-new-id')?.value.trim();
+    const pw=document.getElementById('ta-new-pw')?.value;
+    const msg=document.getElementById('ta-create-msg');
+    if(!name){msg.textContent='이름을 입력하세요';msg.style.color='#E53935';return;}
+    try{
+      const res=await fetch('/api/admin/ta-create',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,name,pw})});
+      const data=await res.json();
+      if(!res.ok||!data.success){msg.textContent=data.message||'추가 실패';msg.style.color='#E53935';return;}
+    }catch(e){msg.textContent='오류: '+e.message;msg.style.color='#E53935';return;}
+    msg.textContent='✓ 추가 완료';msg.style.color='#00897B';
+    ST.taAccounts=undefined;
+    setTimeout(()=>render(),600);
+  });
+  document.querySelectorAll('[data-ta-reset]').forEach(b=>{
+    b.onclick=async()=>{
+      const id=b.dataset.taReset;
+      if(!confirm(`${id} 계정의 비밀번호를 재설정합니다. 계속하시겠습니까?`))return;
+      try{
+        const res=await fetch('/api/admin/ta-reset-password',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+        const data=await res.json();
+        if(!res.ok||!data.success){alert(data.message||'재설정 실패');return;}
+        alert(`새 임시 비밀번호: ${data.password}\n조교에게 전달해주세요.`);
+      }catch(e){alert('오류: '+e.message);}
+    };
+  });
+  document.querySelectorAll('[data-ta-del]').forEach(b=>{
+    b.onclick=async()=>{
+      const id=b.dataset.taDel;
+      if(!confirm(`${id} 계정을 삭제합니다. 되돌릴 수 없습니다. 계속하시겠습니까?`))return;
+      try{
+        const res=await fetch('/api/admin/ta-delete',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+        const data=await res.json();
+        if(!res.ok||!data.success){alert(data.message||'삭제 실패');return;}
+      }catch(e){alert('오류: '+e.message);return;}
+      ST.taAccounts=undefined;
+      render();
+    };
+  });
+  document.querySelectorAll('[data-ta-approve]').forEach(b=>{
+    b.onclick=async()=>{
+      const id=b.dataset.taApprove;
+      b.disabled=true;
+      try{
+        const res=await fetch('/api/admin/ta-approve',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+        const data=await res.json();
+        if(!res.ok||!data.success){alert(data.message||'승인 실패');b.disabled=false;return;}
+      }catch(e){alert('오류: '+e.message);b.disabled=false;return;}
+      ST.taAccounts=undefined;ST.taPending=undefined;
+      render();
+    };
+  });
+  document.querySelectorAll('[data-ta-reject]').forEach(b=>{
+    b.onclick=async()=>{
+      const id=b.dataset.taReject;
+      if(!confirm(`${id} 신청을 거절합니다. 계속하시겠습니까?`))return;
+      b.disabled=true;
+      try{
+        const res=await fetch('/api/admin/ta-reject',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+        const data=await res.json();
+        if(!res.ok||!data.success){alert(data.message||'거절 실패');b.disabled=false;return;}
+      }catch(e){alert('오류: '+e.message);b.disabled=false;return;}
+      ST.taPending=undefined;
+      render();
+    };
+  });
+  document.getElementById('btn-backup-export')?.addEventListener('click',()=>{
+    const payload = JSON.stringify({...DB, adminPwd:ADMIN_PWD, adminId:ADMIN_ID, exportedAt: nowStr()}, null, 2);
+    const blob = new Blob([payload], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `oheng_backup_${new Date().toISOString().slice(0,10)}.json`;
+    a.click(); URL.revokeObjectURL(a.href);
+    localStorage.setItem('oheng_last_backup', new Date().toISOString().slice(0,16).replace('T',' '));
+  });
+  document.getElementById('backup-import-file')?.addEventListener('change', e=>{
+    const f = e.target.files[0]; if(!f) return;
+    const msg = document.getElementById('backup-msg');
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try{
+        const parsed = JSON.parse(ev.target.result);
+        if(!parsed.schools||!Array.isArray(parsed.schools)) throw new Error('올바른 백업 파일이 아닙니다');
+        if(!confirm(`백업 파일(${f.name})을 복원합니다.\n현재 모든 데이터가 덮어씌워집니다.\n계속하시겠습니까?`)) return;
+        DB = {schools: parsed.schools};
+        if(parsed.adminPwd) ADMIN_PWD = parsed.adminPwd;
+        if(parsed.adminId) ADMIN_ID = parsed.adminId;
+        saveDB();
+        msg.textContent = '✓ 복원 완료. 새로고침합니다...'; msg.style.color = '#00897B';
+        setTimeout(()=>render(), 1200);
+      } catch(err){
+        msg.textContent = '오류: ' + err.message; msg.style.color = '#E53935';
+      }
+    };
+    reader.readAsText(f, 'UTF-8');
+  });
+}
+
 function rStudent(){
   const sc=ST.userSchool;
   const unreadReplies=(sc?.suggestions||[]).filter(s=>s.sid===ST.user.id&&s.reply&&!s.replyRead).length;
@@ -1422,7 +2234,7 @@ function rStudent(){
   else if(ST.tab==='suggest') inner=rSuggest();
   else if(ST.tab==='inquiry') inner=rInquiry();
   else inner=rStudentSettings();
-  return`<div class="top-nav"><div class="nav-logo"><span style="font-size:18px;font-weight:800;color:#fff;letter-spacing:-0.5px"><span style="color:#FFB300">OH</span>ENG</span></div>
+  return`<div class="top-nav"><div class="nav-logo"><img src="/assets/logo-symbol-white.png" alt="OHENG" style="height:22px;width:auto;display:block"></div>
     <div class="nav-right"><span style="font-size:13px;opacity:.85;white-space:nowrap">${ST.user.name} · ${ST.userSchool?.name}</span>
       <button class="nbtn no-print" onclick="window.print()">인쇄</button>
       <button class="nbtn no-print" id="btn-lo">로그아웃</button></div></div>
@@ -1540,6 +2352,18 @@ function rReport(recs){
   const prevRec = recIdx>0 ? recs[recIdx-1] : null;
   const delta = (prevRec&&prevRec.totalScore!=null&&rec.totalScore!=null) ? rec.totalScore-prevRec.totalScore : null;
 
+  // 숙제 미완료 연속 여부 (최근 2주 연속 미완료 시 경고)
+  const hwWeekMissed=(r)=>{
+    if(!r)return false;
+    const wk2Skip = sc?.hwNames&&sc.hwNames[r.month+'_'+r.week]?sc.hwNames[r.month+'_'+r.week].hw2Skip:sc?.hw2Skip;
+    const hw1Val = r.hw1||r.homework||'';
+    const hw2Val = r.hw2||'';
+    const hw1Missed = hw1Val ? hw1Val!=='완료' : false;
+    const hw2Missed = (!wk2Skip&&hw2Val) ? hw2Val!=='완료' : false;
+    return hw1Missed||hw2Missed;
+  };
+  const hwMissedStreak = hwWeekMissed(rec) && hwWeekMissed(prevRec);
+
   const rtPct = (!rtSkip&&rec.rtScore!=null&&rec.rvAvg)?Math.round(rec.rtScore/rec.rvAvg*100):null;
   const wtPct = (!wtSkip&&rec.wtScore!=null&&rec.wtAvg)?Math.round(rec.wtScore/rec.wtAvg*100):null;
   const totPct = (rec.totalScore!=null&&totAvg)?Math.round(rec.totalScore/totAvg*100):null;
@@ -1550,7 +2374,7 @@ function rReport(recs){
   <div id="report-capture" style="background:#F7F9FC;padding:22px 20px 26px;font-size:15px;color:#10192B">
   <!-- 브랜드 헤더 -->
   <div style="display:flex;align-items:center;gap:9px;margin-bottom:22px;${PF}">
-    <div style="font-weight:800;font-size:14px;letter-spacing:0.2px">OH<span style="color:#B45309">ENG</span></div>
+    <img src="/assets/logo-symbol.png" alt="OHENG" style="height:26px;width:auto;display:block">
     <div style="width:3px;height:3px;border-radius:50%;background:#8C93A0"></div>
     <div style="font-size:12px;color:#57616F;font-weight:600">${sc?.name} · ${rec.month} ${rec.week}</div>
   </div>
@@ -1567,6 +2391,8 @@ function rReport(recs){
       ${delta!=null?`<span style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:700;padding:5px 11px;border-radius:8px;${delta>0?'color:#146C43;background:#E8F5EC':delta<0?'color:#B3261E;background:#FCEAEA':'color:#57616F;background:#EEF1F5'}">${delta>0?'▲':delta<0?'▼':'–'} 지난주 대비 ${delta!==0?Math.abs(delta)+'점':'동일'}</span>`:''}
       ${totPct!=null?`<span style="font-size:12.5px;color:#57616F;font-weight:600;padding:5px 2px">반평균 ${totAvg}점 대비 ${totPct}%</span>`:''}
     </div>
+    ${delta!=null&&delta<=-10?`<div style="margin-top:10px;padding:10px 14px;background:#FFEBEE;border:1.5px solid #FFCDD2;border-radius:10px;font-size:12.5px;font-weight:700;color:#C62828;display:flex;align-items:center;gap:6px">🚨 지난주 대비 10점 이상 하락했어요</div>`:''}
+    ${hwMissedStreak?`<div style="margin-top:10px;padding:10px 14px;background:#FFF3E0;border:1.5px solid #FFCC80;border-radius:10px;font-size:12.5px;font-weight:700;color:#E65100;display:flex;align-items:center;gap:6px">🚨 최근 2주 연속 숙제를 완료하지 않았어요</div>`:''}
   </div>
 
   <!-- 주차 선택 -->
@@ -1612,17 +2438,16 @@ function rReport(recs){
     return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">${items.join('')}</div>`;
   })()}
 
-  <!-- 선생님 메시지 -->
-  ${(notice||rec.comment)?`<div style="border:1.5px solid #D9E0EA;border-radius:12px;padding:15px 16px;margin-bottom:20px;display:flex;flex-direction:column;gap:14px;background:#fff">
-    ${notice?`<div>
-      <div style="display:flex;align-items:center;gap:7px;font-size:11px;font-weight:800;letter-spacing:0.6px;text-transform:uppercase;color:#B45309;margin-bottom:6px">${ic('notice')}우리 반 공지</div>
-      <div style="font-size:13.5px;line-height:1.65;color:#2B3341;white-space:pre-wrap">${esc(notice)}</div>
-    </div>`:''}
-    ${notice&&rec.comment?'<div style="border-top:1.5px solid #D9E0EA"></div>':''}
-    ${rec.comment?`<div>
-      <div style="display:flex;align-items:center;gap:7px;font-size:11px;font-weight:800;letter-spacing:0.6px;text-transform:uppercase;color:#1E40AF;margin-bottom:6px">${ic('comment')}${esc(ST.user.name)} 학생에게</div>
-      <div style="font-size:13.5px;line-height:1.65;color:#2B3341;white-space:pre-wrap">${esc(rec.comment)}</div>
-    </div>`:''}
+  <!-- 선생님 코멘트: 이 학생 개인에게 남긴 메시지라 공지보다 눈에 띄게 별도 카드+강조색으로 표시 -->
+  ${rec.comment?`<div style="border:1.5px solid #BFDBFE;background:#EFF6FF;border-radius:12px;padding:16px 18px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;gap:7px;font-size:12px;font-weight:800;letter-spacing:0.3px;color:#1E40AF;margin-bottom:8px">${ic('comment')}${esc(ST.user.name)} 학생에게 선생님 코멘트</div>
+    <div style="font-size:14.5px;line-height:1.7;color:#10192B;font-weight:500;white-space:pre-wrap">${esc(rec.comment)}</div>
+  </div>`:''}
+
+  <!-- 우리 반 공지 -->
+  ${notice?`<div style="border:1.5px solid #D9E0EA;border-radius:12px;padding:15px 16px;margin-bottom:20px;background:#fff">
+    <div style="display:flex;align-items:center;gap:7px;font-size:11px;font-weight:800;letter-spacing:0.6px;text-transform:uppercase;color:#B45309;margin-bottom:6px">${ic('notice')}우리 반 공지</div>
+    <div style="font-size:13.5px;line-height:1.65;color:#2B3341;white-space:pre-wrap">${linkify(esc(notice))}</div>
   </div>`:''}
   <button id="btn-save-report-img" class="no-print rpt-focus" style="width:100%;padding:12px;background:#fff;border:1.5px solid #D9E0EA;border-radius:10px;font-size:13px;font-weight:700;color:#1E40AF;cursor:pointer;margin-bottom:16px;display:flex;align-items:center;justify-content:center;gap:7px">${ic('camera')}성적표 이미지 저장</button>
 
@@ -1962,27 +2787,36 @@ function bStudent(){
 
 function rAdmin(){
   const sc=curSch();
-  const menus=[
-    {id:'dashboard',l:'대시보드',icon:'📊'},
-    {id:'records',l:'성적 일괄 입력',icon:'📝'},
-    {id:'attendance',l:'인강/현강 체크',icon:'🖥️'},
-    {id:'videos',l:'영상 관리',icon:'🎬'},
-    {id:'notices',l:'공지 입력',icon:'📢'},
-    {id:'students',l:'학생 관리',icon:'👥'},
-    {id:'withdrawn',l:'탈퇴 학생',icon:'🚪'},
-    {id:'school-settings',l:'학교 설정',icon:'🏫'},
-    {id:'admin-settings',l:'관리자 설정',icon:'⚙️'},
-    {id:'logs',l:'저장 로그',icon:'📋'},
-    {id:'sendlogs',l:'발송 이력',icon:'💬'},
-    {id:'suggestions',l:'제안 목록',icon:'💡'}
+  // 그룹별로 묶어서 사이드바에 표시 — 예전엔 12개 항목이 구분 없이 한 줄로 쭉 나열돼 있어서
+  // "탈퇴 학생"이 "학생 관리"와 다른 항목인지 헷갈리거나, 원하는 메뉴를 찾기 번거로웠다.
+  const menuGroups=[
+    {group:'업무',items:[
+      {id:'dashboard',l:'대시보드',icon:'📊'},
+      {id:'records',l:'성적 일괄 입력',icon:'📝'},
+      {id:'attendance',l:'인강/현강 체크',icon:'🖥️'},
+      {id:'videos',l:'영상 관리',icon:'🎬'},
+      {id:'notices',l:'공지 입력',icon:'📢'},
+    ]},
+    {group:'학생',items:[
+      {id:'students',l:'학생 관리',icon:'👥'},
+      {id:'withdrawn',l:'탈퇴 학생',icon:'🚪'},
+    ]},
+    {group:'기록',items:[
+      {id:'logs',l:'저장 로그',icon:'📋'},
+      {id:'sendlogs',l:'발송 이력',icon:'💬'},
+      {id:'suggestions',l:'제안 목록',icon:'💡'},
+    ]},
+    {group:'설정',items:[
+      {id:'school-settings',l:'학교 설정',icon:'🏫'},
+    ]},
   ];
+  const menus=menuGroups.flatMap(g=>g.items);
   // records 탭에 "새로" 진입할 때마다(다른 탭에 있다가 들어온 경우) 무조건 잠긴 상태로 시작 —
   // 주차 확인 없이 바로 입력하다 엉뚱한 주차에 저장하는 사고를 막기 위함
   if(ST.atab==='records'&&ST._lastAtab!=='records')ST.bkLoaded=false;
   ST._lastAtab=ST.atab;
   let inner='';
-  if(ST.atab==='dashboard') inner=rDashboard(sc);
-  else if(ST.atab==='records') inner=rBulk(sc);
+  if(ST.atab==='records') inner=rBulk(sc);
   else if(ST.atab==='attendance') inner=rAttendance(sc);
   else if(ST.atab==='videos') inner=rVideos(sc);
   else if(ST.atab==='notices') inner=rNotices(sc);
@@ -1992,11 +2826,11 @@ function rAdmin(){
   else if(ST.atab==='logs') inner=rLogs(sc);
   else if(ST.atab==='sendlogs') inner=rSendLogs(sc);
   else if(ST.atab==='suggestions') inner=rAdminSuggestions(sc);
-  else inner=rAdminSettings(sc);
+  else { ST.atab='dashboard'; inner=rDashboard(sc); } // 관리자 설정처럼 사라진 탭이 남아있던 경우 등 대비한 안전한 기본값
   const curMenu=menus.find(m=>m.id===ST.atab);
   return`
   <div class="top-nav">
-    <div class="nav-logo"><span style="font-size:18px;font-weight:800;color:#fff;letter-spacing:-0.5px"><span style="color:#FFB300">OH</span>ENG</span></div>
+    <div class="nav-logo"><img src="/assets/logo-symbol-white.png" alt="OHENG" style="height:22px;width:auto;display:block"></div>
     <div class="nav-right">
       <button class="nbtn nbtn-school" id="btn-back-school">← 학교 선택</button>
       <button class="nbtn" id="btn-alo">로그아웃</button>
@@ -2009,16 +2843,17 @@ function rAdmin(){
         <div style="font-size:14px;font-weight:800;color:#1A237E">${sc.name}</div>
         <div style="font-size:11px;color:#9BA3AF;margin-top:1px">${sc.grade} · 학생 ${sc.students.length}명</div>
       </div>
-      <div class="a-sidebar-title">메뉴</div>
+      ${menuGroups.map(g=>`
+      <div class="a-sidebar-title">${g.group}</div>
       <div class="a-menu">
-        ${menus.map(m=>{
+        ${g.items.map(m=>{
           const unread=m.id==='suggestions'?(sc.suggestions||[]).filter(s=>!s.read).length:0;
           return`
         <div class="a-menu-item ${ST.atab===m.id?'active':''}" data-atab="${m.id}" style="justify-content:space-between">
           <div style="display:flex;align-items:center;gap:8px"><span style="font-size:15px">${m.icon}</span><span>${m.l}</span></div>
           ${unread?`<span style="background:#E53935;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px">${unread}</span>`:''}
         </div>`;}).join('')}
-      </div>
+      </div>`).join('')}
     </div>
     <div class="a-main">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
@@ -2287,6 +3122,8 @@ function rBulk(sc){
   <div style="display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap">
     <button class="abtn abtn-green" id="btn-save" style="padding:11px 28px;font-size:14px;font-weight:700">💾 전체 저장</button>
     <button class="abtn abtn-gray" id="btn-export-scores" style="padding:11px 18px;font-size:13px">📊 성적 엑셀 내보내기</button>
+    <button class="abtn abtn-gray" id="btn-copy-week" style="padding:11px 18px;font-size:13px">📋 다른 주차로 복사</button>
+    <button class="abtn" id="btn-clear-week" style="padding:11px 18px;font-size:13px;background:#FFEBEE;color:#E53935;border-color:#FFCDD2">🗑️ 이번 주 성적 지우기</button>
     <div id="save-msg" style="font-size:13px;font-weight:600"></div>
   </div>
   <div style="font-size:11px;color:#9BA3AF;margin-top:8px">※ 초록 배경 칸은 자동계산 · 저장 버튼으로 영구보관</div>
@@ -2325,7 +3162,7 @@ function rNotices(sc){
       return`<div style="background:#F7F8FA;border-radius:10px;padding:12px 14px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
         <div style="flex:1;min-width:0">
           <div style="font-size:12px;font-weight:700;color:#1A237E;margin-bottom:4px">${m} ${w}</div>
-          <div style="font-size:12px;color:#5C6470;line-height:1.6;word-break:break-word;white-space:pre-wrap">${esc(txt)}</div>
+          <div style="font-size:12px;color:#5C6470;line-height:1.6;word-break:break-word;white-space:pre-wrap">${linkify(esc(txt))}</div>
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0">
           <button onclick="document.getElementById('nc-mon').value='${m}';document.getElementById('nc-wk').value='${w}';document.getElementById('nc-txt').value=decodeURIComponent('${encodeURIComponent(txt)}')" style="padding:4px 10px;background:#EEF0FB;color:#1A237E;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">수정</button>
@@ -2351,7 +3188,12 @@ function rNotices(sc){
   </div>`;}
 
 function rStudentMgmt(sc){
-  const autoId=nextStudentId(sc);
+  if(ST.suggestedStudentId===undefined){
+    ST.suggestedStudentId=null;
+    nextStudentId().then(id=>{ST.suggestedStudentId=id;render();});
+  }
+  const autoId=ST.suggestedStudentId||'';
+  const autoPwd=String(Math.floor(1000+Math.random()*9000));
   const isLecture=sc.type==='lecture';
   return`
   <div class="section-card">
@@ -2374,7 +3216,7 @@ function rStudentMgmt(sc){
     <div class="form3" style="margin-bottom:14px">
       <div class="fgrp"><label class="flbl">이름</label><input class="finp" id="ns-name"/></div>
       <div class="fgrp"><label class="flbl">학생 ID</label><input class="finp" id="ns-id" value="${autoId}"/></div>
-      <div class="fgrp"><label class="flbl">초기 비밀번호</label><input class="finp" id="ns-pw" value="1234"/></div>
+      <div class="fgrp"><label class="flbl">초기 비밀번호</label><input class="finp" id="ns-pw" value="${autoPwd}" inputmode="numeric" pattern="[0-9]*"/></div>
       <div class="fgrp"><label class="flbl">학생 전화번호</label><input class="finp" id="ns-ph" placeholder="010-0000-0000" oninput="autoHyphen(this)" maxlength="13"/></div>
       <div class="fgrp"><label class="flbl">학부모 전화번호</label><input class="finp" id="ns-pph" placeholder="010-0000-0000" oninput="autoHyphen(this)" maxlength="13"/></div>
       <div class="fgrp"><label class="flbl">구분</label>
@@ -2391,6 +3233,7 @@ function rStudentMgmt(sc){
       <span>👥 학생 목록 (${sc.students.length}명)</span>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button id="btn-ppurio-selected-idpw" style="display:none;padding:6px 14px;background:#1A237E;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">💬 선택 0명 발송</button>
+        <button id="btn-withdraw-selected" style="display:none;padding:6px 14px;background:#FFEBEE;color:#E53935;border:1.5px solid #FFCDD2;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">🚪 선택 0명 탈퇴처리</button>
         <button id="btn-ppurio-all-idpw" style="padding:6px 14px;background:#FEE500;color:#000;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">💬 ID/비번 일괄 발송</button>
         <button class="abtn abtn-gray" id="btn-sort-name" style="font-size:11px;padding:6px 12px">🔤 가나다순 정렬</button>
         <button class="abtn abtn-blue" id="btn-export-excel" style="font-size:11px;padding:6px 12px">📊 엑셀 내보내기</button>
@@ -2438,7 +3281,7 @@ function renderStudentTable(sc){
           ${isLecture?`<td style="${cp}"><input data-hs-id="${s.id}" value="${esc(s.highSchool)||''}" placeholder="고등학교" style="width:90px;padding:5px 8px;border:1.5px solid #E8ECF0;border-radius:7px;font-size:11.5px;outline:none;font-family:inherit"></td>`:''}
           <td style="${cp}"><span style="padding:2px 7px;border-radius:20px;font-size:10.5px;font-weight:600;${typeColor[s.type||'regular']||typeColor.regular}">${typeMap[s.type||'regular']}</span></td>
           <td style="${cp};font-size:11.5px">${esc(s.phone)||'-'}</td><td style="${cp};font-size:11.5px">${esc(s.parentPhone)||'-'}</td>
-          <td style="${cp};font-family:monospace;font-size:10.5px">${s.pwd?esc(s.pwd):`<button class="abtn" data-reset-pwd="${s.id}" style="font-size:10px;padding:3px 7px;color:#1A237E">🔑</button>`}</td>
+          <td style="${cp};font-family:monospace;font-size:10.5px">${s.pwd?esc(s.pwd)+' ':''}<button class="abtn" data-reset-pwd="${s.id}" style="font-size:10px;padding:3px 7px;color:#1A237E" title="비밀번호 랜덤 재발급">🔑</button></td>
           <td style="${cp};font-size:10.5px;color:#9BA3AF">${s.createdAt||'-'}</td>
           <td style="${cp};white-space:normal">
             <input data-reason-id="${s.id}" value="${esc(s.reason)||''}" placeholder="수강계기 입력" style="width:150px;padding:5px 8px;border:1.5px solid #E8ECF0;border-radius:7px;font-size:11.5px;outline:none;font-family:inherit">
@@ -2455,7 +3298,7 @@ function renderStudentTable(sc){
     inp.onchange=()=>{
       const s=sc.students.find(x=>x.id===inp.dataset.hsId);if(!s)return;
       s.highSchool=inp.value.trim();
-      saveDB();
+      saveDB({dirtyStudentIds:new Set([s.id])});
     };
   });
   wrap.querySelectorAll('[data-edit-id]').forEach(b=>{ b.onclick=()=>openEditStudent(sc, b.dataset.editId); });
@@ -2477,16 +3320,22 @@ function renderStudentTable(sc){
     inp.onchange=()=>{
       const s=sc.students.find(x=>x.id===inp.dataset.reasonId);if(!s)return;
       s.reason=inp.value.trim();
-      saveDB();
+      saveDB({dirtyStudentIds:new Set([s.id])});
     };
   });
   // 체크박스로 고른 학생만 골라 ID/비번 발송 — "전체 선택" 헤더 체크박스와 연동
   const selectedBtn=document.getElementById('btn-ppurio-selected-idpw');
+  const withdrawSelectedBtn=document.getElementById('btn-withdraw-selected');
   const updateSelectedBtn=()=>{
-    if(!selectedBtn)return;
     const n=wrap.querySelectorAll('.stu-select:checked').length;
-    if(n){selectedBtn.style.display='';selectedBtn.textContent=`💬 선택 ${n}명 발송`;}
-    else selectedBtn.style.display='none';
+    if(selectedBtn){
+      if(n){selectedBtn.style.display='';selectedBtn.textContent=`💬 선택 ${n}명 발송`;}
+      else selectedBtn.style.display='none';
+    }
+    if(withdrawSelectedBtn){
+      if(n){withdrawSelectedBtn.style.display='';withdrawSelectedBtn.textContent=`🚪 선택 ${n}명 탈퇴처리`;}
+      else withdrawSelectedBtn.style.display='none';
+    }
   };
   wrap.querySelectorAll('.stu-select').forEach(chk=>{
     chk.addEventListener('change',()=>{
@@ -2532,6 +3381,7 @@ function rWithdrawn(sc){
 function rAttendance(sc){
   const mon = ST.attMon || curMonWk().mon;
   const monIdx = MONTHS.indexOf(mon);
+  const dirtyCount = ST.attDirty ? ST.attDirty.size : 0;
   const rows = sc.students.map(s=>{
     const cells = WEEKS.map(wk=>{
       const rec = sc.records.find(r=>r.sid===s.id&&r.month===mon&&r.week===wk);
@@ -2547,18 +3397,24 @@ function rAttendance(sc){
   <div class="section-card">
     <div class="section-ttl" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <span>🖥️ 인강/현강 체크</span>
-      <div style="display:flex;align-items:center;gap:6px">
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
         <button id="att-prev" class="abtn" ${monIdx<=0?'disabled':''} style="padding:5px 12px">‹</button>
         <span style="font-size:13px;font-weight:700;color:#1A237E;min-width:44px;text-align:center">${mon}</span>
         <button id="att-next" class="abtn" ${monIdx>=MONTHS.length-1?'disabled':''} style="padding:5px 12px">›</button>
+        ${sc.students.length?`<button class="abtn abtn-green" id="btn-att-save-top" style="padding:6px 14px;font-size:12.5px;font-weight:700;margin-left:4px">💾 저장하기${dirtyCount?` (${dirtyCount}건 변경됨)`:''}</button>`:''}
       </div>
     </div>
-    <div style="font-size:12px;color:#9BA3AF;margin-bottom:14px;line-height:1.6">주차별로 현강(O)·인강·결석 중 선택하면 바로 저장됩니다. 성적 입력과 별개로 관리돼요.</div>
+    ${sc.students.length?`<div id="att-save-msg-top" style="font-size:12px;font-weight:600;text-align:right;margin-bottom:4px"></div>`:''}
+    <div style="font-size:12px;color:#9BA3AF;margin-bottom:14px;line-height:1.6">주차별로 현강(O)·인강·결석 중 선택한 뒤, 저장하기 버튼을 눌러야 실제로 저장됩니다. 성적 입력과 별개로 관리돼요.</div>
     ${!sc.students.length?`<div style="text-align:center;padding:40px 0;color:#9BA3AF;font-size:13px">등록된 학생이 없습니다</div>`:`
     <div style="overflow-x:auto"><table class="rec-tbl" style="min-width:520px">
       <thead><tr><th style="text-align:left">이름</th>${WEEKS.map(wk=>`<th>${wk}</th>`).join('')}</tr></thead>
       <tbody>${rows}</tbody>
-    </table></div>`}
+    </table></div>
+    <div style="display:flex;align-items:center;gap:12px;margin-top:16px">
+      <button class="abtn abtn-green" id="btn-att-save" style="padding:11px 24px;font-size:14px;font-weight:700">💾 저장하기${dirtyCount?` (${dirtyCount}건 변경됨)`:''}</button>
+      <div id="att-save-msg" style="font-size:13px;font-weight:600"></div>
+    </div>`}
   </div>`;}
 
 function rVideos(sc){
@@ -2690,72 +3546,18 @@ function rSchoolSettings(sc){return`
     </div>
     <button class="abtn abtn-blue" id="btn-ss-save" style="padding:10px 24px">저장</button>
     <div id="ss-msg" style="font-size:12px;margin-top:8px;font-weight:600"></div>
-  </div>`;}
-
-function rAdminSettings(sc){
-  const lastBackup=localStorage.getItem('oheng_last_backup')||'';
-  const backupWarn=!lastBackup||((Date.now()-new Date(lastBackup).getTime())>7*24*60*60*1000);
-  const recCount=sc.records.length;
-  const weekSet=[...new Set(sc.records.map(r=>r.month+'_'+r.week))];
-  return`
+  </div>
   <div class="section-card">
     <div class="section-ttl">🔔 선생님 알림 설정</div>
-    <div style="font-size:13px;color:#5C6470;margin-bottom:14px;line-height:1.7">학생이 제안을 보내면 <strong>선생님 폰으로 바로 푸시 알림</strong>이 옵니다.<br>이 기기에서 한 번만 허용하면 됩니다.</div>
+    <div style="font-size:13px;color:#5C6470;margin-bottom:14px;line-height:1.7">이 학교 학생이 제안을 보내면 <strong>선생님 폰으로 바로 푸시 알림</strong>이 옵니다.<br>이 기기에서 한 번만 허용하면 됩니다.</div>
     <button id="btn-admin-push-sub" style="padding:11px 24px;background:#1A237E;color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">🔔 알림 허용하기</button>
     <div id="admin-push-msg" style="font-size:12px;margin-top:8px;min-height:18px"></div>
   </div>
   <div class="section-card">
-    <div class="section-ttl">관리자 아이디 변경</div>
-    <div style="font-size:12px;color:#9BA3AF;margin-bottom:12px">현재 아이디: <strong style="color:#1A237E;font-family:monospace">${ADMIN_ID}</strong></div>
-    <div style="margin-bottom:12px"><label class="flbl">현재 비밀번호</label><input class="finp" type="password" id="aid-cur"></div>
-    <div style="margin-bottom:14px"><label class="flbl">새 아이디</label><input class="finp" type="text" id="aid-new" placeholder="영문/숫자 4자 이상"></div>
-    <button class="abtn abtn-blue" id="btn-aid-save">변경</button>
-    <div id="aid-msg" style="font-size:12px;margin-top:8px"></div>
-  </div>
-  <div class="section-card">
-    <div class="section-ttl">관리자 비밀번호 변경</div>
-    <div style="margin-bottom:12px"><label class="flbl">현재 비밀번호</label><input class="finp" type="password" id="apw-cur"></div>
-    <div style="margin-bottom:12px"><label class="flbl">새 비밀번호</label><input class="finp" type="password" id="apw-new" placeholder="4자 이상"></div>
-    <div style="margin-bottom:14px"><label class="flbl">새 비밀번호 확인</label><input class="finp" type="password" id="apw-con"></div>
-    <button class="abtn abtn-blue" id="btn-apw-save">변경</button>
-    <div id="apw-msg" style="font-size:12px;margin-top:8px"></div>
-    <div style="font-size:11px;color:#B0B3BF;margin-top:10px;line-height:1.6">아이디·비밀번호는 알림톡 발송과는 별개로 동작해서, 자유롭게 바꾸셔도 알림톡 발송에는 영향이 없습니다.</div>
-  </div>
-  <div class="section-card">
-    <div class="section-ttl">데이터 백업 / 복원</div>
-    ${backupWarn?`<div style="background:#FFF8E1;border:1.5px solid #FFE082;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#E65100;font-weight:600">
-      ⚠️ ${lastBackup?'마지막 백업: '+lastBackup+' — 7일 이상 경과했습니다.':'아직 백업을 받지 않았습니다.'} 지금 백업하세요.
-    </div>`:''}
-    <div style="font-size:12px;color:#5C6470;margin-bottom:14px;line-height:1.7">
-      전체 성적·학생·설정 데이터를 JSON 파일로 내보내거나, 백업 파일을 불러와 복원합니다.<br>
-      <span style="color:#E65100;font-weight:600">복원 시 현재 데이터는 덮어씌워집니다.</span>
-    </div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
-      <button class="abtn abtn-blue" id="btn-backup-export" style="padding:10px 20px">JSON 백업 내보내기</button>
-      <label style="display:flex;align-items:center;gap:8px;padding:10px 20px;background:#fff;border:1.5px solid #E8ECF0;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;color:#5C6470">
-        JSON 백업 불러오기<input type="file" id="backup-import-file" accept=".json" style="display:none">
-      </label>
-    </div>
-    <div id="backup-msg" style="font-size:12px;min-height:18px"></div>
-  </div>
-  ${ST.serverAdminSession?`<div class="section-card">
-    <div class="section-ttl">서버 동기화</div>
-    <div style="font-size:12px;color:#00897B;font-weight:600;line-height:1.7">✓ 서버 동기화가 켜져 있습니다. 다른 기기에서도 최신 데이터가 보입니다.</div>
-  </div>`:`<div class="section-card">
-    <div class="section-ttl">서버 동기화 (베타)</div>
-    <div style="font-size:12px;color:#5C6470;margin-bottom:14px;line-height:1.7">
-      지금까지는 이 브라우저에만 데이터가 저장돼서 다른 기기(학부모 폰 등)에서는 성적이 안 보였습니다.<br>
-      아래 버튼으로 현재 데이터를 서버에 업로드하면, 서버 동기화 기능이 켜졌을 때 다른 기기에서도 정상적으로 보이게 됩니다.<br>
-      <span style="color:#E65100;font-weight:600">비밀번호는 서버에 안전하게 암호화(해시)되어 저장되며, 평문으로는 저장되지 않습니다.</span>
-    </div>
-    <button class="abtn abtn-blue" id="btn-server-migrate" style="padding:10px 20px">서버로 업로드</button>
-    <div id="server-migrate-msg" style="font-size:12px;margin-top:8px;min-height:18px"></div>
-  </div>`}
-  <div class="section-card">
     <div class="section-ttl">전체 반평균 재계산</div>
     <div style="font-size:12px;color:#5C6470;margin-bottom:14px;line-height:1.7">
       이전에 저장된 성적 데이터 중 RT 또는 WT 중 하나만 입력된 학생이 전체 반평균에 포함된 경우, 이 버튼을 눌러 전체 기간의 반평균을 올바르게 재계산합니다.<br>
-      <span style="color:#E65100;font-weight:600">실행 전 JSON 백업을 권장합니다.</span>
+      <span style="color:#E65100;font-weight:600">실행 전 JSON 백업을 권장합니다 (백업은 ⚙️ 계정 관리에서).</span>
     </div>
     <button class="abtn abtn-blue" id="btn-migrate-avg" style="padding:10px 20px">전체 반평균 일괄 재계산</button>
     <div id="migrate-avg-msg" style="font-size:12px;margin-top:8px;min-height:18px"></div>
@@ -2764,8 +3566,8 @@ function rAdminSettings(sc){
     <div class="section-ttl">학기 관리</div>
     <div style="background:#F7F8FA;border-radius:12px;padding:14px;margin-bottom:14px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;text-align:center">
       <div><div style="font-size:10px;color:#9BA3AF;font-weight:700;margin-bottom:4px">등록 학생</div><div style="font-size:20px;font-weight:800;color:#1A237E">${sc.students.length}명</div></div>
-      <div><div style="font-size:10px;color:#9BA3AF;font-weight:700;margin-bottom:4px">성적 레코드</div><div style="font-size:20px;font-weight:800;color:#1A237E">${recCount}건</div></div>
-      <div><div style="font-size:10px;color:#9BA3AF;font-weight:700;margin-bottom:4px">저장 주차 수</div><div style="font-size:20px;font-weight:800;color:#1A237E">${weekSet.length}주</div></div>
+      <div><div style="font-size:10px;color:#9BA3AF;font-weight:700;margin-bottom:4px">성적 레코드</div><div style="font-size:20px;font-weight:800;color:#1A237E">${sc.records.length}건</div></div>
+      <div><div style="font-size:10px;color:#9BA3AF;font-weight:700;margin-bottom:4px">저장 주차 수</div><div style="font-size:20px;font-weight:800;color:#1A237E">${[...new Set(sc.records.map(r=>r.month+'_'+r.week))].length}주</div></div>
     </div>
     <div style="font-size:12px;color:#5C6470;margin-bottom:14px;line-height:1.7">
       새 학기 시작 시 이 학교의 <strong>모든 성적 기록을 초기화</strong>하고, 신규·전입 학생을 재학생으로 전환합니다.<br>
@@ -2775,50 +3577,239 @@ function rAdminSettings(sc){
     <div id="semester-msg" style="font-size:12px;margin-top:8px;min-height:18px"></div>
   </div>`;}
 
+// 학교별 설정(학교 설정 탭)과 달리, 여기는 학원 전체에 적용되는 계정/백업 관리라 특정
+// 학교 화면 안이 아니라 학교 선택 화면에서 바로 진입하는 별도 전역 화면으로 분리했다
+// (강좌 관리와 동일한 구조). 예전에는 "관리자 설정"이라는 이름으로 학교별 설정(반평균
+// 재계산/새 학기 시작 등)과 한 화면에 섞여 있어서, 지금 선택된 학교에만 적용되는 건지
+// 학원 전체에 적용되는 건지 헷갈리기 쉬웠다.
+function rAccountAdmin(){
+  const lastBackup=localStorage.getItem('oheng_last_backup')||'';
+  const backupWarn=!lastBackup||((Date.now()-new Date(lastBackup).getTime())>7*24*60*60*1000);
+  if(ST.isMaster&&ST.taAccounts===undefined){
+    ST.taAccounts=null;
+    fetchTaAccounts();
+  }
+  if(ST.isMaster&&ST.taPending===undefined){
+    ST.taPending=null;
+    fetchTaPending();
+  }
+  return`
+  <div class="top-nav">
+    <div class="nav-logo"><img src="/assets/logo-symbol-white.png" alt="OHENG" style="height:22px;width:auto;display:block"></div>
+    <div class="nav-right"><button class="nbtn" id="btn-back-schools">‹ 학교 선택으로</button><button class="nbtn" id="btn-alo-main2">로그아웃</button></div>
+  </div>
+  <div class="school-wrap">
+    <div class="school-inner" style="max-width:640px">
+      <div style="text-align:center;margin-bottom:32px">
+        <div style="width:60px;height:60px;border-radius:18px;background:linear-gradient(135deg,#1A237E,#3949AB);display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 14px;box-shadow:0 8px 24px rgba(26,35,126,0.25)">⚙️</div>
+        <div class="school-title">계정 관리</div>
+        <div class="school-sub">학원 전체에 적용되는 관리자·조교 계정과 백업입니다 (특정 학교에 한정되지 않아요)</div>
+      </div>
+      ${ST.isMaster?`<div class="section-card">
+        <div class="section-ttl">관리자 아이디 변경</div>
+        <div style="font-size:12px;color:#9BA3AF;margin-bottom:12px">현재 아이디: <strong style="color:#1A237E;font-family:monospace">${ADMIN_ID}</strong></div>
+        <div style="margin-bottom:12px"><label class="flbl">현재 비밀번호</label><input class="finp" type="password" id="aid-cur"></div>
+        <div style="margin-bottom:14px"><label class="flbl">새 아이디</label><input class="finp" type="text" id="aid-new" placeholder="영문/숫자 4자 이상"></div>
+        <button class="abtn abtn-blue" id="btn-aid-save">변경</button>
+        <div id="aid-msg" style="font-size:12px;margin-top:8px"></div>
+      </div>`:''}
+      <div class="section-card">
+        <div class="section-ttl">비밀번호 변경</div>
+        <div style="margin-bottom:12px"><label class="flbl">현재 비밀번호</label><input class="finp" type="password" id="apw-cur"></div>
+        <div style="margin-bottom:12px"><label class="flbl">새 비밀번호</label><input class="finp" type="password" id="apw-new" placeholder="4자 이상"></div>
+        <div style="margin-bottom:14px"><label class="flbl">새 비밀번호 확인</label><input class="finp" type="password" id="apw-con"></div>
+        <button class="abtn abtn-blue" id="btn-apw-save">변경</button>
+        <div id="apw-msg" style="font-size:12px;margin-top:8px"></div>
+        <div style="font-size:11px;color:#B0B3BF;margin-top:10px;line-height:1.6">아이디·비밀번호는 알림톡 발송과는 별개로 동작해서, 자유롭게 바꾸셔도 알림톡 발송에는 영향이 없습니다.</div>
+      </div>
+      ${ST.isMaster?`<div class="section-card">
+        <div class="section-ttl">👥 조교 계정 관리</div>
+        <div style="font-size:12px;color:#9BA3AF;margin-bottom:14px">조교별로 별도 아이디를 만들어주면, 이후 누가 언제 뭘 했는지 구분할 수 있게 됩니다. 조교가 직접 <strong>조교 계정 신청</strong>으로 신청하면 아래에서 승인/거절할 수 있어요.</div>
+        ${ST.taPending&&ST.taPending.length?`<div style="margin-bottom:16px;padding:12px;background:#FFF8E1;border:1.5px solid #FFE082;border-radius:10px">
+          <div style="font-size:12.5px;font-weight:700;color:#E65100;margin-bottom:8px">🔔 가입 대기 중 (${ST.taPending.length})</div>
+          ${renderTaPendingList(ST.taPending)}
+        </div>`:''}
+        ${ST.taAccounts===null?`<div style="font-size:13px;color:#9BA3AF">불러오는 중...</div>`:renderTaList(ST.taAccounts||[])}
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid #EEF0F4">
+          <div style="font-weight:700;font-size:13px;margin-bottom:10px">새 조교 추가</div>
+          <div style="margin-bottom:10px"><label class="flbl">이름</label><input class="finp" type="text" id="ta-new-name" placeholder="예: 김민지"></div>
+          <div style="margin-bottom:10px"><label class="flbl">아이디</label><input class="finp" type="text" id="ta-new-id" placeholder="영문/숫자 4자 이상"></div>
+          <div style="margin-bottom:14px"><label class="flbl">임시 비밀번호</label><input class="finp" type="password" id="ta-new-pw" placeholder="4자 이상"></div>
+          <button class="abtn abtn-blue" id="btn-ta-create">추가</button>
+          <div id="ta-create-msg" style="font-size:12px;margin-top:8px"></div>
+        </div>
+      </div>`:''}
+      <div class="section-card">
+        <div class="section-ttl">데이터 백업 / 복원</div>
+        ${backupWarn?`<div style="background:#FFF8E1;border:1.5px solid #FFE082;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#E65100;font-weight:600">
+          ⚠️ ${lastBackup?'마지막 백업: '+lastBackup+' — 7일 이상 경과했습니다.':'아직 백업을 받지 않았습니다.'} 지금 백업하세요.
+        </div>`:''}
+        <div style="font-size:12px;color:#5C6470;margin-bottom:14px;line-height:1.7">
+          전체 학교·성적·학생·설정 데이터를 JSON 파일로 내보내거나, 백업 파일을 불러와 복원합니다.<br>
+          <span style="color:#E65100;font-weight:600">복원 시 현재 데이터는 덮어씌워집니다.</span>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+          <button class="abtn abtn-blue" id="btn-backup-export" style="padding:10px 20px">JSON 백업 내보내기</button>
+          <label style="display:flex;align-items:center;gap:8px;padding:10px 20px;background:#fff;border:1.5px solid #E8ECF0;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;color:#5C6470">
+            JSON 백업 불러오기<input type="file" id="backup-import-file" accept=".json" style="display:none">
+          </label>
+        </div>
+        <div id="backup-msg" style="font-size:12px;min-height:18px"></div>
+      </div>
+    </div>
+  </div>`;}
+function renderTaList(accounts){
+  if(!accounts.length)return'<div style="font-size:13px;color:#9BA3AF">등록된 조교 계정이 없습니다.</div>';
+  return'<table style="width:100%;border-collapse:collapse;font-size:13px">'+
+    accounts.map(a=>`<tr style="border-bottom:1px solid #F0F1F5">
+      <td style="padding:8px 4px">${esc(a.name)}${a.isMaster?' <span style="color:#1A237E;font-size:11px;font-weight:700">(원장님)</span>':''}</td>
+      <td style="padding:8px 4px;font-family:monospace;color:#5C6470">${esc(a.id)}</td>
+      <td style="padding:8px 4px;text-align:right">${a.isMaster?'':`<button class="abtn abtn-gray" data-ta-reset="${esc(a.id)}" style="padding:6px 12px;font-size:12px;margin-right:6px">비번 재설정</button><button class="abtn abtn-red" data-ta-del="${esc(a.id)}" style="padding:6px 12px;font-size:12px">삭제</button>`}</td>
+    </tr>`).join('')+
+    '</table>';
+}
+async function fetchTaAccounts(){
+  try{
+    const res=await fetch('/api/admin/ta-list',{credentials:'include'});
+    const data=await res.json();
+    ST.taAccounts=data.success?data.accounts:[];
+  }catch(e){ST.taAccounts=[];}
+  render();
+}
+
+function renderTaPendingList(pending){
+  return '<table style="width:100%;border-collapse:collapse;font-size:13px">'+
+    pending.map(p=>`<tr style="border-bottom:1px solid rgba(0,0,0,0.06)">
+      <td style="padding:8px 4px">${esc(p.name)}</td>
+      <td style="padding:8px 4px;font-family:monospace;color:#5C6470">${esc(p.id)}</td>
+      <td style="padding:8px 4px;text-align:right">
+        <button class="abtn abtn-blue" data-ta-approve="${esc(p.id)}" style="padding:6px 12px;font-size:12px;margin-right:6px">승인</button>
+        <button class="abtn abtn-gray" data-ta-reject="${esc(p.id)}" style="padding:6px 12px;font-size:12px">거절</button>
+      </td>
+    </tr>`).join('')+
+    '</table>';
+}
+async function fetchTaPending(){
+  try{
+    const res=await fetch('/api/admin/ta-pending-list',{credentials:'include'});
+    const data=await res.json();
+    ST.taPending=data.success?data.pending:[];
+  }catch(e){ST.taPending=[];}
+  render();
+}
+
+function renderChangelog(){
+  return CHANGELOG.map(g=>`
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:6px">${g.date}</div>
+      <ul style="margin:0;padding-left:16px">
+        ${g.items.map(t=>`<li style="font-size:12px;color:#3A4150;line-height:1.7">${esc(t)}</li>`).join('')}
+      </ul>
+    </div>`).join('');
+}
+
+function renderTaNoticeList(){
+  if(ST.taNotices===null||ST.taNotices===undefined)return`<div style="font-size:12.5px;color:#9BA3AF;padding:6px 0">불러오는 중...</div>`;
+  const notices=ST.taNotices||[];
+  if(!notices.length)return`<div style="font-size:12.5px;color:#9BA3AF;padding:6px 0">등록된 공지사항이 없습니다.</div>`;
+  return notices.map(n=>`
+    <div style="padding:10px 0;border-bottom:1px solid #F0F1F5">
+      <div style="font-size:12.5px;color:#10192B;line-height:1.6;white-space:pre-wrap">${esc(n.text)}</div>
+      <div style="font-size:10.5px;color:#9BA3AF;margin-top:5px;display:flex;align-items:center;gap:6px">
+        <span>${esc(n.authorName||'원장님')}</span><span>·</span><span>${esc(fmtLocalDate(n.createdAt))}</span>
+        ${ST.isMaster?`<button data-ta-notice-del="${esc(n.id)}" style="margin-left:auto;background:none;border:none;color:#C4CBD6;cursor:pointer;font-size:11px" title="삭제">✕</button>`:''}
+      </div>
+    </div>`).join('');
+}
+
+async function fetchTaNotices(){
+  try{
+    const res=await fetch('/api/admin/ta-notice-list',{credentials:'include'});
+    const data=await res.json();
+    ST.taNotices=data.success?data.notices:[];
+  }catch(e){ST.taNotices=[];}
+  const wrap=document.getElementById('ta-notice-list');
+  if(wrap)wrap.innerHTML=renderTaNoticeList();
+  bindTaNoticeDeleteHandlers();
+}
+
+function bindTaNoticeDeleteHandlers(){
+  document.querySelectorAll('[data-ta-notice-del]').forEach(btn=>{
+    btn.onclick=async()=>{
+      if(!confirm('이 공지를 삭제할까요?'))return;
+      btn.disabled=true;
+      try{
+        await fetch('/api/admin/ta-notice-delete',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:btn.dataset.taNoticeDel})});
+      }catch(e){}
+      await fetchTaNotices();
+    };
+  });
+}
+
 function rLogs(sc){
   try{
     const logs=getSaveLogs(sc);
     if(!logs.length)return`<div class="section-card" style="text-align:center;padding:30px 0">
       <div style="font-size:32px;margin-bottom:10px">📋</div>
-      <div style="font-size:14px;font-weight:500;margin-bottom:6px">저장 로그가 없습니다</div>
-      <div style="font-size:12px;color:var(--tx2)">성적 저장 시 자동 기록됩니다</div>
+      <div style="font-size:14px;font-weight:500;margin-bottom:6px">활동 로그가 없습니다</div>
+      <div style="font-size:12px;color:var(--tx2)">성적 저장·지우기·복사 시 자동 기록됩니다</div>
     </div>`;
+
+    const TYPE_META={
+      save:{label:'저장',grad:'linear-gradient(135deg,#1A237E,#3949AB)',countLabel:'저장인원'},
+      clear:{label:'지우기',grad:'linear-gradient(135deg,#C62828,#E53935)',countLabel:'지운인원'},
+      copy:{label:'복사',grad:'linear-gradient(135deg,#5C6470,#8E85B0)',countLabel:'복사인원'},
+    };
 
     // 최신순 정렬
     const sorted=[...logs].reverse();
 
     return`<div style="font-size:12px;color:var(--tx2);margin-bottom:12px">
-      총 ${logs.length}회 저장 · 클릭하면 해당 주차로 이동
+      총 ${logs.length}건 · 클릭하면 해당 주차로 이동
     </div>`+
-    sorted.map((l,i)=>{
-      const wkRecs=sc.records.filter(r=>r.month===l.month&&r.week===l.week);
+    sorted.map(l=>{
+      const type=l.type||'save';
+      const meta=TYPE_META[type]||TYPE_META.save;
+      const titleText=type==='copy'?`${l.srcMonth} ${l.srcWeek} → ${l.month} ${l.week}`:`${l.month} ${l.week}`;
+      const isUndone=logs.some(e=>e.type==='undo'&&e.undoneLogId===l.id);
+      const canUndo=type!=='undo'&&Array.isArray(l.snapshot)&&l.snapshot.length>0&&!isUndone;
+      const footerRow=type==='undo'
+        ?`<div style="border-top:1px solid #F0F1F5;margin-top:10px;padding-top:10px;font-size:11.5px;color:#8E85B0;font-weight:600">↩ 되돌리기 기록</div>`
+        :canUndo
+          ?`<div style="border-top:1px solid #F0F1F5;margin-top:10px;padding-top:10px">
+              <button class="abtn abtn-gray" data-undo-log-id="${esc(l.id||'')}" style="padding:6px 14px;font-size:12px" onclick="event.stopPropagation()">↩ 되돌리기</button>
+            </div>`
+          :isUndone
+            ?`<div style="border-top:1px solid #F0F1F5;margin-top:10px;padding-top:10px;font-size:11.5px;color:#9BA3AF;font-weight:600">되돌려짐</div>`
+            :'';
       return`<div class="section-card" style="cursor:pointer;transition:box-shadow 0.15s"
         onmouseover="this.style.boxShadow='0 4px 20px rgba(26,35,126,0.15)'"
         onmouseout="this.style.boxShadow=''"
         onclick="goToWeek('${l.month}','${l.week}')">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <div style="display:flex;align-items:center;gap:10px">
-            <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#1A237E,#3949AB);display:flex;align-items:center;justify-content:center;color:#FFB300;font-size:14px;font-weight:800;flex-shrink:0">${logs.length-i}</div>
+            <div style="width:36px;height:36px;border-radius:10px;background:${meta.grad};display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:800;flex-shrink:0">${meta.label}</div>
             <div>
-              <div style="font-size:15px;font-weight:700;color:#1A237E">${l.month} ${l.week}</div>
-              <div style="font-size:11px;color:#9BA3AF;margin-top:1px">${l.savedAt}</div>
+              <div style="font-size:15px;font-weight:700;color:#1A237E">${titleText}</div>
+              <div style="font-size:11px;color:#9BA3AF;margin-top:1px">${esc(l.actorName||'관리자')}님 · ${l.savedAt}</div>
             </div>
           </div>
           <div style="text-align:right;display:flex;gap:12px;align-items:center">
             <div style="text-align:center">
-              <div style="font-size:10px;color:#9BA3AF">저장인원</div>
+              <div style="font-size:10px;color:#9BA3AF">${meta.countLabel}</div>
               <div style="font-size:16px;font-weight:700;color:#1A237E">${l.count}명</div>
             </div>
-            <div style="text-align:center;background:#FFF8E1;border-radius:8px;padding:6px 10px">
+            ${type==='save'?`<div style="text-align:center;background:#FFF8E1;border-radius:8px;padding:6px 10px">
               <div style="font-size:10px;color:#E65100">RT/WT 기준</div>
               <div style="font-size:13px;font-weight:700;color:#E65100">${l.thrRt??'-'}점 / ${l.thrWt??'-'}점</div>
-            </div>
+            </div>`:''}
             <div style="font-size:20px;color:#C4C9D4">›</div>
           </div>
         </div>
+        ${footerRow}
       </div>`;
     }).join('');
-  }catch(e){return`<div class="section-card">저장 로그를 불러올 수 없습니다.</div>`;}
+  }catch(e){return`<div class="section-card">활동 로그를 불러올 수 없습니다.</div>`;}
 }
 
 function bAdmin(){
@@ -2857,7 +3848,62 @@ function bAdmin(){
       const msg=document.getElementById('ss-msg');
       msg.textContent='✓ 저장 완료';msg.style.color='#00897B';
       setTimeout(()=>render(),600);
-    };return;
+    };
+    const adminPushBtn=document.getElementById('btn-admin-push-sub');
+    const adminPushMsg=document.getElementById('admin-push-msg');
+    if(adminPushBtn){
+      if(!isPushSupported()){
+        adminPushBtn.textContent='이 브라우저는 알림 미지원';adminPushBtn.disabled=true;
+        adminPushBtn.style.background='#E8ECF0';adminPushBtn.style.color='#9BA3AF';
+      } else {
+        navigator.serviceWorker.ready.then(reg=>reg.pushManager.getSubscription()).then(sub=>{
+          if(sub){adminPushBtn.textContent='✓ 알림 허용됨';adminPushBtn.style.background='#00897B';
+            if(adminPushMsg)adminPushMsg.textContent='학생 제안 시 이 기기로 알림이 옵니다.';}
+        });
+        adminPushBtn.onclick=async()=>{
+          adminPushBtn.disabled=true;adminPushBtn.textContent='처리 중...';
+          try{
+            const reg=await navigator.serviceWorker.ready;
+            let sub=await reg.pushManager.getSubscription();
+            if(!sub){
+              const perm=await Notification.requestPermission();
+              if(perm!=='granted')throw new Error('denied');
+              sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlB64ToUint8(VAPID_PUBLIC_KEY)});
+            }
+            await fetch('/api/subscribe',{method:'POST',headers:{'Content-Type':'application/json','x-api-token':API_AUTH_TOKEN},
+              body:JSON.stringify({studentId:'admin',schoolId:sc.id,subscription:sub.toJSON()})});
+            adminPushBtn.textContent='✓ 알림 허용됨';adminPushBtn.style.background='#00897B';
+            if(adminPushMsg){adminPushMsg.textContent='완료! 학생 제안 시 알림이 옵니다.';adminPushMsg.style.color='#00897B';}
+          }catch(e){
+            adminPushBtn.textContent='🔔 알림 허용하기';adminPushBtn.disabled=false;
+            if(adminPushMsg){adminPushMsg.textContent='허용이 거부되었거나 실패했습니다.';adminPushMsg.style.color='#E53935';}
+          }
+        };
+      }
+    }
+    document.getElementById('btn-migrate-avg')?.addEventListener('click',()=>{
+      const sc2=curSch();
+      const weekCnt=[...new Set(sc2.records.map(r=>r.month+'_'+r.week))].length;
+      if(!confirm(`[${sc2.name}] 전체 반평균을 재계산합니다.\n\n• ${sc2.records.length}건의 성적 레코드 (${weekCnt}주차) 재계산\n• RT, WT 중 하나라도 비어있는 학생은 전체 반평균에서 제외\n\n계속하시겠습니까?`))return;
+      migrateAvgs(sc2);
+      const msg2=document.getElementById('migrate-avg-msg');
+      if(msg2){msg2.textContent=`✓ ${weekCnt}주차 반평균 재계산 완료.`;msg2.style.color='#00897B';}
+    });
+    document.getElementById('btn-new-semester')?.addEventListener('click',()=>{
+      const sc2=curSch();
+      const recCnt=sc2.records.length;
+      if(!confirm(`[${sc2.name}] 새 학기를 시작합니다.\n\n• 성적 기록 ${recCnt}건이 모두 삭제됩니다.\n• 신규·전입 학생은 재학생으로 전환됩니다.\n• 학생 목록과 설정은 유지됩니다.\n\n반드시 먼저 JSON 백업을 받아두세요!\n\n계속하시겠습니까?`))return;
+      sc2.records=[];
+      sc2.students=sc2.students.map(s=>({...s,type:'regular'}));
+      sc2.notices={};
+      if(!sc2.hwNames)sc2.hwNames={};
+      sc2.hwNames={};
+      saveDB();
+      const msg3=document.getElementById('semester-msg');
+      if(msg3){msg3.textContent='✓ 새 학기 시작 완료. 성적 기록이 초기화되었습니다.';msg3.style.color='#00897B';}
+      setTimeout(()=>render(),1200);
+    });
+    return;
   }
   if(ST.atab==='notices'){
     document.getElementById('btn-nc-save').onclick=()=>{
@@ -2888,12 +3934,14 @@ function bAdmin(){
       const pw=document.getElementById('ns-pw').value.trim();
       const msg=document.getElementById('ns-msg');
       if(!name||!id||!pw){msg.textContent='필수 항목을 입력하세요';msg.style.color='#E53935';return;}
+      if(!/^\d+$/.test(pw)){msg.textContent='비밀번호는 숫자만 입력할 수 있습니다';msg.style.color='#E53935';return;}
       if(DB.schools.some(s=>s.students.some(st=>st.id.toLowerCase()===id.toLowerCase()))){msg.textContent='이미 사용 중인 ID입니다';msg.style.color='#E53935';return;}
       const sType=document.getElementById('ns-type')?.value||'regular';
       const today=new Date().toISOString().slice(0,10);
       const newSt={id,name,pwd:pw,phone:document.getElementById('ns-ph').value,parentPhone:document.getElementById('ns-pph').value,type:sType,reason:document.getElementById('ns-reason')?.value.trim()||'',highSchool:document.getElementById('ns-hs')?.value.trim()||'',createdAt:today};
       sc.students.push(newSt);
-      saveDB();msg.textContent=`✓ ${name} 추가 완료!`;msg.style.color='#00897B';render();
+      ST.suggestedStudentId=undefined;
+      saveDB({dirtyStudentIds:new Set([newSt.id])});msg.textContent=`✓ ${name} 추가 완료!`;msg.style.color='#00897B';render();
       // 카카오 ID/비번 발송은 강제하지 않고 선택 — "취소"하면 나중에 일괄 발송으로 보낼 수 있음
       if((newSt.parentPhone||newSt.phone) && confirm(`${name} 학생 등록 완료!\n\n지금 바로 카카오 알림톡(ID/비번)을 보낼까요?\n\n"취소"를 누르면 지금은 보내지 않고, 나중에 "ID/비번 일괄 발송"에서 한 번에 보낼 수 있습니다.`)){
         sendPpurioIdPw(sc,newSt);
@@ -2907,14 +3955,17 @@ function bAdmin(){
       const msg=document.getElementById('csv-msg');
       if(!fi||!fi.files[0]){msg.textContent='CSV 파일을 먼저 선택해주세요';msg.style.color='#E53935';return;}
       const reader=new FileReader();
-      reader.onload=e=>{
+      reader.onload=async e=>{
         try{
           const parsed=parseCSV(e.target.result);
-          if(!parsed.length){msg.textContent='등록할 데이터가 없습니다';msg.style.color='#E53935';return;}
+          const validRows=parsed.filter(p=>p.name);
+          if(!validRows.length){msg.textContent='등록할 데이터가 없습니다';msg.style.color='#E53935';return;}
+          const ids=await nextStudentIds(validRows.length);
           const today=new Date().toISOString().slice(0,10);
           let added=0;
-          parsed.forEach(p=>{if(!p.name)return;const newId=nextStudentId(sc);sc.students.push({id:newId,name:p.name,pwd:'1234',phone:p.phone||'',parentPhone:p.parentPhone||'',type:p.type||'regular',highSchool:p.highSchool||'',createdAt:today});added++;});
-          saveDB();msg.textContent=`✓ ${added}명 등록 완료`;msg.style.color='#00897B';setTimeout(()=>render(),800);
+          validRows.forEach((p,i)=>{sc.students.push({id:ids[i],name:p.name,pwd:String(Math.floor(1000+Math.random()*9000)),phone:p.phone||'',parentPhone:p.parentPhone||'',type:p.type||'regular',highSchool:p.highSchool||'',createdAt:today});added++;});
+          ST.suggestedStudentId=undefined;
+          saveDB({dirtyStudentIds:new Set(ids)});msg.textContent=`✓ ${added}명 등록 완료`;msg.style.color='#00897B';setTimeout(()=>render(),800);
         }catch(err){msg.textContent='오류: '+err.message;msg.style.color='#E53935';}
       };
       reader.readAsText(fi.files[0],'UTF-8');
@@ -2926,6 +3977,21 @@ function bAdmin(){
       const ids=[...document.querySelectorAll('.stu-select:checked')].map(c=>c.dataset.sid);
       if(!ids.length)return;
       sendPpurioSelectedIdPw(sc, ids);
+    });
+    document.getElementById('btn-withdraw-selected')?.addEventListener('click',()=>{
+      const ids=[...document.querySelectorAll('.stu-select:checked')].map(c=>c.dataset.sid);
+      if(!ids.length)return;
+      const names=ids.map(id=>sc.students.find(s=>s.id===id)?.name||id);
+      if(!confirm(`선택한 ${ids.length}명을 탈퇴 처리합니다.\n\n${names.join(', ')}\n\n학생 목록에서 제외되고 "탈퇴 학생" 게시판으로 이동합니다. 성적 기록은 그대로 보존되며, 언제든 복구할 수 있습니다.\n\n계속하시겠습니까?`))return;
+      sc.withdrawnStudents=sc.withdrawnStudents||[];
+      ids.forEach(id=>{
+        const s=sc.students.find(x=>x.id===id);
+        if(!s)return;
+        sc.withdrawnStudents.push({...s,withdrawReason:'일괄 탈퇴처리',withdrawnAt:nowStr()});
+      });
+      sc.students=sc.students.filter(x=>!ids.includes(x.id));
+      saveDB({deletedStudentIds:new Set(ids),dirtyWithdrawnIds:new Set(ids)});
+      render();
     });
     document.getElementById('stu-search').oninput=e=>{ST.stuSearch=e.target.value;renderStudentTable(sc);};
     document.getElementById('stu-filter-type').onchange=e=>{ST.stuFilterType=e.target.value;renderStudentTable(sc);};
@@ -2947,7 +4013,7 @@ function bAdmin(){
         const [s]=sc.withdrawnStudents.splice(idx,1);
         delete s.withdrawReason;delete s.withdrawnAt;
         sc.students.push(s);
-        saveDB();render();
+        saveDB({deletedWithdrawnIds:new Set([s.id]),dirtyStudentIds:new Set([s.id])});render();
       };
     });
     document.querySelectorAll('[data-perm-del-id]').forEach(b=>{
@@ -2955,9 +4021,10 @@ function bAdmin(){
         const s=(sc.withdrawnStudents||[]).find(x=>x.id===b.dataset.permDelId);
         if(!s)return;
         if(!confirm(`${s.name} 학생을 완전히 삭제할까요?\n이 작업은 되돌릴 수 없으며, 성적 기록도 함께 삭제됩니다.`))return;
+        const affectedKeys=new Set(sc.records.filter(x=>x.sid===s.id).map(r=>r.sid+'|'+r.month+'|'+r.week));
         sc.withdrawnStudents=sc.withdrawnStudents.filter(x=>x.id!==s.id);
         sc.records=sc.records.filter(x=>x.sid!==s.id);
-        saveDB();render();
+        saveDB({deletedWithdrawnIds:new Set([s.id]),deletedKeys:affectedKeys});render();
       };
     });
     return;
@@ -2969,9 +4036,45 @@ function bAdmin(){
     document.getElementById('att-next')?.addEventListener('click',()=>{
       const i=MONTHS.indexOf(ST.attMon||curMonWk().mon);if(i<MONTHS.length-1){ST.attMon=MONTHS[i+1];render();}
     });
+    // 체크할 때마다 바로 저장하지 않고 sc.records에만 반영 + dirty로 표시해두고,
+    // "저장하기"를 눌렀을 때 한 번에 저장한다(달을 옮겨도 sc.records에 남아있어 안 사라짐).
+    // 학생이 많으면 아래 버튼까지 스크롤해야 해서, 위쪽 헤더에도 같은 버튼을 하나 더 두고
+    // 두 버튼/두 메시지 영역을 항상 같이 갱신한다.
+    const attSaveBtnIds=['btn-att-save-top','btn-att-save'];
+    const attMsgIds=['att-save-msg-top','att-save-msg'];
+    const updateAttSaveBtn=()=>{
+      const n=ST.attDirty?ST.attDirty.size:0;
+      attSaveBtnIds.forEach(id=>{
+        const btn=document.getElementById(id);
+        if(btn)btn.textContent=n?`💾 저장하기 (${n}건 변경됨)`:'💾 저장하기';
+      });
+    };
     document.querySelectorAll('[data-att-sid]').forEach(sel=>{
-      bindAttSelect(sel, sc, sel.dataset.attSid, ST.attMon||curMonWk().mon, sel.dataset.attWk);
+      const sid=sel.dataset.attSid, wk=sel.dataset.attWk, mon=ST.attMon||curMonWk().mon;
+      bindAttSelectDraft(sel, val=>{
+        let rec=sc.records.find(r=>r.sid===sid&&r.month===mon&&r.week===wk);
+        if(!rec){rec={sid,month:mon,week:wk,rtSkip:false,rtScore:null,wtSkip:false,wtScore:null,totalScore:null,comment:'',hw1:'',hw2:'',homework:'',retestTime:''};sc.records.push(rec);}
+        rec.attendType=val||'';
+        ST.attDirty=ST.attDirty||new Set();
+        ST.attDirty.add(sid+'|'+mon+'|'+wk);
+        updateAttSaveBtn();
+      });
     });
+    const doAttSave=async()=>{
+      const dirty=ST.attDirty;
+      if(!dirty||!dirty.size){
+        attMsgIds.forEach(id=>{const m=document.getElementById(id);if(m){m.textContent='변경된 내용이 없습니다';m.style.color='#9BA3AF';}});
+        return;
+      }
+      attSaveBtnIds.forEach(id=>{const b=document.getElementById(id);if(b)b.disabled=true;});
+      attMsgIds.forEach(id=>{const m=document.getElementById(id);if(m){m.textContent='저장 중...';m.style.color='#9BA3AF';}});
+      await saveDB({dirtyKeys:new Set(dirty)});
+      ST.attDirty=new Set();
+      attSaveBtnIds.forEach(id=>{const b=document.getElementById(id);if(b)b.disabled=false;});
+      updateAttSaveBtn();
+      attMsgIds.forEach(id=>{const m=document.getElementById(id);if(m){m.textContent='✓ 저장 완료'+(ST.serverAdminSession?' (서버 반영 확인됨)':'');m.style.color='#00897B';}});
+    };
+    attSaveBtnIds.forEach(id=>{document.getElementById(id)?.addEventListener('click',doAttSave);});
     document.querySelectorAll('[data-goto-student]').forEach(b=>{
       b.onclick=()=>{
         const s=sc.students.find(x=>x.id===b.dataset.gotoStudent);if(!s)return;
@@ -3060,164 +4163,21 @@ function bAdmin(){
     });
     return;
   }
-  if(ST.atab==='admin-settings'){
-    const adminPushBtn=document.getElementById('btn-admin-push-sub');
-    const adminPushMsg=document.getElementById('admin-push-msg');
-    if(adminPushBtn){
-      if(!isPushSupported()){
-        adminPushBtn.textContent='이 브라우저는 알림 미지원';adminPushBtn.disabled=true;
-        adminPushBtn.style.background='#E8ECF0';adminPushBtn.style.color='#9BA3AF';
-      } else {
-        navigator.serviceWorker.ready.then(reg=>reg.pushManager.getSubscription()).then(sub=>{
-          if(sub){adminPushBtn.textContent='✓ 알림 허용됨';adminPushBtn.style.background='#00897B';
-            if(adminPushMsg)adminPushMsg.textContent='학생 제안 시 이 기기로 알림이 옵니다.';}
-        });
-        adminPushBtn.onclick=async()=>{
-          adminPushBtn.disabled=true;adminPushBtn.textContent='처리 중...';
-          try{
-            const reg=await navigator.serviceWorker.ready;
-            let sub=await reg.pushManager.getSubscription();
-            if(!sub){
-              const perm=await Notification.requestPermission();
-              if(perm!=='granted')throw new Error('denied');
-              sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlB64ToUint8(VAPID_PUBLIC_KEY)});
-            }
-            await fetch('/api/subscribe',{method:'POST',headers:{'Content-Type':'application/json','x-api-token':API_AUTH_TOKEN},
-              body:JSON.stringify({studentId:'admin',schoolId:sc.id,subscription:sub.toJSON()})});
-            adminPushBtn.textContent='✓ 알림 허용됨';adminPushBtn.style.background='#00897B';
-            if(adminPushMsg){adminPushMsg.textContent='완료! 학생 제안 시 알림이 옵니다.';adminPushMsg.style.color='#00897B';}
-          }catch(e){
-            adminPushBtn.textContent='🔔 알림 허용하기';adminPushBtn.disabled=false;
-            if(adminPushMsg){adminPushMsg.textContent='허용이 거부되었거나 실패했습니다.';adminPushMsg.style.color='#E53935';}
-          }
-        };
-      }
-    }
-    document.getElementById('btn-aid-save')?.addEventListener('click',async()=>{
-      const cur=document.getElementById('aid-cur')?.value;const nwRaw=document.getElementById('aid-new')?.value||'';
-      const nw=nwRaw.trim().toLowerCase();
-      const msg=document.getElementById('aid-msg');
-      if(!nw||nw.length<4){msg.textContent='4자 이상 입력하세요';msg.style.color='#E53935';return;}
-      if(/\s/.test(nw)){msg.textContent='공백 없이 입력하세요';msg.style.color='#E53935';return;}
-      if(ST.serverAdminSession){
-        try{
-          const res=await fetch('/api/admin/credentials',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({currentPw:cur,newId:nw})});
-          const data=await res.json();
-          if(!res.ok||!data.success){msg.textContent=data.message||'변경 실패';msg.style.color='#E53935';return;}
-        }catch(e){msg.textContent='오류: '+e.message;msg.style.color='#E53935';return;}
-      } else {
-        if(cur!==ADMIN_PWD){msg.textContent='현재 비밀번호가 틀렸습니다';msg.style.color='#E53935';return;}
-        ADMIN_ID=nw;saveDB();
-      }
-      msg.textContent='✓ 변경 완료';msg.style.color='#00897B';
-      setTimeout(()=>render(),600);
-    });
-    document.getElementById('btn-apw-save')?.addEventListener('click',async()=>{
-      const cur=document.getElementById('apw-cur')?.value;const nw=document.getElementById('apw-new')?.value;const con=document.getElementById('apw-con')?.value;
-      const msg=document.getElementById('apw-msg');
-      if(!nw||nw.length<4){msg.textContent='4자 이상 입력하세요';msg.style.color='#E53935';return;}
-      if(nw!==con){msg.textContent='비밀번호가 일치하지 않습니다';msg.style.color='#E53935';return;}
-      if(ST.serverAdminSession){
-        try{
-          const res=await fetch('/api/admin/credentials',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({currentPw:cur,newPw:nw})});
-          const data=await res.json();
-          if(!res.ok||!data.success){msg.textContent=data.message||'변경 실패';msg.style.color='#E53935';return;}
-        }catch(e){msg.textContent='오류: '+e.message;msg.style.color='#E53935';return;}
-      } else {
-        if(cur!==ADMIN_PWD){msg.textContent='현재 비밀번호가 틀렸습니다';msg.style.color='#E53935';return;}
-        ADMIN_PWD=nw;saveDB();
-      }
-      msg.textContent='✓ 변경 완료';msg.style.color='#00897B';
-    });
-    // 새 학기 시작
-    document.getElementById('btn-migrate-avg')?.addEventListener('click',()=>{
-      const sc2=curSch();
-      const weekCnt=[...new Set(sc2.records.map(r=>r.month+'_'+r.week))].length;
-      if(!confirm(`[${sc2.name}] 전체 반평균을 재계산합니다.\n\n• ${sc2.records.length}건의 성적 레코드 (${weekCnt}주차) 재계산\n• RT, WT 중 하나라도 비어있는 학생은 전체 반평균에서 제외\n\n계속하시겠습니까?`))return;
-      migrateAvgs(sc2);
-      const msg=document.getElementById('migrate-avg-msg');
-      if(msg){msg.textContent=`✓ ${weekCnt}주차 반평균 재계산 완료.`;msg.style.color='#00897B';}
-    });
-    document.getElementById('btn-new-semester')?.addEventListener('click',()=>{
-      const sc2=curSch();
-      const recCnt=sc2.records.length;
-      if(!confirm(`[${sc2.name}] 새 학기를 시작합니다.\n\n• 성적 기록 ${recCnt}건이 모두 삭제됩니다.\n• 신규·전입 학생은 재학생으로 전환됩니다.\n• 학생 목록과 설정은 유지됩니다.\n\n반드시 먼저 JSON 백업을 받아두세요!\n\n계속하시겠습니까?`))return;
-      sc2.records=[];
-      sc2.students=sc2.students.map(s=>({...s,type:'regular'}));
-      sc2.notices={};
-      if(!sc2.hwNames)sc2.hwNames={};
-      sc2.hwNames={};
-      saveDB();
-      const msg=document.getElementById('semester-msg');
-      if(msg){msg.textContent='✓ 새 학기 시작 완료. 성적 기록이 초기화되었습니다.';msg.style.color='#00897B';}
-      setTimeout(()=>render(),1200);
-    });
-    // 백업 내보내기
-    document.getElementById('btn-backup-export')?.addEventListener('click',()=>{
-      const payload = JSON.stringify({...DB, adminPwd:ADMIN_PWD, adminId:ADMIN_ID, exportedAt: nowStr()}, null, 2);
-      const blob = new Blob([payload], {type:'application/json'});
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `oheng_backup_${new Date().toISOString().slice(0,10)}.json`;
-      a.click(); URL.revokeObjectURL(a.href);
-      localStorage.setItem('oheng_last_backup', new Date().toISOString().slice(0,16).replace('T',' '));
-    });
-    // 서버로 업로드 (마이그레이션)
-    document.getElementById('btn-server-migrate')?.addEventListener('click', async ()=>{
-      const btn = document.getElementById('btn-server-migrate');
-      const msg = document.getElementById('server-migrate-msg');
-      const payload = {...DB, adminPwd:ADMIN_PWD, adminId:ADMIN_ID, exportedAt: nowStr()};
-      btn.disabled = true; msg.style.color = '#5C6470'; msg.textContent = '확인 중...';
-      try{
-        const dryRes = await fetch('/api/admin/migrate?dryRun=1', {
-          method:'POST', headers:{'Content-Type':'application/json','x-api-token':API_AUTH_TOKEN},
-          body: JSON.stringify(payload)
-        });
-        const dry = await dryRes.json();
-        if(!dryRes.ok||!dry.success) throw new Error(dry.message||'확인 실패');
-        if(!confirm(`학교 ${dry.schoolsFound}개, 학생 ${dry.studentsFound}명을 서버에 업로드합니다.\n비밀번호는 암호화되어 저장됩니다.\n계속하시겠습니까?`)){
-          msg.textContent=''; btn.disabled=false; return;
-        }
-        msg.textContent = '업로드 중...';
-        const res = await fetch('/api/admin/migrate', {
-          method:'POST', headers:{'Content-Type':'application/json','x-api-token':API_AUTH_TOKEN},
-          body: JSON.stringify(payload)
-        });
-        const result = await res.json();
-        if(!res.ok||!result.success) throw new Error(result.message||'업로드 실패');
-        msg.textContent = `✓ 학교 ${result.schoolsImported}개, 학생 ${result.studentsHashed}명 업로드 완료`;
-        msg.style.color = '#00897B';
-      } catch(err){
-        msg.textContent = '오류: ' + err.message; msg.style.color = '#E53935';
-      } finally {
-        btn.disabled = false;
-      }
-    });
-    // 백업 불러오기
-    document.getElementById('backup-import-file')?.addEventListener('change', e=>{
-      const f = e.target.files[0]; if(!f) return;
-      const msg = document.getElementById('backup-msg');
-      const reader = new FileReader();
-      reader.onload = ev => {
-        try{
-          const parsed = JSON.parse(ev.target.result);
-          if(!parsed.schools||!Array.isArray(parsed.schools)) throw new Error('올바른 백업 파일이 아닙니다');
-          if(!confirm(`백업 파일(${f.name})을 복원합니다.\n현재 모든 데이터가 덮어씌워집니다.\n계속하시겠습니까?`)) return;
-          DB = {schools: parsed.schools};
-          if(parsed.adminPwd) ADMIN_PWD = parsed.adminPwd;
-          if(parsed.adminId) ADMIN_ID = parsed.adminId;
-          saveDB();
-          msg.textContent = '✓ 복원 완료. 새로고침합니다...'; msg.style.color = '#00897B';
-          setTimeout(()=>render(), 1200);
-        } catch(err){
-          msg.textContent = '오류: ' + err.message; msg.style.color = '#E53935';
-        }
+  if(ST.atab==='logs'){
+    document.querySelectorAll('[data-undo-log-id]').forEach(b=>{
+      b.onclick=(e)=>{
+        e.stopPropagation();
+        const logId=b.dataset.undoLogId;
+        const entry=(sc.saveLogs||[]).find(l=>l.id===logId);
+        if(!entry)return;
+        const typeLabel={save:'저장',clear:'지우기',copy:'복사'}[entry.type]||entry.type;
+        if(!confirm(`${entry.count}명의 ${typeLabel} 내용을 ${entry.savedAt} 상태로 되돌립니다.\n\n그 이후 이 주차에 다른 변경이 있었다면 그 변경도 함께 사라질 수 있습니다.\n\n계속하시겠습니까?`))return;
+        undoActionLog(sc,entry);
+        render();
       };
-      reader.readAsText(f, 'UTF-8');
     });
     return;
   }
-  if(ST.atab==='logs'){return;}
   if(ST.atab==='suggestions'){
     document.querySelectorAll('[data-sug-filter]').forEach(btn=>{
       btn.onclick=()=>{ST._sugCat=btn.dataset.sugFilter;render();};
@@ -3278,7 +4238,7 @@ function bAdmin(){
       if(!confirm('모든 발송 이력을 삭제할까요?')) return;
       if(ST.serverAdminSession){
         sc.sendLogs=[];
-        fetch('/api/admin/clear-send-logs',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({schoolId:sc.id})}).catch(()=>{});
+        queueSchoolWrite(()=>fetch('/api/admin/clear-send-logs',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({schoolId:sc.id})}).catch(()=>{}));
       } else {
         localStorage.removeItem('oheng_sendlogs_'+sc.id);
       }
@@ -3308,6 +4268,18 @@ function bAdmin(){
     bkWkEl?.addEventListener('change',checkWeekMatch);
   })();
   const exportScoresBtn=document.getElementById('btn-export-scores');if(exportScoresBtn)exportScoresBtn.onclick=()=>exportScoresExcel(sc);
+  document.getElementById('btn-copy-week').onclick=()=>{
+    const curMon=ST.bMon||curMonWk().mon,curWk=ST.bWk||curMonWk().wk;
+    showCopyWeekPopup(sc,curMon,curWk);
+  };
+  document.getElementById('btn-clear-week').onclick=()=>{
+    const curMon=ST.bMon||curMonWk().mon,curWk=ST.bWk||curMonWk().wk;
+    const cnt=sc.records.filter(r=>r.month===curMon&&r.week===curWk&&(r.rtScore!=null||r.wtScore!=null||r.retestTime||r.hw1||r.hw2||r.comment||r.attendType)).length;
+    if(!cnt){alert(`${curMon} ${curWk}에 지울 내용이 없습니다.`);return;}
+    if(!confirm(`${curMon} ${curWk}에 입력된 내용(성적·숙제·코멘트·출석)을 전부 지웁니다. (${cnt}명 대상)\n\n이 작업은 되돌릴 수 없습니다.\n\n계속하시겠습니까?`))return;
+    clearWeekScores(sc,curMon,curWk);
+    render();
+  };
   const hwSaveBtn=document.getElementById('btn-hw-name-save');
   if(hwSaveBtn){hwSaveBtn.onclick=()=>{
     const h1=(document.getElementById('hw1-name')?.value||'').trim()||'숙제1';
@@ -3370,7 +4342,7 @@ function bAdmin(){
   document.getElementById('thr-rt')?.addEventListener('input',()=>{recalc();scheduleDraftSave();});
   document.getElementById('thr-wt')?.addEventListener('input',()=>{recalc();scheduleDraftSave();});
   document.querySelectorAll('.att-sel').forEach(sel=>{
-    bindAttSelect(sel, sc, sel.dataset.sid, ST.bMon||curMonWk().mon, ST.bWk||curMonWk().wk);
+    bindAttSelectDraft(sel);
   });
   recalc();
   document.getElementById('btn-save').onclick=async()=>{
@@ -3400,14 +4372,13 @@ function bAdmin(){
     const totSorted=[...totItems].filter(x=>x.v!==null).sort((a,b)=>b.v-a.v);let trk=1;totSorted.forEach((s,i)=>{if(i>0&&totSorted[i-1].v===s.v)s.rank=totSorted[i-1].rank;else{s.rank=trk;}trk++;});
     const totRankMap=Object.fromEntries(totSorted.map(s=>[s.sid,s.rank]));
     const totValMap=Object.fromEntries(totItems.map(s=>[s.sid,s.v]));
-    let saved=0;const savedSids=[];
+    let saved=0;const savedSids=[];const snapshot=[];
     rows.forEach(r=>{
       const sid=r.dataset.sid;if(!sid)return;
       const existingIdx=sc.records.findIndex(x=>x.sid===sid&&x.month===mon&&x.week===wk);
       const existingComment=existingIdx>=0?(sc.records[existingIdx].comment||''):'';
-      // 인강/현강 체크(attendType)는 성적과 별개로 관리되므로, 성적 저장 시 기존 값을 그대로 보존한다.
-      // (예전엔 이 값을 새 rec에 옮기지 않아 성적을 저장할 때마다 인강/현강 체크가 초기화되는 버그가 있었음)
-      const existingAttendType=existingIdx>=0?(sc.records[existingIdx].attendType||''):'';
+      const wasNew=existingIdx<0;
+      snapshot.push({sid,wasNew,fields:wasNew?{}:snapshotRecord(sc.records[existingIdx])});
       const rsk=r.dataset.rtskip==='1';const wsk=r.dataset.wtskip==='1';
       const rtv=parseFloat(r.querySelector('.inp-rt').value);const wtv=parseFloat(r.querySelector('.inp-wt').value);
       const rec={sid,month:mon,week:wk,thrRt,thrWt,
@@ -3422,16 +4393,18 @@ function bAdmin(){
         homework:r.querySelector('.inp-hw1')?.value||'',
         hwName1:(()=>{const _k=mon+'_'+wk;return sc.hwNames&&sc.hwNames[_k]?sc.hwNames[_k].hw1:sc.hw1||'숙제1';})(),
         hwName2:(()=>{const _k=mon+'_'+wk;return sc.hwNames&&sc.hwNames[_k]?sc.hwNames[_k].hw2:sc.hw2||'숙제2';})(),
-        retestTime:r.querySelector('.inp-rt2').value,comment:existingComment,attendType:existingAttendType};
+        retestTime:r.querySelector('.inp-rt2').value,comment:existingComment,
+        attendType:r.querySelector('.att-sel')?.value||''};
       if(existingIdx>=0)sc.records[existingIdx]=rec;else sc.records.push(rec);saved++;savedSids.push(sid);
     });
-    addLog(sc,mon,wk,saved,thrRt,thrWt);
-    await saveDB();
+    addLog(sc,mon,wk,saved,thrRt,thrWt,snapshot);
+    const dirtyKeys=new Set(savedSids.map(sid=>sid+'|'+mon+'|'+wk));
+    await saveDB({dirtyKeys});
     clearDraft(sc,mon,wk);
     ST._dirty=false;
     saveBtn.disabled=false;
     const srEl=document.getElementById('saved-result-table');
-    if(srEl){srEl.innerHTML=renderSavedTable(sc,mon,wk);srEl.querySelectorAll('[data-dr]').forEach(function(b){b.onclick=function(){sc.records.splice(parseInt(b.dataset.dr),1);saveDB();srEl.innerHTML=renderSavedTable(sc,ST.bMon,ST.bWk);wireCommentBtns(srEl,sc);};});wireCommentBtns(srEl,sc);}
+    if(srEl){srEl.innerHTML=renderSavedTable(sc,mon,wk);srEl.querySelectorAll('[data-dr]').forEach(function(b){b.onclick=function(){const _i=parseInt(b.dataset.dr);const _r=sc.records[_i];sc.records.splice(_i,1);saveDB(_r?{deletedKeys:new Set([_r.sid+'|'+_r.month+'|'+_r.week])}:undefined);srEl.innerHTML=renderSavedTable(sc,ST.bMon,ST.bWk);wireCommentBtns(srEl,sc);};});wireCommentBtns(srEl,sc);}
     renderScoreDropAlert(sc, mon, wk);
     const msg=document.getElementById('save-msg');
     msg.innerHTML=`✓ ${saved}명 저장 완료${ST.serverAdminSession?'(서버 반영 확인됨)':''} &nbsp;<span style="color:#E65100;font-weight:700;cursor:pointer;text-decoration:underline" onclick="const b=document.getElementById('btn-ppurio-notify');if(b){b.scrollIntoView({behavior:'smooth',block:'center'});b.style.outline='3px solid #FFB300';setTimeout(()=>b.style.outline='',2000);}">💬 알림톡 발송 →</span>`;
@@ -3439,7 +4412,7 @@ function bAdmin(){
     pushStudents(sc,savedSids,'📊 성적이 등록됐어요',`${mon} ${wk} 성적을 확인해보세요`,'/');
     recalc();
   };
-  document.querySelectorAll('[data-dr]').forEach(b=>{b.onclick=()=>{sc.records.splice(parseInt(b.dataset.dr),1);saveDB();const se=document.getElementById('saved-result-table');if(se){se.innerHTML=renderSavedTable(sc,ST.bMon,ST.bWk);wireCommentBtns(se,sc);}};});
+  document.querySelectorAll('[data-dr]').forEach(b=>{b.onclick=()=>{const _i=parseInt(b.dataset.dr);const _r=sc.records[_i];sc.records.splice(_i,1);saveDB(_r?{deletedKeys:new Set([_r.sid+'|'+_r.month+'|'+_r.week])}:undefined);const se=document.getElementById('saved-result-table');if(se){se.innerHTML=renderSavedTable(sc,ST.bMon,ST.bWk);wireCommentBtns(se,sc);}};});
   const savedTblEl=document.getElementById('saved-result-table');
   if(savedTblEl)wireCommentBtns(savedTblEl,sc);
   const ppurioNotifyBtn=document.getElementById('btn-ppurio-notify');
@@ -3577,6 +4550,7 @@ function renderSavedTable(sc,mon,wk){
       +'<td style="font-size:12px">'+hw2Val+'</td>'
       +'<td style="white-space:nowrap;display:flex;gap:4px">'
       +'<button class="abtn" data-cm="'+gi+'" style="'+(r.comment?'background:#1A237E;color:#fff;border-color:#1A237E':'')+'" title="선생님 코멘트">💬</button>'
+      +'<button class="abtn" data-preview="'+r.sid+'" title="학생 성적표 보기">👁️</button>'
       +'<button class="abtn abtn-red" data-dr="'+gi+'">삭제</button></td>'
       +'</tr>';
   });
@@ -3599,11 +4573,14 @@ function wireCommentBtns(root,sc){
       const val=prompt('선생님 코멘트 (성적표에 표시됩니다, 비워두면 숨김)',rec.comment||'');
       if(val===null)return;
       rec.comment=val.trim();
-      saveDB();
+      saveDB({dirtyKeys:new Set([rec.sid+'|'+rec.month+'|'+rec.week])});
       root.innerHTML=renderSavedTable(sc,rec.month,rec.week);
       wireCommentBtns(root,sc);
-      root.querySelectorAll('[data-dr]').forEach(db=>{db.onclick=()=>{sc.records.splice(parseInt(db.dataset.dr),1);saveDB();root.innerHTML=renderSavedTable(sc,ST.bMon,ST.bWk);wireCommentBtns(root,sc);};});
+      root.querySelectorAll('[data-dr]').forEach(db=>{db.onclick=()=>{const _i=parseInt(db.dataset.dr);const _r=sc.records[_i];sc.records.splice(_i,1);saveDB(_r?{deletedKeys:new Set([_r.sid+'|'+_r.month+'|'+_r.week])}:undefined);root.innerHTML=renderSavedTable(sc,ST.bMon,ST.bWk);wireCommentBtns(root,sc);};});
     };
+  });
+  root.querySelectorAll('[data-preview]').forEach(b=>{
+    b.onclick=()=>openReportPreview(sc,b.dataset.preview);
   });
   // 체크박스로 고른 학생만 골라 성적 알림 발송 — "전체 선택" 헤더 체크박스와 연동
   const selectedBtn=document.getElementById('btn-ppurio-notify-selected');
@@ -3628,6 +4605,61 @@ function wireCommentBtns(root,sc){
   updateSelectedBtn();
 }
 
+// 선생님이 "저장 결과" 표에서 학생을 직접 골라 실제 학생용 성적표(rReport)를 그대로 미리보기.
+// rReport()는 ST.user/ST.userSchool/ST.vMon/ST.vWk를 읽는 순수 템플릿 함수라, 팝업이 열려있는
+// 동안만 이 값들을 대상 학생으로 바꿔두고 팝업을 닫을 때 원래 값(관리자 화면에서는 보통 비어있음)
+// 으로 되돌린다. ST.role은 그대로 'admin'이라 팝업이 떠있는 동안 배경의 render()가 다시 불려도
+// rAdmin() 경로 그대로라 이 값들과는 무관 — 화면이 깨질 위험 없음.
+function openReportPreview(sc,sid){
+  const s=sc.students.find(x=>x.id===sid);
+  if(!s)return;
+  if(!sRecs(sid,sc).length){alert(`${s.name} 학생은 아직 등록된 성적이 없습니다.`);return;}
+
+  const prevUser=ST.user,prevUserSchool=ST.userSchool,prevVMon=ST.vMon,prevVWk=ST.vWk;
+  ST.user=s;ST.userSchool=sc;ST.vMon=null;ST.vWk=null;
+
+  const popup=document.createElement('div');
+  popup.className='report-preview-popup';
+  popup.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  popup.innerHTML=`
+    <div style="background:#F7F9FC;border-radius:18px;max-width:480px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.25)">
+      <div style="position:sticky;top:0;background:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;border-bottom:1.5px solid #E8ECF0;border-radius:18px 18px 0 0;z-index:1">
+        <div style="font-size:14px;font-weight:800;color:#1A237E">👁️ ${esc(s.name)} 학생 성적표 미리보기</div>
+        <button class="btn-close-preview" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9BA3AF">✕</button>
+      </div>
+      <div id="report-preview-body"></div>
+    </div>`;
+  document.body.appendChild(popup);
+
+  const close=()=>{ST.user=prevUser;ST.userSchool=prevUserSchool;ST.vMon=prevVMon;ST.vWk=prevVWk;popup.remove();};
+  popup.querySelector('.btn-close-preview').onclick=close;
+  popup.onclick=e=>{if(e.target===popup)close();};
+
+  const body=popup.querySelector('#report-preview-body');
+  const renderInto=()=>{
+    const curRecs=sRecs(sid,sc);
+    body.innerHTML=rReport(curRecs);
+    const opts0=curRecs.map(r=>`${r.month} ${r.week}`);
+    const wp=body.querySelector('#wk-pick');
+    if(wp)wp.onchange=()=>{const[m,w]=wp.value.split(' ');ST.vMon=m;ST.vWk=w;renderInto();};
+    const curIdx=opts0.indexOf(wp?wp.value:(ST.vMon?`${ST.vMon} ${ST.vWk}`:opts0[opts0.length-1]));
+    const prevBtn=body.querySelector('#wk-prev');
+    const nextBtn=body.querySelector('#wk-next');
+    if(prevBtn)prevBtn.onclick=()=>{if(curIdx>0){const[m,w]=opts0[curIdx-1].split(' ');ST.vMon=m;ST.vWk=w;renderInto();}};
+    if(nextBtn)nextBtn.onclick=()=>{if(curIdx<opts0.length-1){const[m,w]=opts0[curIdx+1].split(' ');ST.vMon=m;ST.vWk=w;renderInto();}};
+    const saveImgBtn=body.querySelector('#btn-save-report-img');
+    if(saveImgBtn)saveImgBtn.onclick=()=>saveReportImage(saveImgBtn);
+    const d=bD(curRecs);
+    setTimeout(()=>{
+      mkLine('mini-wt',d.labels,d.wt,d.wtAvg,'#1E40AF');
+      mkLine('mini-rt',d.labels,d.rt,d.rt.map(()=>null),'#3B82F6',0,100);
+      const tv=[...d.tot,...d.totAvg].filter(v=>v!=null);
+      mkLine('mini-tot',d.labels,d.tot,d.totAvg,'#0F2A5C',tv.length?Math.max(0,Math.floor(Math.min(...tv)/10)*10-10):0,tv.length?Math.ceil(Math.max(...tv)/10)*10+10:200);
+    },50);
+  };
+  renderInto();
+}
+
 function renderScoreDropAlert(sc, mon, wk){
   const alertEl = document.getElementById('score-drop-alert');
   if(!alertEl) return;
@@ -3643,35 +4675,47 @@ function renderScoreDropAlert(sc, mon, wk){
   const prevRecs = sc.records.filter(r=>r.month===prevMon&&r.week===prevWk);
   if(!curRecs.length||!prevRecs.length){ alertEl.innerHTML=''; return; }
 
-  const drops = [];
-  curRecs.forEach(cur=>{
-    const prev = prevRecs.find(p=>p.sid===cur.sid);
-    if(!prev) return;
-    const curTot = cur.totalScore, prevTot = prev.totalScore;
-    if(curTot===null||curTot===undefined||prevTot===null||prevTot===undefined) return;
-    const diff = curTot - prevTot;
-    if(diff <= -10){
-      const s = sc.students.find(x=>x.id===cur.sid);
-      drops.push({name: s?s.name:cur.sid, prev:prevTot, cur:curTot, diff});
-    }
-  });
+  const findDrops=(scoreKey,skipKey)=>{
+    const drops=[];
+    curRecs.forEach(cur=>{
+      const prev = prevRecs.find(p=>p.sid===cur.sid);
+      if(!prev) return;
+      if((skipKey&&(cur[skipKey]||prev[skipKey]))) return;
+      const curV = cur[scoreKey], prevV = prev[scoreKey];
+      if(curV===null||curV===undefined||prevV===null||prevV===undefined) return;
+      const diff = curV - prevV;
+      if(diff <= -10){
+        const s = sc.students.find(x=>x.id===cur.sid);
+        drops.push({name: s?s.name:cur.sid, prev:prevV, cur:curV, diff});
+      }
+    });
+    drops.sort((a,b)=>a.diff-b.diff);
+    return drops;
+  };
 
-  if(!drops.length){ alertEl.innerHTML=''; return; }
+  const totalDrops = findDrops('totalScore', null);
+  const rtDrops = findDrops('rtScore', 'rtSkip');
+  const wtDrops = findDrops('wtScore', 'wtSkip');
 
-  drops.sort((a,b)=>a.diff-b.diff);
-  const items = drops.map(d=>`
-    <span style="display:inline-flex;align-items:center;gap:4px;background:#FFEBEE;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:700;color:#C62828">
-      ${d.name}
-      <span style="font-weight:400;color:#E53935">${d.prev}→${d.cur}점 (${d.diff})</span>
-    </span>`).join('');
+  if(!totalDrops.length&&!rtDrops.length&&!wtDrops.length){ alertEl.innerHTML=''; return; }
 
-  alertEl.innerHTML = `
+  const section=(label,drops)=>{
+    if(!drops.length) return '';
+    const items = drops.map(d=>`
+      <span style="display:inline-flex;align-items:center;gap:4px;background:#FFEBEE;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:700;color:#C62828">
+        ${d.name}
+        <span style="font-weight:400;color:#E53935">${d.prev}→${d.cur}점 (${d.diff})</span>
+      </span>`).join('');
+    return `
     <div style="background:#FFF5F5;border:1.5px solid #FFCDD2;border-radius:12px;padding:12px 16px;margin-bottom:12px">
       <div style="font-size:12px;font-weight:700;color:#C62828;margin-bottom:8px">
-        전주 대비 10점 이상 하락 (${drops.length}명)
+        ${label} 전주 대비 10점 이상 하락 (${drops.length}명)
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:6px">${items}</div>
     </div>`;
+  };
+
+  alertEl.innerHTML = section('전체 총점',totalDrops) + section('RT',rtDrops) + section('WT',wtDrops);
 }
 
 function rSendLogs(sc){
@@ -3893,19 +4937,41 @@ function goToWeek(mon,wk){
   ST.bWk=wk;
   render();
 }
-function nextStudentId(sc){
+// 로컬에 로드된 학교 데이터만으로 다음 ID를 추정 — 정규/특강처럼 이번 세션에 아직 안 열어본
+// 학교가 있으면 그 학교의 ID를 못 보고 겹치는 ID를 낼 수 있음. 서버 세션이 없을 때(레거시
+// 로컬 모드)나 서버 호출이 실패했을 때만 쓰는 최후의 폴백.
+function guessNextStudentIds(count){
   const prefix='s';
-  // 전체 학교에서 가장 큰 ID 번호 찾기 (중복 방지)
   let maxNum=0;
   DB.schools.forEach(school=>{
-    school.students.forEach(s=>{
+    // 탈퇴 학생도 포함해야 한다 — 탈퇴 학생 ID가 최댓값인 상태에서 새 학생에게 같은 ID를
+    // 내주면, 나중에 그 탈퇴 학생을 복구할 때 ID가 겹친다.
+    [...(school.students||[]),...(school.withdrawnStudents||[])].forEach(s=>{
       if(s.id&&s.id.startsWith(prefix)){
         const n=parseInt(s.id.slice(prefix.length))||0;
         if(n>maxNum)maxNum=n;
       }
     });
   });
-  return prefix+String(maxNum+1).padStart(3,'0');
+  const ids=[];
+  for(let i=1;i<=count;i++)ids.push(prefix+String(maxNum+i).padStart(3,'0'));
+  return ids;
+}
+// 학생 ID는 서버의 Redis 원자적 카운터(cnt:studentId)로 발급 — 전체 학교(정규/특강 포함)를
+// 통틀어 절대 겹치지 않음. 로컬 스캔은 이번 세션에 로드 안 된 학교를 놓쳐 ID가 겹치는 문제가 있었음.
+async function nextStudentIds(count){
+  if(ST.serverAdminSession){
+    try{
+      const res=await fetch('/api/admin/next-student-id',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({count})});
+      const data=await res.json();
+      if(data.success&&Array.isArray(data.ids)&&data.ids.length===count)return data.ids;
+    }catch(e){}
+  }
+  return guessNextStudentIds(count);
+}
+async function nextStudentId(){
+  const ids=await nextStudentIds(1);
+  return ids[0];
 }
 /* ── 카카오톡 발송 ── */
 /* ── 발송 이력 저장/조회 ── */
@@ -3915,18 +4981,18 @@ function addSendLog(sc, entry){
   if(ST.serverAdminSession){
     sc.sendLogs = Array.isArray(sc.sendLogs) ? sc.sendLogs : [];
     sc.sendLogs.push(entry);
-    if(sc.sendLogs.length > 1000) sc.sendLogs = sc.sendLogs.slice(-1000);
-    fetch('/api/admin/append-send-log', {
+    if(sc.sendLogs.length > 300) sc.sendLogs = sc.sendLogs.slice(-300);
+    queueSchoolWrite(()=>fetch('/api/admin/append-send-log', {
       method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({schoolId: sc.id, entry})
-    }).catch(e=>console.warn('발송 이력 서버 저장 실패(화면에는 반영됨):', e));
+    }).catch(e=>console.warn('발송 이력 서버 저장 실패(화면에는 반영됨):', e)));
     return;
   }
   try{
     const key = 'oheng_sendlogs_' + sc.id;
     const logs = JSON.parse(localStorage.getItem(key) || '[]');
     logs.push(entry);
-    localStorage.setItem(key, JSON.stringify(logs.slice(-1000)));
+    localStorage.setItem(key, JSON.stringify(logs.slice(-300)));
   } catch(e){ console.warn('addSendLog 오류:', e); }
 }
 function getSendLogs(sc){
@@ -3945,9 +5011,11 @@ function nowStr(){
 async function resetStudentPassword(sc, student, customPwd){
   if(ST.serverAdminSession){
     try{
-      const res=await fetch('/api/admin/reset-student-password',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({schoolId:sc.id,studentId:student.id,newPwd:customPwd})});
-      const data=await res.json();
-      if(!res.ok||!data.success){alert(data.message||'비밀번호 재설정 실패');return null;}
+      const data=await queueSchoolWrite(async()=>{
+        const res=await fetch('/api/admin/reset-student-password',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({schoolId:sc.id,studentId:student.id,newPwd:customPwd})});
+        return {ok:res.ok,...(await res.json())};
+      });
+      if(!data.ok||!data.success){alert(data.message||'비밀번호 재설정 실패');return null;}
       student.pwd=data.password;
       return data.password;
     }catch(e){alert('오류: '+e.message);return null;}
@@ -4294,7 +5362,7 @@ function openWithdrawStudent(sc, sid){
     sc.withdrawnStudents = sc.withdrawnStudents || [];
     sc.withdrawnStudents.push({ ...s, withdrawReason, withdrawnAt: nowStr() });
     sc.students = sc.students.filter(x=>x.id!==sid);
-    saveDB();
+    saveDB({deletedStudentIds:new Set([sid]),dirtyWithdrawnIds:new Set([sid])});
     popup.remove();
     render();
   };
@@ -4325,7 +5393,7 @@ function openEditStudent(sc, sid){
         </div>
         <div>
           <label style="display:block;font-size:11px;font-weight:700;color:#9BA3AF;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">비밀번호 ${s.pwd?'':'<span style="color:#C4C9D4;font-weight:400;text-transform:none">(아직 확인된 적 없음 — 한 번 재설정하면 이후 계속 조회 가능)</span>'}</label>
-          <input id="edit-pwd" value="${s.pwd?esc(s.pwd):''}" placeholder="변경하려면 새 비밀번호 입력 (비워두면 유지)" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit"
+          <input id="edit-pwd" value="${s.pwd?esc(s.pwd):''}" placeholder="변경하려면 새 비밀번호 입력 (비워두면 유지)" inputmode="numeric" pattern="[0-9]*" style="width:100%;padding:10px 14px;border:1.5px solid #E8ECF0;border-radius:9px;font-size:14px;outline:none;font-family:inherit"
             onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#E8ECF0'">
         </div>
         <div>
@@ -4379,6 +5447,7 @@ function openEditStudent(sc, sid){
     const saveBtn = document.getElementById('btn-edit-save');
 
     if(!name){ msg.textContent='이름을 입력하세요'; msg.style.color='#E53935'; return; }
+    if(pwd && !/^\d+$/.test(pwd)){ msg.textContent='비밀번호는 숫자만 입력할 수 있습니다'; msg.style.color='#E53935'; return; }
     if(pwd && pwd.length < 4){ msg.textContent='비밀번호는 4자 이상이어야 합니다'; msg.style.color='#E53935'; return; }
 
     saveBtn.disabled = true;
@@ -4392,7 +5461,7 @@ function openEditStudent(sc, sid){
     s.type = type;
     s.reason = reason;
     if(sc.type==='lecture') s.highSchool = document.getElementById('edit-hs')?.value.trim()||'';
-    saveDB();
+    saveDB({dirtyStudentIds:new Set([s.id])});
 
     msg.textContent = '✓ 저장 완료!'; msg.style.color = '#00897B';
     setTimeout(()=>{ popup.remove(); render(); }, 600);
@@ -4564,27 +5633,49 @@ function sendKakaoScoreNotify(sc, mon, wk){
 }
 
 // 서버 세션이면 저장 로그도 서버에 남겨 어느 기기에서든 확인 가능하게 함 (발송 이력과 동일한 방식)
-function addLog(sc,mon,wk,count,thrRt,thrWt){
-  const now=new Date();
+function nowStamp(){
+  const now=new Date();const pad=n=>String(n).padStart(2,'0');
+  return `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+// 서버가 UTC ISO 문자열로 보내는 타임스탬프(예: ta:notices의 createdAt)를 브라우저 로컬 시간으로 표시
+function fmtLocalDate(iso){
+  if(!iso)return '';
+  const d=new Date(iso);
+  if(isNaN(d.getTime()))return '';
   const pad=n=>String(n).padStart(2,'0');
-  const entry={month:mon,week:wk,count,thrRt,thrWt,
-    savedAt:`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`};
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+// 활동 로그 저장 공통 로직 — entry는 이미 완성된 로그 항목(actorName/savedAt 포함)
+function pushLogEntry(sc,entry){
+  entry.id=(crypto.randomUUID?crypto.randomUUID():(Date.now()+'-'+Math.random().toString(36).slice(2,10)));
   if(ST.serverAdminSession){
     sc.saveLogs=Array.isArray(sc.saveLogs)?sc.saveLogs:[];
     sc.saveLogs.push(entry);
-    if(sc.saveLogs.length>200)sc.saveLogs=sc.saveLogs.slice(-200);
-    fetch('/api/admin/append-save-log',{
+    if(sc.saveLogs.length>30)sc.saveLogs=sc.saveLogs.slice(-30);
+    // 되돌리기는 실제로 최근 몇 건만 쓰이므로, 오래된 기록은 목록(감사 이력)에는 남기되
+    // 무거운 스냅샷(건당 최대 수십 KB)만 떼어낸다 — canUndo가 snapshot 유무로 버튼을 알아서 숨김
+    const KEEP_SNAPSHOT=5;
+    sc.saveLogs.forEach((e,i)=>{if(i<sc.saveLogs.length-KEEP_SNAPSHOT&&e.snapshot)delete e.snapshot;});
+    queueSchoolWrite(()=>fetch('/api/admin/append-save-log',{
       method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({schoolId:sc.id,entry})
-    }).catch(e=>console.warn('저장 로그 서버 기록 실패(화면에는 반영됨):',e));
+    }).catch(e=>console.warn('활동 로그 서버 기록 실패(화면에는 반영됨):',e)));
     return;
   }
   try{
     const key='oheng_logs_'+sc.id;
     const logs=JSON.parse(localStorage.getItem(key)||'[]');
     logs.push(entry);
-    localStorage.setItem(key,JSON.stringify(logs.slice(-200)));
-  }catch(e){console.warn('addLog 오류:',e);}
+    localStorage.setItem(key,JSON.stringify(logs.slice(-30)));
+  }catch(e){console.warn('로그 기록 오류:',e);}
+}
+// 성적 일괄 저장 로그 — snapshot은 선택값(안 넘기면 기존과 동일하게 동작, 하위호환)
+function addLog(sc,mon,wk,count,thrRt,thrWt,snapshot){
+  pushLogEntry(sc,{type:'save',month:mon,week:wk,count,thrRt,thrWt,actorName:ST.actorName||'',savedAt:nowStamp(),...(snapshot?{snapshot}:{})});
+}
+// 성적 지우기/다른 주차로 복사 등, save 외의 활동 로그 — entry에 type/month/week/count(+타입별 추가 필드)를 담아 호출
+function addActionLog(sc,entry){
+  pushLogEntry(sc,{...entry,actorName:ST.actorName||'',savedAt:nowStamp()});
 }
 function getSaveLogs(sc){
   if(ST.serverAdminSession)return Array.isArray(sc.saveLogs)?sc.saveLogs:[];

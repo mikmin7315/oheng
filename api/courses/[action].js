@@ -3,7 +3,9 @@ import { getMember, updateMemberEntitlements } from '../_lib/member.js';
 import {
   listAllCourses, getCourse, saveCourse, deleteCourse,
   listPublishedCoursesForPublic, listVideosForMember,
+  applyToCourse, listApplicants, removeApplicant,
 } from '../_lib/course.js';
+import { createPendingPayment, verifyAndCompletePayment } from '../_lib/payment.js';
 
 export default async function handler(req, res) {
   const { action } = req.query;
@@ -24,6 +26,49 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true, videos });
   }
 
+  // 결제 연동 전 임시 흐름 — 회원이 강좌 카드에서 "신청하기"를 누르면 관리자 대기열에 쌓이고,
+  // 관리자가 강좌 관리 화면에서 확인 후 수동으로 수강권을 부여한다.
+  if (action === 'apply') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    const session = await requireMemberSession(req);
+    if (!session) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    const { courseId } = req.body || {};
+    if (!courseId) return res.status(400).json({ success: false, message: 'Missing courseId' });
+    const course = await getCourse(courseId);
+    if (!course || !course.published) return res.status(404).json({ success: false, message: '강좌를 찾을 수 없습니다' });
+    await applyToCourse(courseId, session.memberId);
+    return res.status(200).json({ success: true });
+  }
+
+  // 유료 강좌 결제 시작 — 결제창에 넘길 정보(결제ID/상점/채널/가격)를 서버가 발급한다.
+  // 가격은 반드시 여기서 강좌 레코드를 다시 조회해 정하고, 클라이언트가 보낸 값은 쓰지 않는다.
+  if (action === 'create-payment') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    const session = await requireMemberSession(req);
+    if (!session) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    const { courseId } = req.body || {};
+    if (!courseId) return res.status(400).json({ success: false, message: 'Missing courseId' });
+    const payment = await createPendingPayment(courseId, session.memberId);
+    if (!payment) return res.status(404).json({ success: false, message: '강좌를 찾을 수 없습니다' });
+    return res.status(200).json({ success: true, payment });
+  }
+
+  // 결제창에서 결제가 끝난 직후 클라이언트가 호출 — 서버가 포트원에 직접 재조회해 검증하고,
+  // 통과하면 수강권을 자동 부여한다(관리자 승인 단계 없음). 웹훅에서도 같은 함수를 호출하므로 멱등하게 동작한다.
+  if (action === 'complete-payment') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    const session = await requireMemberSession(req);
+    if (!session) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    const { paymentId } = req.body || {};
+    if (!paymentId) return res.status(400).json({ success: false, message: 'Missing paymentId' });
+    const result = await verifyAndCompletePayment(paymentId);
+    if (!result.ok) return res.status(400).json({ success: false, message: result.message });
+    return res.status(200).json({ success: true, courseTitle: result.courseTitle, expiresAt: result.expiresAt });
+  }
+
   const admin = await requireAdminSessionOrApiToken(req);
   if (!admin) return res.status(401).json({ success: false, message: 'Unauthorized' });
 
@@ -31,6 +76,23 @@ export default async function handler(req, res) {
     if (req.method !== 'GET') return res.status(405).end();
     const courses = await listAllCourses();
     return res.status(200).json({ success: true, courses });
+  }
+
+  // 강좌별 신청자 목록 — 회원 이름/연락처를 같이 붙여서 관리자가 바로 확인/부여할 수 있게 한다.
+  if (action === 'admin-applicants') {
+    if (req.method !== 'GET') return res.status(405).end();
+    const courseId = String(req.query.courseId || '');
+    if (!courseId) return res.status(400).json({ success: false, message: 'Missing courseId' });
+    const applicants = await listApplicants(courseId);
+    const members = await Promise.all(applicants.map(a => getMember(a.memberId)));
+    const merged = applicants.map((a, i) => {
+      const m = members[i];
+      return {
+        memberId: a.memberId, appliedAt: a.appliedAt,
+        name: m?.name || '(탈퇴/알 수 없음)', phone: m?.phone || '', email: m?.email || '',
+      };
+    }).sort((a, b) => new Date(b.appliedAt) - new Date(a.appliedAt));
+    return res.status(200).json({ success: true, applicants: merged });
   }
 
   if (action === 'save') {
@@ -69,6 +131,7 @@ export default async function handler(req, res) {
       paymentId: 'manual', amount: 0, status: 'active',
     });
     const updated = await updateMemberEntitlements(memberId, entitlements);
+    await removeApplicant(courseId, memberId);
     return res.status(200).json({ success: true, member: updated });
   }
 

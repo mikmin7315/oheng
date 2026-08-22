@@ -568,7 +568,7 @@ const VAPID_PUBLIC_KEY='BClrX5_mErAwCfnxMnn7JxqUECaVChgQ8zTADG7HWfg8vCcNTGE2Xx0v
 // 관리 학교 선택 화면에 표시할 업데이트 내역 — 배포할 때마다 최신 항목을 맨 위에 직접 추가
 const CHANGELOG=[
   {date:'2026-08-22',items:[
-    '학생 관리에 "가나다순 정렬"·"등록일순 정렬" 버튼 추가 — 전체 학생을 이름 가나다순 또는 등록일순으로 재정렬합니다 (성적 일괄입력·인강/현강 체크 화면에도 같은 순서로 반영)',
+    '학생 관리에 정렬 선택(등록순·가나다순·등록일순) 추가 — 원본 순서를 바꾸지 않는 보기 방식이라 즉시 반영되고, 성적 일괄입력·인강/현강 체크 화면에도 같은 순서로 표시됩니다',
     '성적 일괄입력의 "숙제 이름" 칸에서 전체 학생의 숙제1·숙제2 상태(완료·미완료 등)를 한 번에 지정하는 "상태 일괄" 기능 추가',
   ]},
   {date:'2026-08-12',items:[
@@ -1039,6 +1039,15 @@ function bindAttSelectDraft(sel, onLocalChange){
 }
 function curSch(){return DB.schools.find(s=>s.id===ST.school)||DB.schools[0]}
 function sRecs(sid,sc){const s=sc||(ST.role==='admin'?curSch():ST.userSchool);if(!s)return[];return s.records.filter(r=>r.sid===sid).sort((a,b)=>moI(a.month)-moI(b.month)||wkI(a.week)-wkI(b.week));}
+// 학생 목록을 '보기 정렬' 설정(ST.stuSort)에 따라 정렬해 반환한다. 원본 sc.students는 건드리지 않음(비파괴적) — 서버 저장도 없다.
+// reg=등록순(원본), name=이름 가나다순, date=등록일순(빠른 순, 없으면 ID 순번). 학생 목록·성적 입력·인강/현강 세 화면이 공통으로 이 순서를 따른다.
+function sortedStudents(sc){
+  const arr=(sc&&Array.isArray(sc.students))?sc.students:[];
+  const mode=ST.stuSort||'reg';
+  if(mode==='name')return [...arr].sort((a,b)=>(a.name||'').localeCompare(b.name||'','ko'));
+  if(mode==='date')return [...arr].sort((a,b)=>{const ca=a.createdAt||'',cb=b.createdAt||'';if(ca!==cb)return ca<cb?-1:1;return (a.id||'').localeCompare(b.id||'');});
+  return arr; // reg
+}
 function lastThr(sc,mon,wk){
   const prev=sc.records.filter(r=>moI(r.month)<moI(mon)||(moI(r.month)===moI(mon)&&wkI(r.week)<wkI(wk)));
   if(!prev.length)return{rt:'',wt:''};
@@ -3010,7 +3019,7 @@ function rBulk(sc){
   const hw1=hwEntry.hw1||sc.hw1||'숙제1';
   const hw2=hwEntry.hw2||sc.hw2||'숙제2';
   const hw2Skip=hwEntry.hw2Skip!==undefined?hwEntry.hw2Skip:(sc.hw2Skip||false);
-  const rows=sc.students.map(s=>{
+  const rows=sortedStudents(sc).map(s=>{
     const ex=sc.records.find(r=>r.sid===s.id&&r.month===mon&&r.week===wk)||{};
     const rtSkipped=!!ex.rtSkip;const wtSkipped=!!ex.wtSkip;
     const attVal=ex.attendType||'';
@@ -3244,8 +3253,6 @@ function rStudentMgmt(sc){
         <button id="btn-ppurio-selected-idpw" style="display:none;padding:6px 14px;background:#1A237E;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">💬 선택 0명 발송</button>
         <button id="btn-withdraw-selected" style="display:none;padding:6px 14px;background:#FFEBEE;color:#E53935;border:1.5px solid #FFCDD2;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">🚪 선택 0명 탈퇴처리</button>
         <button id="btn-ppurio-all-idpw" style="padding:6px 14px;background:#FEE500;color:#000;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">💬 ID/비번 일괄 발송</button>
-        <button class="abtn abtn-gray" id="btn-sort-name" style="font-size:11px;padding:6px 12px">🔤 가나다순 정렬</button>
-        <button class="abtn abtn-gray" id="btn-sort-date" style="font-size:11px;padding:6px 12px">🗓️ 등록일순 정렬</button>
         <button class="abtn abtn-blue" id="btn-export-excel" style="font-size:11px;padding:6px 12px">📊 엑셀 내보내기</button>
         <button class="abtn abtn-gray" onclick="printStudentList()" style="font-size:11px;padding:6px 12px">🖨️ 인쇄</button>
       </div>
@@ -3258,6 +3265,11 @@ function rStudentMgmt(sc){
         <option value="new" ${ST.stuFilterType==='new'?'selected':''}>신규생</option>
         <option value="transfer" ${ST.stuFilterType==='transfer'?'selected':''}>전입생</option>
       </select>
+      <select id="stu-sort" title="학생 목록 정렬 (성적 입력·인강/현강 화면에도 반영)" style="padding:8px 12px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px;background:#fff;color:#0D1117;outline:none">
+        <option value="reg" ${(ST.stuSort||'reg')==='reg'?'selected':''}>↕️ 등록순(기본)</option>
+        <option value="name" ${ST.stuSort==='name'?'selected':''}>🔤 가나다순</option>
+        <option value="date" ${ST.stuSort==='date'?'selected':''}>🗓️ 등록일순</option>
+      </select>
     </div>
     <div id="student-list-print" style="overflow-x:auto"><div id="student-list-wrap"></div></div>
   </div>`;}
@@ -3267,7 +3279,7 @@ function renderStudentTable(sc){
   if(!wrap) return;
   const q = (document.getElementById('stu-search')?.value||'').trim().toLowerCase();
   const typeFilter = document.getElementById('stu-filter-type')?.value||'';
-  const filtered = sc.students.filter(s=>
+  const filtered = sortedStudents(sc).filter(s=>
     (!typeFilter || (s.type||'regular')===typeFilter) &&
     (!q || s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q))
   );
@@ -3392,7 +3404,7 @@ function rAttendance(sc){
   const mon = ST.attMon || curMonWk().mon;
   const monIdx = MONTHS.indexOf(mon);
   const dirtyCount = ST.attDirty ? ST.attDirty.size : 0;
-  const rows = sc.students.map(s=>{
+  const rows = sortedStudents(sc).map(s=>{
     const cells = WEEKS.map(wk=>{
       const rec = sc.records.find(r=>r.sid===s.id&&r.month===mon&&r.week===wk);
       const val = rec?.attendType || '';
@@ -4005,24 +4017,11 @@ function bAdmin(){
     });
     document.getElementById('stu-search').oninput=e=>{ST.stuSearch=e.target.value;renderStudentTable(sc);};
     document.getElementById('stu-filter-type').onchange=e=>{ST.stuFilterType=e.target.value;renderStudentTable(sc);};
-    // 명단을 이름 가나다순으로 재정렬(한글 로케일). 구분(재학/신규/전입) 상관없이 전체를 하나로 섞어 이름순 정렬한다.
-    // 한 번 정렬하면 저장되어 성적 입력·인강/현강 표에도 반영된다.
-    document.getElementById('btn-sort-name')?.addEventListener('click',()=>{
-      if(!confirm('학생 명단을 이름 가나다순으로 정렬할까요?\n\n구분과 상관없이 전체 학생을 이름 가나다순으로 정렬합니다.\n정렬된 순서는 성적 입력·인강/현강 화면에도 그대로 반영되며, 저장됩니다.'))return;
-      sc.students.sort((a,b)=>(a.name||'').localeCompare(b.name||'','ko'));
-      saveDB();
-      render();
-    });
-    // 등록일순 정렬 — 등록일(createdAt, YYYY-MM-DD)이 빠른 순(오래된 학생이 위). 등록일이 없거나 같으면 학생 ID(등록 순번)로 정렬.
-    document.getElementById('btn-sort-date')?.addEventListener('click',()=>{
-      if(!confirm('학생 명단을 등록일순으로 정렬할까요?\n\n먼저 등록한 학생이 위로 오도록 정렬합니다 (등록일 정보가 없는 기존 학생은 ID 순번 기준).\n정렬된 순서는 성적 입력·인강/현강 화면에도 그대로 반영되며, 저장됩니다.'))return;
-      sc.students.sort((a,b)=>{
-        const ca=a.createdAt||'', cb=b.createdAt||'';
-        if(ca!==cb)return ca<cb?-1:1; // 등록일 오름차순(빈값=가장 오래됨)
-        return (a.id||'').localeCompare(b.id||''); // 같은 날짜/빈값은 ID 순번으로
-      });
-      saveDB();
-      render();
+    // 정렬은 '보기(view) 설정'일 뿐 — 원본 학생 순서를 바꾸거나 서버에 저장하지 않는다. 렌더 시 sortedStudents()가 이 값을 읽어 정렬한다.
+    // 학생 목록·성적 입력·인강/현강 세 화면이 공통으로 이 설정을 따르므로, 여기서 바꾸면 다른 화면에도 자동 반영된다.
+    document.getElementById('stu-sort')?.addEventListener('change',e=>{
+      ST.stuSort=e.target.value||'reg';
+      renderStudentTable(sc);
     });
     renderStudentTable(sc);
     return;

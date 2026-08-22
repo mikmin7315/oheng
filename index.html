@@ -2250,6 +2250,21 @@ function rBulk(sc){
     <button class="abtn" id="btn-wt-all" style="background:#1565c0;color:#fff;border-color:#1565c0;font-size:11px;padding:5px 10px">전체생략</button>
     <button class="abtn abtn-gray" id="btn-wt-none" style="font-size:11px;padding:5px 10px">전체해제</button>
   </div>
+  <!-- 숙제 상태 일괄 적용 — 선택한 값을 전체 학생의 숙제1/숙제2 칸에 한 번에 채운다(저장 버튼을 눌러야 영구 반영). -->
+  <div class="skip-group" style="margin-top:-4px;flex-wrap:wrap">
+    <span class="skip-lbl">📋 숙제 일괄:</span>
+    <span style="font-size:11px;color:#78350F;font-weight:700">${esc(hw1)}</span>
+    <select id="bulk-hw1" class="cs" style="font-size:11px;padding:4px 8px;border:1.5px solid #FFD54F;border-radius:6px">
+      <option value="">— 변경 안 함 —</option>
+      ${HW.map(o=>`<option>${o}</option>`).join('')}
+    </select>
+    <span style="font-size:11px;color:#78350F;font-weight:700;margin-left:6px">${esc(hw2)}</span>
+    <select id="bulk-hw2" class="cs" ${hw2Skip?'disabled style="opacity:0.35"':''} style="font-size:11px;padding:4px 8px;border:1.5px solid #FFD54F;border-radius:6px">
+      <option value="">— 변경 안 함 —</option>
+      ${HW.map(o=>`<option>${o}</option>`).join('')}
+    </select>
+    <button class="abtn" id="btn-hw-bulk" style="background:#F59E0B;color:#fff;border-color:#F59E0B;font-size:11px;padding:5px 12px">전체 적용</button>
+  </div>
   <div class="btbl-wrap"><table class="btbl">
     <thead><tr>
       <th class="sn" style="background:#1A237E;color:#fff;min-width:70px">이름</th>
@@ -2377,6 +2392,7 @@ function rStudentMgmt(sc){
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button id="btn-ppurio-selected-idpw" style="display:none;padding:6px 14px;background:#1A237E;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">💬 선택 0명 발송</button>
         <button id="btn-ppurio-all-idpw" style="padding:6px 14px;background:#FEE500;color:#000;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">💬 ID/비번 일괄 발송</button>
+        <button class="abtn abtn-gray" id="btn-sort-name" style="font-size:11px;padding:6px 12px">🔤 가나다순 정렬</button>
         <button class="abtn abtn-blue" id="btn-export-excel" style="font-size:11px;padding:6px 12px">📊 엑셀 내보내기</button>
         <button class="abtn abtn-gray" onclick="printStudentList()" style="font-size:11px;padding:6px 12px">🖨️ 인쇄</button>
       </div>
@@ -2913,6 +2929,13 @@ function bAdmin(){
     });
     document.getElementById('stu-search').oninput=e=>{ST.stuSearch=e.target.value;renderStudentTable(sc);};
     document.getElementById('stu-filter-type').onchange=e=>{ST.stuFilterType=e.target.value;renderStudentTable(sc);};
+    // 명단을 이름 가나다순으로 재정렬(한글 로케일). 한 번 정렬하면 저장되어 성적 입력·인강/현강 표에도 그대로 반영된다.
+    document.getElementById('btn-sort-name')?.addEventListener('click',()=>{
+      if(!confirm('학생 명단을 이름 가나다순으로 정렬할까요?\n\n정렬된 순서는 성적 입력·인강/현강 화면에도 그대로 반영되며, 저장됩니다.'))return;
+      sc.students.sort((a,b)=>(a.name||'').localeCompare(b.name||'','ko'));
+      saveDB();
+      render();
+    });
     renderStudentTable(sc);
     return;
   }
@@ -3304,6 +3327,17 @@ function bAdmin(){
   document.getElementById('btn-rt-none').onclick=()=>{document.querySelectorAll('#bk-body tr').forEach(r=>applyRtSkip(r,false));recalc();scheduleDraftSave();};
   document.getElementById('btn-wt-all').onclick=()=>{document.querySelectorAll('#bk-body tr').forEach(r=>applyWtSkip(r,true));recalc();scheduleDraftSave();};
   document.getElementById('btn-wt-none').onclick=()=>{document.querySelectorAll('#bk-body tr').forEach(r=>applyWtSkip(r,false));recalc();scheduleDraftSave();};
+  // 숙제 상태 일괄 적용 — 선택한 값을 전체 학생의 숙제1/숙제2 select에 채운다(생략/비활성 칸은 건너뜀).
+  document.getElementById('btn-hw-bulk')?.addEventListener('click',()=>{
+    const v1=document.getElementById('bulk-hw1')?.value||'';
+    const v2=document.getElementById('bulk-hw2')?.value||'';
+    if(!v1&&!v2){alert('적용할 숙제 상태를 선택하세요.');return;}
+    document.querySelectorAll('#bk-body tr').forEach(r=>{
+      if(v1){const s1=r.querySelector('.inp-hw1');if(s1&&!s1.disabled)s1.value=v1;}
+      if(v2){const s2=r.querySelector('.inp-hw2');if(s2&&!s2.disabled)s2.value=v2;}
+    });
+    recalc();scheduleDraftSave();
+  });
   document.getElementById('btn-draft-load')?.addEventListener('click',()=>{
     const draft=loadDraft(sc,ST.bMon,ST.bWk);
     if(draft)applyDraftToForm(draft);

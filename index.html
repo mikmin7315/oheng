@@ -568,7 +568,7 @@ const VAPID_PUBLIC_KEY='BClrX5_mErAwCfnxMnn7JxqUECaVChgQ8zTADG7HWfg8vCcNTGE2Xx0v
 // 관리 학교 선택 화면에 표시할 업데이트 내역 — 배포할 때마다 최신 항목을 맨 위에 직접 추가
 const CHANGELOG=[
   {date:'2026-08-22',items:[
-    '학생 관리에 "가나다순 정렬" 버튼 추가 — 재학생을 이름 가나다순으로 배치하고 전입·신규 학생은 가장 아래로 내려 정렬합니다 (성적 일괄입력·인강/현강 체크 화면에도 같은 순서로 반영)',
+    '학생 관리에 "가나다순 정렬"·"등록일순 정렬" 버튼 추가 — 전체 학생을 이름 가나다순 또는 등록일순으로 재정렬합니다 (성적 일괄입력·인강/현강 체크 화면에도 같은 순서로 반영)',
     '성적 일괄입력의 "숙제 이름" 칸에서 전체 학생의 숙제1·숙제2 상태(완료·미완료 등)를 한 번에 지정하는 "상태 일괄" 기능 추가',
   ]},
   {date:'2026-08-12',items:[
@@ -3245,6 +3245,7 @@ function rStudentMgmt(sc){
         <button id="btn-withdraw-selected" style="display:none;padding:6px 14px;background:#FFEBEE;color:#E53935;border:1.5px solid #FFCDD2;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">🚪 선택 0명 탈퇴처리</button>
         <button id="btn-ppurio-all-idpw" style="padding:6px 14px;background:#FEE500;color:#000;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">💬 ID/비번 일괄 발송</button>
         <button class="abtn abtn-gray" id="btn-sort-name" style="font-size:11px;padding:6px 12px">🔤 가나다순 정렬</button>
+        <button class="abtn abtn-gray" id="btn-sort-date" style="font-size:11px;padding:6px 12px">🗓️ 등록일순 정렬</button>
         <button class="abtn abtn-blue" id="btn-export-excel" style="font-size:11px;padding:6px 12px">📊 엑셀 내보내기</button>
         <button class="abtn abtn-gray" onclick="printStudentList()" style="font-size:11px;padding:6px 12px">🖨️ 인쇄</button>
       </div>
@@ -4004,15 +4005,21 @@ function bAdmin(){
     });
     document.getElementById('stu-search').oninput=e=>{ST.stuSearch=e.target.value;renderStudentTable(sc);};
     document.getElementById('stu-filter-type').onchange=e=>{ST.stuFilterType=e.target.value;renderStudentTable(sc);};
-    // 명단을 이름 가나다순으로 재정렬(한글 로케일). 단, 구분이 '전입/신규'인 학생은 재학생 뒤(가장 아래)로 내린다.
-    // 재학생 그룹 → 전입/신규 그룹 순서이며, 각 그룹 안에서는 이름 가나다순. 한 번 정렬하면 저장되어 성적 입력·인강/현강 표에도 반영된다.
+    // 명단을 이름 가나다순으로 재정렬(한글 로케일). 구분(재학/신규/전입) 상관없이 전체를 하나로 섞어 이름순 정렬한다.
+    // 한 번 정렬하면 저장되어 성적 입력·인강/현강 표에도 반영된다.
     document.getElementById('btn-sort-name')?.addEventListener('click',()=>{
-      if(!confirm('학생 명단을 이름 가나다순으로 정렬할까요?\n\n• 재학생을 가나다순으로 먼저 배치하고\n• 전입·신규 학생은 가장 아래에 (역시 가나다순) 배치합니다.\n\n정렬된 순서는 성적 입력·인강/현강 화면에도 그대로 반영되며, 저장됩니다.'))return;
-      const isBottom=s=>{const t=s.type||'regular';return t==='new'||t==='transfer';};
+      if(!confirm('학생 명단을 이름 가나다순으로 정렬할까요?\n\n구분과 상관없이 전체 학생을 이름 가나다순으로 정렬합니다.\n정렬된 순서는 성적 입력·인강/현강 화면에도 그대로 반영되며, 저장됩니다.'))return;
+      sc.students.sort((a,b)=>(a.name||'').localeCompare(b.name||'','ko'));
+      saveDB();
+      render();
+    });
+    // 등록일순 정렬 — 등록일(createdAt, YYYY-MM-DD)이 빠른 순(오래된 학생이 위). 등록일이 없거나 같으면 학생 ID(등록 순번)로 정렬.
+    document.getElementById('btn-sort-date')?.addEventListener('click',()=>{
+      if(!confirm('학생 명단을 등록일순으로 정렬할까요?\n\n먼저 등록한 학생이 위로 오도록 정렬합니다 (등록일 정보가 없는 기존 학생은 ID 순번 기준).\n정렬된 순서는 성적 입력·인강/현강 화면에도 그대로 반영되며, 저장됩니다.'))return;
       sc.students.sort((a,b)=>{
-        const ab=isBottom(a)?1:0, bb=isBottom(b)?1:0;
-        if(ab!==bb)return ab-bb; // 재학생(0)이 위, 전입/신규(1)가 아래
-        return (a.name||'').localeCompare(b.name||'','ko');
+        const ca=a.createdAt||'', cb=b.createdAt||'';
+        if(ca!==cb)return ca<cb?-1:1; // 등록일 오름차순(빈값=가장 오래됨)
+        return (a.id||'').localeCompare(b.id||''); // 같은 날짜/빈값은 ID 순번으로
       });
       saveDB();
       render();

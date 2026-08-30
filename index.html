@@ -3344,9 +3344,9 @@ function renderStudentTable(sc){
             <input data-reason-id="${s.id}" value="${esc(s.reason)||''}" placeholder="수강계기 입력" style="width:150px;padding:5px 8px;border:1.5px solid #E8ECF0;border-radius:7px;font-size:11.5px;outline:none;font-family:inherit">
           </td>
           <td style="${cp};white-space:nowrap;display:flex;gap:4px">
-            <button class="abtn" data-ppurio-id="${s.id}" style="background:#FEE500;color:#000;border-color:#FEE500;font-size:11px;padding:4px 8px;font-weight:700">💬</button>
-            <button class="abtn abtn-blue" data-edit-id="${s.id}" style="font-size:11px;padding:4px 8px">✏️</button>
-            <button class="abtn abtn-red" data-ds="${s.id}" style="font-size:11px;padding:4px 8px">🚪</button>
+            <button class="abtn" data-ppurio-id="${s.id}" style="background:#FEE500;color:#000;border-color:#FEE500;font-size:11px;padding:4px 8px;font-weight:700" title="ID/비번 카카오 발송">💬</button>
+            <button class="abtn abtn-blue" data-edit-id="${s.id}" style="font-size:11px;padding:4px 8px" title="학생 정보 수정">✏️</button>
+            <button class="abtn abtn-red" data-ds="${s.id}" style="font-size:11px;padding:4px 8px" title="탈퇴 처리">🚪</button>
           </td>
         </tr>`).join('')}
       </tbody>

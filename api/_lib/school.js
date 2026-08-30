@@ -317,6 +317,34 @@ export async function findStudentByCredentials(id, pw) {
   return null;
 }
 
+// "아이디·비밀번호 찾기" 전용 — 이름+학생 전화번호+학부모 전화번호 세 가지가 모두 일치하는
+// 학생을 찾는다. (로그인 전 화면에서 쓰이므로 세션 없이 호출되며, 인증 정보 자체가 없는 상태에서
+// 세 값 모두 정확히 맞아야만 통과하도록 해 무차별 대입을 어렵게 함 — 호출부에서 반드시 rate limit
+// 적용). 탈퇴 학생은 대상에서 제외(재학생 로그인 복구용 기능이므로).
+export async function findStudentByProfile(name, phone, parentPhone) {
+  const normName = String(name || '').trim();
+  const normPhone = String(phone || '').replace(/\D/g, '');
+  const normParentPhone = String(parentPhone || '').replace(/\D/g, '');
+  if (!normName || !normPhone || !normParentPhone) return null;
+  const index = await getSchoolIndex();
+  for (const schoolId of index) {
+    const sc = await getSchool(schoolId);
+    if (!sc) continue;
+    const student = (sc.students || []).find(s =>
+      s.name === normName &&
+      String(s.phone || '').replace(/\D/g, '') === normPhone &&
+      String(s.parentPhone || '').replace(/\D/g, '') === normParentPhone
+    );
+    if (student) {
+      return {
+        schoolName: sc.name, schoolGrade: sc.grade,
+        studentId: student.id, pwd: decryptPwd(student.pwd),
+      };
+    }
+  }
+  return null;
+}
+
 // 관리자용 응답에서는 pwdHash는 절대 내려보내지 않고, 암호화된 pwd는 이 시점에만 복호화해서 내려줌
 // (DB에는 암호화된 값만 남아있고, 평문은 이 응답이 만들어지는 순간에만 메모리상에 잠깐 존재)
 export function toAdminView(school) {

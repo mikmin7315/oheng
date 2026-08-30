@@ -1361,39 +1361,41 @@ function showFindIdPwModal(){
     inp.addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('find-submit').click();});
   });
 
-  document.getElementById('find-submit').onclick=()=>{
+  document.getElementById('find-submit').onclick=async()=>{
     const name=document.getElementById('find-name').value.trim();
     const phoneS=document.getElementById('find-phone-s').value.replace(/[^0-9]/g,'');
     const phoneP=document.getElementById('find-phone-p').value.replace(/[^0-9]/g,'');
     const err=document.getElementById('find-err');
     const result=document.getElementById('find-result');
+    const btn=document.getElementById('find-submit');
     err.textContent='';result.innerHTML='';
 
     if(!name){err.textContent='이름을 입력해주세요';return;}
     if(phoneS.length<9){err.textContent='학생 전화번호를 정확히 입력해주세요';return;}
     if(phoneP.length<9){err.textContent='학부모 전화번호를 정확히 입력해주세요';return;}
 
-    // 이름 + 학생번호 + 학부모번호 세 가지 모두 일치해야 통과
-    let found=null,foundSch=null;
-    for(const sc of DB.schools){
-      const st=sc.students.find(s=>{
-        if(s.name!==name)return false;
-        const sp=(s.phone||'').replace(/[^0-9]/g,'');
-        const pp=(s.parentPhone||'').replace(/[^0-9]/g,'');
-        return sp===phoneS && pp===phoneP;
-      });
-      if(st){found=st;foundSch=sc;break;}
+    // 예전엔 로컬(DB.schools, 로그인 전이라 사실상 코드에 박힌 초기 시드 데이터)에서만 찾아서
+    // 실제 서버에 등록된 학생과는 무관하게 엉뚱한(오래된) 계정이 뜨는 버그가 있었다 — 반드시
+    // 서버(/api/auth/find-account)에서 실제 최신 데이터로 조회해야 함.
+    btn.disabled=true;btn.textContent='확인 중...';
+    let data;
+    try{
+      const res=await fetch('/api/auth/find-account',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,phone:phoneS,parentPhone:phoneP})});
+      data=await res.json();
+    }catch(e){
+      btn.disabled=false;btn.textContent='계정 찾기';
+      err.textContent='오류가 발생했습니다: '+e.message;
+      return;
     }
+    btn.disabled=false;btn.textContent='계정 찾기';
 
-    if(!found){
+    if(!data.success){
       err.textContent='일치하는 계정을 찾을 수 없습니다.\n이름·학생번호·학부모번호를 모두 확인해 주세요.\n번호가 등록되지 않은 경우 담당 선생님께 문의하세요.';
       err.style.whiteSpace='pre-line';
       return;
     }
 
-    // 비밀번호 힌트: 첫 글자 + 나머지 마스킹 + 자릿수
-    const pwd=found.pwd||'';
-    const pwdHint=pwd.length>0 ? pwd[0]+'●'.repeat(pwd.length-1)+` (${pwd.length}자리)` : `(${pwd.length}자리)`;
+    const {schoolName,schoolGrade,studentId,pwdHint}=data;
 
     result.innerHTML=`
     <div style="background:linear-gradient(135deg,#1A237E,#3949AB);border-radius:14px;padding:20px;color:#fff">
@@ -1401,23 +1403,23 @@ function showFindIdPwModal(){
       <div style="display:grid;gap:10px">
         <div style="background:rgba(255,255,255,0.1);border-radius:10px;padding:12px">
           <div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:4px">학교</div>
-          <div style="font-size:14px;font-weight:700">${foundSch.name} · ${foundSch.grade}</div>
+          <div style="font-size:14px;font-weight:700">${esc(schoolName)} · ${esc(schoolGrade)}</div>
         </div>
         <div style="background:rgba(255,255,255,0.1);border-radius:10px;padding:12px;display:flex;justify-content:space-between;align-items:center">
           <div>
             <div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:4px">아이디</div>
-            <div style="font-size:16px;font-weight:800;font-family:monospace;letter-spacing:0.5px">${found.id}</div>
+            <div style="font-size:16px;font-weight:800;font-family:monospace;letter-spacing:0.5px">${esc(studentId)}</div>
           </div>
-          <button onclick="navigator.clipboard?.writeText('${found.id}').then(()=>{this.textContent='복사됨!';setTimeout(()=>this.textContent='복사',1500)}).catch(()=>{})"
+          <button onclick="navigator.clipboard?.writeText('${esc(studentId)}').then(()=>{this.textContent='복사됨!';setTimeout(()=>this.textContent='복사',1500)}).catch(()=>{})"
             style="padding:5px 12px;background:rgba(255,255,255,0.2);color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer">복사</button>
         </div>
         <div style="background:rgba(255,255,255,0.1);border-radius:10px;padding:12px">
           <div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:4px">비밀번호 힌트</div>
-          <div style="font-size:16px;font-weight:800;font-family:monospace;letter-spacing:1px">${pwdHint}</div>
+          <div style="font-size:16px;font-weight:800;font-family:monospace;letter-spacing:1px">${esc(pwdHint)}</div>
           <div style="font-size:11px;color:rgba(255,255,255,0.45);margin-top:6px">전체 비밀번호는 담당 선생님께 문의하세요</div>
         </div>
       </div>
-      <button onclick="const idEl=document.getElementById('li-id');if(idEl)idEl.value='${found.id}';document.querySelector('.find-idpw-modal')?.remove();document.getElementById('li-pw')?.focus();"
+      <button onclick="const idEl=document.getElementById('li-id');if(idEl)idEl.value='${esc(studentId)}';document.querySelector('.find-idpw-modal')?.remove();document.getElementById('li-pw')?.focus();"
         style="width:100%;margin-top:14px;padding:12px;background:#FFB300;color:#1A237E;border:none;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;transition:opacity 0.15s"
         onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
         아이디 채우고 로그인하기 →

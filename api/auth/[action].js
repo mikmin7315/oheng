@@ -1,10 +1,10 @@
 import {
   verifyPassword, createSession, setSessionCookie,
-  checkLoginRateLimit, isSameOrigin, getClientIp,
+  checkLoginRateLimit, checkRateLimit, isSameOrigin, getClientIp,
   getSessionToken, getSession, deleteSession, clearSessionCookie,
   getAdminAccounts, findAdminAccount, listPendingTaRequests, requireAdminSession,
 } from '../_lib/auth.js';
-import { findStudentByCredentials } from '../_lib/school.js';
+import { findStudentByCredentials, findStudentByProfile } from '../_lib/school.js';
 
 // Vercel 함수 개수 제한(Hobby 12개)에 맞추기 위해 login/session/logout을 한 파일로 통합.
 // /api/auth/login, /api/auth/session, /api/auth/logout 경로는 그대로 유지됨(동적 라우트).
@@ -53,6 +53,34 @@ export default async function handler(req, res) {
     }
 
     return res.status(400).json({ success: false, message: '알 수 없는 역할입니다' });
+  }
+
+  if (action === 'find-account') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+
+    const { name, phone, parentPhone } = req.body || {};
+    if (!name || !phone || !parentPhone) {
+      return res.status(400).json({ success: false, message: '이름·학생번호·학부모번호를 모두 입력하세요' });
+    }
+
+    // 로그인 전(세션 없음) 화면이라 이름+전화번호 두 개만으로 무차별 대입이 가능해지지 않도록
+    // IP당 요청 수를 빡빡하게 제한 — checkLoginRateLimit(1분 10회)보다 더 낮춤.
+    const rlOk = await checkRateLimit('find-account', getClientIp(req), 5, 60);
+    if (!rlOk) return res.status(429).json({ success: false, message: '잠시 후 다시 시도해주세요' });
+
+    const found = await findStudentByProfile(name, phone, parentPhone);
+    if (!found) {
+      return res.status(404).json({ success: false, message: '일치하는 계정을 찾을 수 없습니다' });
+    }
+    // 비밀번호 원문은 절대 내려주지 않고, 첫 글자 + 마스킹 + 자릿수 힌트만 서버에서 계산해 전달
+    const pwd = found.pwd || '';
+    const pwdHint = pwd.length > 0 ? pwd[0] + '●'.repeat(pwd.length - 1) + ` (${pwd.length}자리)` : '(정보 없음)';
+    return res.status(200).json({
+      success: true,
+      schoolName: found.schoolName, schoolGrade: found.schoolGrade,
+      studentId: found.studentId, pwdHint,
+    });
   }
 
   if (action === 'session') {

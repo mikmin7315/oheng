@@ -147,7 +147,7 @@ export async function createSchool(name, grade, type) {
   const school = {
     id, name, grade: grade || '1학년', type: type === 'lecture' ? 'lecture' : 'regular',
     students: [], records: [], notices: {}, suggestions: [], withdrawnStudents: [], inquiries: [], sendLogs: [], saveLogs: [],
-    hw1: '숙제1', hw2: '숙제2', hw2Skip: false, hwNames: {}, kakaoChannel: '',
+    hw1: '숙제1', hw2: '숙제2', hw1Skip: false, hw2Skip: false, hwNames: {}, kakaoChannel: '',
     version: 1,
   };
   school._aggregates = computeAggregates(school);
@@ -236,6 +236,7 @@ export function normalizeSchoolForWrite(incoming, existing) {
     saveLogs: existing?.saveLogs || [],
     hw1: incoming.hw1 || '숙제1',
     hw2: incoming.hw2 || '숙제2',
+    hw1Skip: !!incoming.hw1Skip,
     hw2Skip: !!incoming.hw2Skip,
     hwNames: incoming.hwNames || {},
     kakaoChannel: incoming.kakaoChannel || '',
@@ -260,6 +261,7 @@ export function hashSchoolForMigration(school) {
     suggestions: Array.isArray(school.suggestions) ? school.suggestions : [],
     hw1: school.hw1 || '숙제1',
     hw2: school.hw2 || '숙제2',
+    hw1Skip: !!school.hw1Skip,
     hw2Skip: !!school.hw2Skip,
     hwNames: school.hwNames || {},
     kakaoChannel: school.kakaoChannel || '',

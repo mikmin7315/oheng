@@ -25,7 +25,7 @@ export default async function handler(req, res) {
       student: { id: student.id, name: student.name, phone: student.phone || '', parentPhone: student.parentPhone || '', type: student.type || 'regular' },
       school: {
         id: sc.id, name: sc.name, grade: sc.grade,
-        hw1: sc.hw1, hw2: sc.hw2, hw2Skip: sc.hw2Skip, hwNames: sc.hwNames || {},
+        hw1: sc.hw1, hw2: sc.hw2, hw1Skip: sc.hw1Skip, hw2Skip: sc.hw2Skip, hwNames: sc.hwNames || {},
         notices: sc.notices || {}, kakaoChannel: sc.kakaoChannel || '',
       },
       records: (sc.records || []).filter(r => r.sid === session.studentId),

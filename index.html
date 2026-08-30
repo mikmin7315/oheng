@@ -569,6 +569,8 @@ const VAPID_PUBLIC_KEY='BClrX5_mErAwCfnxMnn7JxqUECaVChgQ8zTADG7HWfg8vCcNTGE2Xx0v
 const CHANGELOG=[
   {date:'2026-08-30',items:[
     '학생 성적표에 그 주차 반 최고점과, 내 등수의 동점자 수를 함께 표시 (다른 학생 이름·개별 점수는 노출하지 않음)',
+    '아이디·비밀번호 찾기가 옛날 시드 데이터가 아닌 실제 서버 데이터에서 조회하도록 수정 (전학·계정 변경된 학생도 정확한 정보로 조회됨)',
+    '성적 일괄입력에서 숙제1도 숙제2처럼 그 주차만 생략 처리할 수 있도록 추가',
   ]},
   {date:'2026-08-22',items:[
     '학생 관리에 정렬 선택(등록순·가나다순) 추가 — 원본 순서를 바꾸지 않는 보기 방식이라 즉시 반영되고, 성적 일괄입력·인강/현강 체크 화면에도 같은 순서로 표시됩니다 (마지막 선택은 브라우저에 기억됨)',
@@ -693,7 +695,7 @@ async function syncSchoolToServer(sc,attempt,intent){
         const latestWithdrawnIds=new Set(latestWithdrawn.map(x=>x.id));
         const newLocalDirtyWithdrawn=[...localWithdrawnMap.entries()].filter(([id])=>dirtyWithdrawnIds.has(id)&&!latestWithdrawnIds.has(id)).map(([,x])=>x);
         sc.withdrawnStudents=[...mergedWithdrawn,...newLocalDirtyWithdrawn];
-        sc.hw1=latest.hw1??sc.hw1;sc.hw2=latest.hw2??sc.hw2;sc.hw2Skip=latest.hw2Skip??sc.hw2Skip;sc.hwNames=latest.hwNames??sc.hwNames;
+        sc.hw1=latest.hw1??sc.hw1;sc.hw2=latest.hw2??sc.hw2;sc.hw1Skip=latest.hw1Skip??sc.hw1Skip;sc.hw2Skip=latest.hw2Skip??sc.hw2Skip;sc.hwNames=latest.hwNames??sc.hwNames;
         sc.kakaoChannel=latest.kakaoChannel??sc.kakaoChannel;
         const key=r=>r.sid+'|'+r.month+'|'+r.week;
         const localMap=new Map(sc.records.map(r=>[key(r),r]));
@@ -1177,6 +1179,7 @@ async function init(){
   DB.schools.forEach(sc=>{
     if(!sc.hw1)sc.hw1='숙제1';
     if(!sc.hw2)sc.hw2='숙제2';
+    if(sc.hw1Skip===undefined)sc.hw1Skip=false;
     if(sc.hw2Skip===undefined)sc.hw2Skip=false;
     if(!sc.hwNames)sc.hwNames={};
     if(!sc.notices)sc.notices={};
@@ -1517,7 +1520,7 @@ function applyServerStudentData(data){
   ST.user=data.student;
   ST.userSchool={
     id:data.school.id,name:data.school.name,grade:data.school.grade,
-    hw1:data.school.hw1,hw2:data.school.hw2,hw2Skip:data.school.hw2Skip,hwNames:data.school.hwNames,
+    hw1:data.school.hw1,hw2:data.school.hw2,hw1Skip:data.school.hw1Skip,hw2Skip:data.school.hw2Skip,hwNames:data.school.hwNames,
     notices:data.school.notices,kakaoChannel:data.school.kakaoChannel,
     records:data.records,suggestions:data.suggestions,_aggregates:data.aggregates,
   };
@@ -2382,6 +2385,7 @@ function rReport(recs){
   const totMax = calcTotalMax(sc, rec.month, rec.week);
   const tieCount = rec.totalRank!=null ? tieCountAtRank(sc, rec.month, rec.week, rec.totalRank) : 0;
 
+  const hw1SkipForWeek = sc?.hwNames&&sc.hwNames[rec.month+'_'+rec.week]?sc.hwNames[rec.month+'_'+rec.week].hw1Skip:sc?.hw1Skip;
   const hw2SkipForWeek = sc?.hwNames&&sc.hwNames[rec.month+'_'+rec.week]?sc.hwNames[rec.month+'_'+rec.week].hw2Skip:sc?.hw2Skip;
 
   // 지난 주 대비 변화
@@ -2392,10 +2396,11 @@ function rReport(recs){
   // 숙제 미완료 연속 여부 (최근 2주 연속 미완료 시 경고)
   const hwWeekMissed=(r)=>{
     if(!r)return false;
+    const wk1Skip = sc?.hwNames&&sc.hwNames[r.month+'_'+r.week]?sc.hwNames[r.month+'_'+r.week].hw1Skip:sc?.hw1Skip;
     const wk2Skip = sc?.hwNames&&sc.hwNames[r.month+'_'+r.week]?sc.hwNames[r.month+'_'+r.week].hw2Skip:sc?.hw2Skip;
     const hw1Val = r.hw1||r.homework||'';
     const hw2Val = r.hw2||'';
-    const hw1Missed = hw1Val ? hw1Val!=='완료' : false;
+    const hw1Missed = (!wk1Skip&&hw1Val) ? hw1Val!=='완료' : false;
     const hw2Missed = (!wk2Skip&&hw2Val) ? hw2Val!=='완료' : false;
     return hw1Missed||hw2Missed;
   };
@@ -2467,7 +2472,8 @@ function rReport(recs){
       <span style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:#57616F;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${ic('book')}${esc(label)}</span>
       <span style="font-size:13px;font-weight:800;${done===true?'color:#146C43':done===false?'color:#B3261E':'color:#8C93A0'}">${esc(value)}</span>
     </div>`;
-    const items=[hwItem(rec.hwName1||sc?.hw1||'숙제1', rec.hw1||rec.homework||'-', (rec.hw1||rec.homework)?((rec.hw1||rec.homework)==='완료'):null)];
+    const items=[];
+    if(!hw1SkipForWeek) items.push(hwItem(rec.hwName1||sc?.hw1||'숙제1', rec.hw1||rec.homework||'-', (rec.hw1||rec.homework)?((rec.hw1||rec.homework)==='완료'):null));
     if(!hw2SkipForWeek) items.push(hwItem(rec.hwName2||sc?.hw2||'숙제2', rec.hw2||'-', rec.hw2?(rec.hw2==='완료'):null));
     items.push(`<div style="border:1.5px solid #D9E0EA;border-radius:10px;padding:10px 12px;background:#fff;display:flex;flex-direction:column;gap:5px;min-width:0">
       <span style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:#57616F;white-space:nowrap">${ic('clock')}재시험</span>
@@ -3043,6 +3049,7 @@ function rBulk(sc){
   const hwEntry=sc.hwNames&&sc.hwNames[hwKey]?sc.hwNames[hwKey]:{};
   const hw1=hwEntry.hw1||sc.hw1||'숙제1';
   const hw2=hwEntry.hw2||sc.hw2||'숙제2';
+  const hw1Skip=hwEntry.hw1Skip!==undefined?hwEntry.hw1Skip:(sc.hw1Skip||false);
   const hw2Skip=hwEntry.hw2Skip!==undefined?hwEntry.hw2Skip:(sc.hw2Skip||false);
   const rows=sortedStudents(sc).map(s=>{
     const ex=sc.records.find(r=>r.sid===s.id&&r.month===mon&&r.week===wk)||{};
@@ -3059,7 +3066,7 @@ function rBulk(sc){
       <td class="auto-wt-pass">${cpH(ex.wtPass,wtSkipped)}</td>
       <td><input class="ci-auto auto-tot" readonly tabindex="-1" value="${ex.totalScore!=null?ex.totalScore:''}"></td>
       <td><input class="ci-auto auto-tot-rank" readonly tabindex="-1" value="${ex.totalRank??''}"></td>
-      <td><select class="cs inp-hw1">${HW.map(o=>`<option ${(ex.hw1||ex.homework)===o?'selected':''}>${o}</option>`).join('')}</select></td>
+      <td><select class="cs inp-hw1" ${hw1Skip?'disabled style=\"opacity:0.35\"':''}>${HW.map(o=>`<option ${(ex.hw1||ex.homework)===o?'selected':''}>${o}</option>`).join('')}</select></td>
       <td><select class="cs inp-hw2" ${hw2Skip?'disabled style=\"opacity:0.35\"':''}>${HW.map(o=>`<option ${ex.hw2===o?'selected':''}>${o}</option>`).join('')}</select></td>
       <td><input class="ci inp-rt2" value="${ex.retestTime||''}" list="retest-list" style="min-width:70px" autocomplete="off"></td>
       <td><select class="cs att-sel" data-sid="${s.id}" style="font-weight:700;color:${attColor}">${attOptionsHtml(attVal)}</select></td>
@@ -3096,6 +3103,10 @@ function rBulk(sc){
         <label style="font-size:11px;color:#92400E;font-weight:600;white-space:nowrap">숙제1</label>
         <input id="hw1-name" value="${hw1}" placeholder="이번 주 숙제1 이름" style="padding:5px 10px;border:1.5px solid #FFD54F;border-radius:7px;font-size:12px;font-weight:600;color:#78350F;background:#fff;width:110px;outline:none;font-family:inherit">
       </div>
+      <div style="display:flex;align-items:center;gap:5px">
+        <input type="checkbox" id="hw1-skip" ${hw1Skip?'checked':''} style="width:15px;height:15px;accent-color:#1A237E;cursor:pointer">
+        <label for="hw1-skip" style="font-size:11px;color:#92400E;font-weight:600;cursor:pointer;white-space:nowrap">숙제1 생략</label>
+      </div>
       <div style="display:flex;align-items:center;gap:6px">
         <label style="font-size:11px;color:#92400E;font-weight:600;white-space:nowrap">숙제2</label>
         <input id="hw2-name" value="${hw2}" placeholder="이번 주 숙제2 이름" style="padding:5px 10px;border:1.5px solid #FFD54F;border-radius:7px;font-size:12px;font-weight:600;color:#78350F;background:#fff;width:110px;outline:none;font-family:inherit">
@@ -3113,7 +3124,7 @@ function rBulk(sc){
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <span style="font-size:11px;font-weight:700;color:#92400E;white-space:nowrap;min-width:64px">✅ 상태 일괄</span>
       <span style="font-size:11px;color:#78350F;font-weight:700">${esc(hw1)}</span>
-      <select id="bulk-hw1" class="cs" style="font-size:11px;padding:4px 8px;border:1.5px solid #FFD54F;border-radius:6px">
+      <select id="bulk-hw1" class="cs" ${hw1Skip?'disabled style="opacity:0.35"':''} style="font-size:11px;padding:4px 8px;border:1.5px solid #FFD54F;border-radius:6px">
         <option value="">— 변경 안 함 —</option>
         ${HW.map(o=>`<option>${o}</option>`).join('')}
       </select>
@@ -4330,13 +4341,14 @@ function bAdmin(){
   if(hwSaveBtn){hwSaveBtn.onclick=()=>{
     const h1=(document.getElementById('hw1-name')?.value||'').trim()||'숙제1';
     const h2=(document.getElementById('hw2-name')?.value||'').trim()||'숙제2';
+    const skip1=document.getElementById('hw1-skip')?.checked||false;
     const skip2=document.getElementById('hw2-skip')?.checked||false;
     // 주차별 저장
     const hwK=ST.bMon+'_'+ST.bWk;
     if(!sc.hwNames)sc.hwNames={};
-    sc.hwNames[hwK]={hw1:h1,hw2:h2,hw2Skip:skip2};
+    sc.hwNames[hwK]={hw1:h1,hw2:h2,hw1Skip:skip1,hw2Skip:skip2};
     // 학교 기본값도 업데이트 (신규 주차 기본값으로 사용)
-    sc.hw1=h1;sc.hw2=h2;sc.hw2Skip=skip2;
+    sc.hw1=h1;sc.hw2=h2;sc.hw1Skip=skip1;sc.hw2Skip=skip2;
     saveDB();render();
   };}
   let draftTimer=null;

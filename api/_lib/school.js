@@ -169,10 +169,16 @@ export function computeAggregates(school) {
     const valid = records.filter(r => r.month === month && r.week === week &&
       (r.rtSkip || r.rtScore != null) && (r.wtSkip || r.wtScore != null) &&
       ((!r.rtSkip && r.rtScore != null) || (!r.wtSkip && r.wtScore != null)));
-    if (!valid.length) { aggregates[wk] = { avg: null, count: 0 }; return; }
+    if (!valid.length) { aggregates[wk] = { avg: null, count: 0, max: null, rankCounts: {} }; return; }
     const tots = valid.map(r => (r.rtSkip ? 0 : (r.rtScore || 0)) + (r.wtSkip ? 0 : (r.wtScore || 0)));
     const avg = Math.round(tots.reduce((a, b) => a + b, 0) / tots.length * 10) / 10;
-    aggregates[wk] = { avg, count: valid.length };
+    const max = Math.max(...tots);
+    // 학생 성적표에 "반 최고점"·"내 등수 동점자 수"를 보여주기 위한 집계 — 개별 학생의
+    // 이름이나 점수는 포함하지 않고 등수별 인원수만 담는다(학생 API는 본인 기록만 내려주므로
+    // 이 집계가 없으면 동점자 수를 알 방법이 없음).
+    const rankCounts = {};
+    valid.forEach(r => { if (r.totalRank != null) rankCounts[r.totalRank] = (rankCounts[r.totalRank] || 0) + 1; });
+    aggregates[wk] = { avg, count: valid.length, max, rankCounts };
   });
   return aggregates;
 }

@@ -818,6 +818,23 @@ function classCount(sc,month,week){
     (r.rtSkip||r.rtScore!=null)&&(r.wtSkip||r.wtScore!=null)&&
     ((!r.rtSkip&&r.rtScore!=null)||(!r.wtSkip&&r.wtScore!=null))).length;
 }
+// 학생이 "점수·석차만으로는 수준 파악이 부족하다"고 제안해서 추가 — 반 최고점과, 내 등수에
+// 동점자가 몇 명인지(예: "3등 · 2명 동점")를 같이 보여줌. 다른 학생 이름/개별 점수는 노출 안 함.
+function calcTotalMax(sc,month,week){
+  if(!sc)return null;
+  if(sc._aggregates)return sc._aggregates[`${month}_${week}`]?.max??null;
+  const valid=sc.records.filter(r=>r.month===month&&r.week===week&&
+    (r.rtSkip||r.rtScore!=null)&&(r.wtSkip||r.wtScore!=null)&&
+    ((!r.rtSkip&&r.rtScore!=null)||(!r.wtSkip&&r.wtScore!=null)));
+  if(!valid.length)return null;
+  const tots=valid.map(r=>(r.rtSkip?0:(r.rtScore||0))+(r.wtSkip?0:(r.wtScore||0)));
+  return Math.max(...tots);
+}
+function tieCountAtRank(sc,month,week,rank){
+  if(!sc||rank==null)return 0;
+  if(sc._aggregates)return sc._aggregates[`${month}_${week}`]?.rankCounts?.[rank]??0;
+  return sc.records.filter(r=>r.month===month&&r.week===week&&r.totalRank===rank).length;
+}
 
 function migrateAvgs(sc){
   sc.records.forEach(rec=>{
@@ -2357,6 +2374,8 @@ function rReport(recs){
   const wtSkip = rec.wtSkip;
   const totAvg = calcTotalAvg(sc, rec.month, rec.week);
   const clsCount = classCount(sc, rec.month, rec.week);
+  const totMax = calcTotalMax(sc, rec.month, rec.week);
+  const tieCount = rec.totalRank!=null ? tieCountAtRank(sc, rec.month, rec.week, rec.totalRank) : 0;
 
   const hw2SkipForWeek = sc?.hwNames&&sc.hwNames[rec.month+'_'+rec.week]?sc.hwNames[rec.month+'_'+rec.week].hw2Skip:sc?.hw2Skip;
 
@@ -2380,7 +2399,7 @@ function rReport(recs){
   const rtPct = (!rtSkip&&rec.rtScore!=null&&rec.rvAvg)?Math.round(rec.rtScore/rec.rvAvg*100):null;
   const wtPct = (!wtSkip&&rec.wtScore!=null&&rec.wtAvg)?Math.round(rec.wtScore/rec.wtAvg*100):null;
   const totPct = (rec.totalScore!=null&&totAvg)?Math.round(rec.totalScore/totAvg*100):null;
-  const rankSub = rec.totalRank!=null ? `${rec.totalRank}등${clsCount?` / ${clsCount}명<span style="font-size:10.5px;font-weight:600;color:#8C93A0;margin-left:2px">(영상시청자 제외, 응시자)</span>`:''}` : '';
+  const rankSub = rec.totalRank!=null ? `${rec.totalRank}등${tieCount>1?` <span style="font-size:10.5px;font-weight:600;color:#8C93A0">(동점 ${tieCount}명)</span>`:''}${clsCount?` / ${clsCount}명<span style="font-size:10.5px;font-weight:600;color:#8C93A0;margin-left:2px">(영상시청자 제외, 응시자)</span>`:''}` : '';
   const PF='font-family:\'Public Sans\',Pretendard,-apple-system,sans-serif';
 
   return`
@@ -2403,6 +2422,7 @@ function rReport(recs){
     <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
       ${delta!=null?`<span style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:700;padding:5px 11px;border-radius:8px;${delta>0?'color:#146C43;background:#E8F5EC':delta<0?'color:#B3261E;background:#FCEAEA':'color:#57616F;background:#EEF1F5'}">${delta>0?'▲':delta<0?'▼':'–'} 지난주 대비 ${delta!==0?Math.abs(delta)+'점':'동일'}</span>`:''}
       ${totPct!=null?`<span style="font-size:12.5px;color:#57616F;font-weight:600;padding:5px 2px">반평균 ${totAvg}점 대비 ${totPct}%</span>`:''}
+      ${totMax!=null?`<span style="font-size:12.5px;color:#57616F;font-weight:600;padding:5px 2px">반 최고점 ${totMax}점</span>`:''}
     </div>
     ${delta!=null&&delta<=-10?`<div style="margin-top:10px;padding:10px 14px;background:#FFEBEE;border:1.5px solid #FFCDD2;border-radius:10px;font-size:12.5px;font-weight:700;color:#C62828;display:flex;align-items:center;gap:6px">🚨 지난주 대비 10점 이상 하락했어요</div>`:''}
     ${hwMissedStreak?`<div style="margin-top:10px;padding:10px 14px;background:#FFF3E0;border:1.5px solid #FFCC80;border-radius:10px;font-size:12.5px;font-weight:700;color:#E65100;display:flex;align-items:center;gap:6px">🚨 최근 2주 연속 숙제를 완료하지 않았어요</div>`:''}

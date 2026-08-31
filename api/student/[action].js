@@ -1,5 +1,6 @@
 import { requireStudentSession, isSameOrigin, verifyPassword, hashPassword, encryptPwd } from '../_lib/auth.js';
 import { getSchool, mutateSchool, SchoolMutationError } from '../_lib/school.js';
+import { notifyAdminNewSuggestion } from '../_lib/email.js';
 
 function todayStr() {
   const d = new Date();
@@ -74,6 +75,8 @@ export default async function handler(req, res) {
         sc.suggestions.push(suggestion);
       });
       if (!result) return res.status(404).json({ success: false, message: '학교를 찾을 수 없습니다' });
+      const student = (result.school.students || []).find(s => s.id === session.studentId);
+      await notifyAdminNewSuggestion(result.school.name, student?.name || session.studentId, suggestion.cat, suggestion.txt);
       return res.status(200).json({ success: true, suggestion });
     } catch (e) {
       if (e instanceof SchoolMutationError) return res.status(e.status).json({ success: false, message: e.message });

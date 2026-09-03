@@ -1527,6 +1527,16 @@ function applyServerStudentData(data){
   const recs=sRecs(ST.user.id,ST.userSchool);
   if(recs.length){const l=recs[recs.length-1];ST.vMon=l.month;ST.vWk=l.week;}
 }
+// 모의고사 데이터는 성적표(/api/student/me)와 별도 엔드포인트라 따로 불러온다.
+// 실패해도 성적표 자체는 그대로 보여야 하므로 조용히 null로 둔다.
+async function loadStudentMock(){
+  try{
+    const res=await fetch('/api/student/mock',{credentials:'include'});
+    if(!res.ok){ST.mock=null;return;}
+    const data=await res.json();
+    ST.mock=data.success?{openRound:data.openRound,history:data.history||[]}:null;
+  }catch(e){ST.mock=null;}
+}
 async function loadServerStudentData(){
   try{
     const res=await fetch('/api/student/me',{credentials:'include'});
@@ -1534,6 +1544,7 @@ async function loadServerStudentData(){
     const data=await res.json();
     if(!data.success)return false;
     applyServerStudentData(data);
+    await loadStudentMock();
     return true;
   }catch(e){return false;}
 }
@@ -2268,7 +2279,7 @@ function rStudent(){
   ];
   const recs=sRecs(ST.user.id,ST.userSchool);
   let inner='';
-  if(ST.tab==='report') inner=rReport(recs);
+  if(ST.tab==='report') inner=rMockCard()+rReport(recs);
   else if(ST.tab==='suggest') inner=rSuggest();
   else if(ST.tab==='inquiry') inner=rInquiry();
   else inner=rStudentSettings();
@@ -2369,6 +2380,144 @@ function rInquiry(){
   </div>`;
 }
 
+// 모의고사 카드 — 성적표 탭 맨 위. 세 가지 상태를 가진다.
+//  1) 열린 회차 미제출  → 입력 폼
+//  2) 열린 회차 제출완료 → 제출값 + 수정 버튼 (등수는 마감 후에만 공개하므로 여기선 안 보여줌)
+//  3) 열린 회차 없음     → 가장 최근 마감 회차의 결과 카드
+// 등급은 자유 입력이 아니라 1~9 드롭다운만 받는다. 표기가 흔들리면 나중에 필터링이 안 된다.
+function mockGradeOptions(sel){
+  let out=`<option value="" ${sel==null?'selected':''}>모름</option>`;
+  for(let g=1;g<=9;g++) out+=`<option value="${g}" ${sel===g?'selected':''}>${g}등급</option>`;
+  return out;
+}
+function mockRatioText(r){
+  if(!r||r.totalCount==null)return'';
+  return `우리 학년 ${r.totalCount}명 중 <b style="color:#1E40AF">${r.submittedCount}명</b> 입력 완료`;
+}
+function mockDdayBadge(closeAt){
+  const left=closeAt-Date.now();
+  if(left<=0)return'';
+  const urgent=left<24*60*60*1000;
+  const d=new Date(closeAt);
+  const label=`마감 ${d.getMonth()+1}/${d.getDate()}`;
+  return `<span style="font-size:11px;font-weight:800;padding:3px 8px;border-radius:6px;${urgent?'background:#FFEBEE;color:#C62828':'background:#EEF1F5;color:#57616F'}">${label}</span>`;
+}
+function rMockInputForm(r){
+  const cur=r.mySubmission;
+  return `
+  <div style="display:flex;gap:8px;align-items:flex-end;margin-top:12px">
+    <div style="flex:1">
+      <label style="display:block;font-size:11px;font-weight:700;color:#57616F;margin-bottom:5px">영어 원점수</label>
+      <input id="mock-score" type="number" inputmode="numeric" min="0" max="${r.maxScore}" value="${cur?cur.score:''}" placeholder="0~${r.maxScore}"
+        style="width:100%;padding:10px 12px;border:1.5px solid #D9E0EA;border-radius:9px;font-size:15px;font-weight:700;outline:none;font-family:inherit;color:#10192B">
+    </div>
+    <div style="flex:1">
+      <label style="display:block;font-size:11px;font-weight:700;color:#57616F;margin-bottom:5px">등급</label>
+      <select id="mock-grade" style="width:100%;padding:10px 12px;border:1.5px solid #D9E0EA;border-radius:9px;font-size:14px;font-weight:700;outline:none;font-family:inherit;background:#fff;color:#10192B">
+        ${mockGradeOptions(cur?cur.grade:null)}
+      </select>
+    </div>
+  </div>
+  <button id="mock-submit" style="width:100%;margin-top:12px;padding:12px;background:#1E40AF;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit">${cur?'수정하기':'제출하기'}</button>
+  <div id="mock-msg" style="font-size:12px;margin-top:8px;min-height:16px"></div>`;
+}
+function rMockResultCard(h){
+  const pf="font-family:'Public Sans',Pretendard,-apple-system,sans-serif";
+  const rankLine = h.rank!=null
+    ? `학년 ${h.rank}등 / ${h.count}명${h.tieCount>1?` <span style="color:#8C93A0">(동점 ${h.tieCount}명)</span>`:''}`
+    : (h.count<5 ? `응시자 ${h.count}명 — 응시자가 적어 등수는 표시하지 않습니다` : '마감 후 등수가 공개됩니다');
+  const dist=h.gradeDist||null;
+  const distMax=dist?Math.max(1,...Object.values(dist)):1;
+  const distBars=dist?`
+    <div style="display:flex;align-items:flex-end;gap:5px;height:70px;margin-top:14px">
+      ${[1,2,3,4,5,6,7,8,9].map(g=>{
+        const n=dist[g]||0;const mine=h.myGrade===g;
+        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">
+          <div style="font-size:9.5px;font-weight:700;color:${mine?'#1E40AF':'#8C93A0'}">${n||''}</div>
+          <div style="width:100%;height:${Math.round(n/distMax*44)}px;min-height:2px;border-radius:3px 3px 0 0;background:${mine?'#1E40AF':'#D9E0EA'}"></div>
+          <div style="font-size:9.5px;font-weight:${mine?'800':'600'};color:${mine?'#1E40AF':'#8C93A0'}">${g}</div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="font-size:10.5px;color:#8C93A0;text-align:center;margin-top:4px">학년 등급 분포 (내 등급 강조)</div>`:'';
+  return `
+  <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+    <div style="font-size:14px;font-weight:800;color:#10192B">${esc(h.title)}</div>
+    <div style="font-size:11px;font-weight:700;color:#8C93A0">${esc(h.grade)} · ${esc(h.examDate)}</div>
+  </div>
+  <div style="font-size:34px;font-weight:800;line-height:1.1;color:#1E40AF;margin-top:8px;font-variant-numeric:tabular-nums;${pf}">
+    ${h.score}<span style="font-size:14px;font-weight:700;color:#57616F;margin-left:5px">점${h.myGrade?` · ${h.myGrade}등급`:''}</span>
+  </div>
+  <div style="font-size:12.5px;font-weight:700;color:#57616F;margin-top:6px">${rankLine}</div>
+  ${h.avg!=null?`<div style="font-size:12px;color:#57616F;margin-top:3px">학년 평균 ${h.avg}점 · 최고 ${h.max}점</div>`:''}
+  ${distBars}`;
+}
+function rMockCard(){
+  const m=ST.mock;
+  if(!m)return'';
+  const open=m.openRound;
+  const last=(m.history&&m.history.length)?m.history[m.history.length-1]:null;
+  if(!open&&!last)return'';
+
+  let inner;
+  if(open){
+    inner=`
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <div style="font-size:14px;font-weight:800;color:#10192B">📢 ${esc(open.title)}</div>
+      ${mockDdayBadge(open.closeAt)}
+    </div>
+    <div style="font-size:12px;color:#57616F;margin-top:5px">${mockRatioText(open)}</div>
+    ${open.mySubmission?`<div style="margin-top:10px;padding:10px 12px;background:#EFF6FF;border:1.5px solid #BFDBFE;border-radius:9px;font-size:13px;font-weight:700;color:#1E40AF">
+      ${open.mySubmission.score}점${open.mySubmission.grade?` · ${open.mySubmission.grade}등급`:''} 제출됨 · 마감 전까지 수정할 수 있어요
+    </div>`:''}
+    ${rMockInputForm(open)}`;
+  }else{
+    inner=rMockResultCard(last);
+  }
+  return `<div id="mock-card" style="background:#fff;border:1.5px solid #D9E0EA;border-radius:14px;padding:16px 18px;margin-bottom:14px">
+    <div style="font-size:10.5px;font-weight:800;letter-spacing:1.2px;color:#8C93A0;margin-bottom:8px">MOCK EXAM · 모의고사</div>
+    ${inner}
+  </div>`;
+}
+async function submitMockScore(roundId,score,grade,msgEl){
+  try{
+    const res=await fetch('/api/student/mock-submit',{
+      method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({roundId,score,grade})
+    });
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok||!data.success){
+      if(msgEl){msgEl.textContent=data.message||'저장에 실패했습니다';msgEl.style.color='#C62828';}
+      return false;
+    }
+    await loadStudentMock();
+    return true;
+  }catch(e){
+    if(msgEl){msgEl.textContent='네트워크 오류로 저장하지 못했습니다';msgEl.style.color='#C62828';}
+    return false;
+  }
+}
+function bMockCard(){
+  const btn=document.getElementById('mock-submit');
+  if(!btn)return;
+  btn.onclick=async()=>{
+    const msg=document.getElementById('mock-msg');
+    const scoreEl=document.getElementById('mock-score');
+    const gradeEl=document.getElementById('mock-grade');
+    const raw=(scoreEl?.value||'').trim();
+    if(raw===''){msg.textContent='원점수를 입력하세요';msg.style.color='#C62828';return;}
+    const score=Number(raw);
+    const max=ST.mock?.openRound?.maxScore??100;
+    if(!Number.isInteger(score)||score<0||score>max){
+      msg.textContent=`점수는 0~${max} 사이 정수로 입력하세요`;msg.style.color='#C62828';return;
+    }
+    const grade=gradeEl.value===''?null:Number(gradeEl.value);
+    btn.disabled=true;btn.style.opacity='0.6';
+    msg.textContent='저장 중...';msg.style.color='#57616F';
+    const ok=await submitMockScore(ST.mock.openRound.id,score,grade,msg);
+    if(ok)render(); else {btn.disabled=false;btn.style.opacity='1';}
+  };
+}
 function rReport(recs){
   const opts=recs.map(r=>`${r.month} ${r.week}`);
   if(!opts.length)return`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;color:#9BA3AF;text-align:center"><div style="font-size:36px;margin-bottom:12px">📋</div><div style="font-size:15px;font-weight:600;color:#5C6470;margin-bottom:6px">아직 등록된 성적이 없습니다</div><div style="font-size:13px">선생님이 성적을 입력하면 여기에 표시됩니다</div></div>`;
@@ -2669,6 +2818,7 @@ function bD(recs){return{
 
 function bStudent(){
   document.getElementById('btn-lo').onclick=doLogout;
+  bMockCard();
   document.querySelectorAll('.tab[data-tab]').forEach(t=>{t.onclick=()=>{ST.tab=t.dataset.tab;render()}});
   document.querySelectorAll('[data-hist]').forEach(t=>{t.onclick=()=>{ST.histTab=t.dataset.hist;render()}});
   const saveImgBtn=document.getElementById('btn-save-report-img');

@@ -2685,9 +2685,11 @@ function drawMockCharts(){
         x:{grid:{display:false},ticks:{font:{size:10},maxRotation:0}}}},
       plugins:[gradeLinePlugin]});
   }
-
 }
 
+// 로그인 직후 1회 — 열린 회차가 있는데 아직 안 낸 학생에게만 뜬다.
+// "나중에"는 sessionStorage에만 기록해서 그 세션 동안만 숨긴다. 다음 로그인 때 다시 뜬다.
+function mockLaterKey(roundId){return 'oheng_mock_later_'+roundId;}
 function maybeShowMockPopup(){
   const open=ST.mock?.openRound;
   if(!open||open.mySubmission)return;

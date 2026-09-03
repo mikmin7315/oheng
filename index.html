@@ -3115,6 +3115,7 @@ function rAdmin(){
     {group:'업무',items:[
       {id:'dashboard',l:'대시보드',icon:'📊'},
       {id:'records',l:'성적 일괄 입력',icon:'📝'},
+      {id:'mock',l:'모의고사',icon:'📈'},
       {id:'attendance',l:'인강/현강 체크',icon:'🖥️'},
       {id:'videos',l:'영상 관리',icon:'🎬'},
       {id:'notices',l:'공지 입력',icon:'📢'},
@@ -3136,9 +3137,11 @@ function rAdmin(){
   // records 탭에 "새로" 진입할 때마다(다른 탭에 있다가 들어온 경우) 무조건 잠긴 상태로 시작 —
   // 주차 확인 없이 바로 입력하다 엉뚱한 주차에 저장하는 사고를 막기 위함
   if(ST.atab==='records'&&ST._lastAtab!=='records')ST.bkLoaded=false;
+  if(ST.atab!=='mock')ST.mockAdmin=null;
   ST._lastAtab=ST.atab;
   let inner='';
   if(ST.atab==='records') inner=rBulk(sc);
+  else if(ST.atab==='mock') inner=rMockAdmin(sc);
   else if(ST.atab==='attendance') inner=rAttendance(sc);
   else if(ST.atab==='videos') inner=rVideos(sc);
   else if(ST.atab==='notices') inner=rNotices(sc);
@@ -3187,6 +3190,175 @@ function rAdmin(){
     </div>
   </div>`;}
 
+// 선생님용 모의고사 탭 — 회차를 고르면 우리 반 제출 현황과 학년 등수를 함께 본다.
+// 등수는 학년 전체 기준(mock-detail의 aggregate.rankOf)이고, 표는 우리 반만 보여준다.
+async function loadMockAdmin(sc,roundId){
+  try{
+    const listRes=await fetch(`/api/admin/mock-rounds?grade=${encodeURIComponent(sc.grade||'')}`,{credentials:'include'});
+    const listData=listRes.ok?await listRes.json():{rounds:[]};
+    const rounds=listData.rounds||[];
+    const pick=roundId||rounds[0]?.id||null;
+    let detail=null;
+    if(pick){
+      const dRes=await fetch(`/api/admin/mock-detail?roundId=${encodeURIComponent(pick)}&schoolId=${encodeURIComponent(sc.id)}`,{credentials:'include'});
+      if(dRes.ok){const d=await dRes.json();if(d.success)detail=d;}
+    }
+    ST.mockAdmin={rounds,roundId:pick,detail};
+  }catch(e){ST.mockAdmin={rounds:[],roundId:null,detail:null};}
+}
+function rMockAdmin(sc){
+  const m=ST.mockAdmin;
+  if(!m){loadMockAdmin(sc,null).then(()=>render());return`<div class="section-card"><div style="color:#9BA3AF;font-size:13px">불러오는 중...</div></div>`;}
+  if(!m.rounds.length){
+    return`<div class="section-card">
+      <div style="color:#9BA3AF;font-size:13px;line-height:1.7">
+        <b>${esc(sc.grade)}</b>에 개설된 모의고사 회차가 없습니다.<br>
+        학교 선택 화면의 <b>📈 모의고사 회차 관리</b>에서 회차를 먼저 만들어 주세요.
+      </div></div>`;
+  }
+  const d=m.detail;
+  const agg=d?.aggregate||{count:0,avg:null,max:null,rankOf:{},bySchool:{}};
+  const subs=d?.submissions||[];
+  const missing=d?.missing||[];
+  const total=subs.length+missing.length;
+  const mine=agg.bySchool?.[sc.id]||null;
+  const g1=subs.filter(s=>s.grade===1).length;
+
+  const rows=subs.map(s=>`
+    <tr>
+      <td style="font-weight:700">${esc(s.name)}</td>
+      <td style="text-align:center;font-weight:800;color:#1E40AF">${s.score}</td>
+      <td style="text-align:center">${s.grade?s.grade+'등급':'-'}</td>
+      <td style="text-align:center;font-weight:700">${s.excluded?'<span style="color:#B3261E">제외</span>':(agg.rankOf?.[s.sid]??'-')}</td>
+      <td style="text-align:center;font-size:11px;color:#9BA3AF">${s.updatedAt?new Date(s.updatedAt).toLocaleDateString('ko-KR'):'-'}</td>
+      <td style="text-align:center;white-space:nowrap">
+        <button class="abtn" data-mock-edit="${esc(s.sid)}" title="점수 수정">✏️</button>
+        <button class="abtn" data-mock-excl="${esc(s.sid)}" data-cur="${s.excluded?'1':'0'}" title="${s.excluded?'집계에 다시 포함':'집계에서 제외'}">${s.excluded?'↩️':'🚫'}</button>
+      </td>
+    </tr>`).join('');
+  const missRows=missing.map(s=>`
+    <tr style="background:#FAFBFC;color:#9BA3AF">
+      <td style="font-weight:700">${esc(s.name)}</td>
+      <td colspan="4" style="text-align:center;font-size:11.5px;font-weight:700">미제출</td>
+      <td style="text-align:center"><button class="abtn" data-mock-add="${esc(s.id)}" title="선생님이 대신 입력">➕</button></td>
+    </tr>`).join('');
+
+  return`
+  <div class="section-card">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+      <select id="mock-round-pick" class="finp" style="max-width:280px">
+        ${m.rounds.map(r=>`<option value="${esc(r.id)}" ${r.id===m.roundId?'selected':''}>${esc(r.title)} (${esc(r.examDate)})</option>`).join('')}
+      </select>
+    </div>
+    <div style="background:#EFF6FF;border:1.5px solid #BFDBFE;border-radius:10px;padding:12px 14px;font-size:13px;font-weight:700;color:#1E40AF;line-height:1.7">
+      우리 반 ${total}명 중 <b>${subs.length}명</b> 입력
+      ${mine?` · 평균 ${mine.avg} (학년 ${agg.avg ?? '-'}) · 최고 ${mine.max}`:''}
+      · 1등급 ${g1}명
+    </div>
+  </div>
+  <div class="section-card">
+    <div class="section-ttl">📋 우리 반 결과</div>
+    <table class="tbl" style="width:100%">
+      <thead><tr>
+        <th style="text-align:left">이름</th><th>원점수</th><th>등급</th><th>학년 등수</th><th>제출</th><th></th>
+      </tr></thead>
+      <tbody>${rows}${missRows}</tbody>
+    </table>
+  </div>
+  <div class="section-card">
+    <div class="section-ttl">📈 회차별 우리 반 vs 학년 평균</div>
+    <div style="position:relative;height:190px"><canvas id="mock-admin-trend"></canvas></div>
+  </div>
+  <div class="section-card">
+    <div class="section-ttl">📊 이번 회차 반별 평균</div>
+    <div style="position:relative;height:190px"><canvas id="mock-admin-bars"></canvas></div>
+  </div>`;
+}
+function bMockAdmin(sc){
+  const pick=document.getElementById('mock-round-pick');
+  if(!pick)return;
+  pick.onchange=async()=>{await loadMockAdmin(sc,pick.value);render();};
+
+  const edit=async(sid,body)=>{
+    const res=await fetch('/api/admin/mock-edit',{
+      method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({roundId:ST.mockAdmin.roundId,sid,...body})
+    });
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok||!data.success){alert(data.message||'저장에 실패했습니다');return;}
+    await loadMockAdmin(sc,ST.mockAdmin.roundId);render();
+  };
+  document.querySelectorAll('[data-mock-edit]').forEach(b=>{
+    b.onclick=()=>{
+      const sid=b.dataset.mockEdit;
+      const cur=(ST.mockAdmin.detail?.submissions||[]).find(s=>s.sid===sid);
+      const sv=prompt(`${cur?.name||''} 원점수`,cur?.score??'');
+      if(sv===null)return;
+      const gv=prompt(`${cur?.name||''} 등급 (1~9, 없으면 비워두세요)`,cur?.grade??'');
+      if(gv===null)return;
+      edit(sid,{score:Number(sv),grade:gv===''?null:Number(gv)});
+    };
+  });
+  document.querySelectorAll('[data-mock-excl]').forEach(b=>{
+    b.onclick=()=>{
+      const sid=b.dataset.mockExcl;
+      const on=b.dataset.cur==='1';
+      if(on){edit(sid,{excluded:false});return;}
+      const memo=prompt('집계에서 제외하는 사유 (선택)','');
+      if(memo===null)return;
+      edit(sid,{excluded:true,memo});
+    };
+  });
+  document.querySelectorAll('[data-mock-add]').forEach(b=>{
+    b.onclick=()=>{
+      const sid=b.dataset.mockAdd;
+      const who=(ST.mockAdmin.detail?.missing||[]).find(s=>s.id===sid);
+      const sv=prompt(`${who?.name||''} 원점수 (선생님 대신 입력)`,'');
+      if(sv===null||sv==='')return;
+      const gv=prompt(`${who?.name||''} 등급 (1~9, 없으면 비워두세요)`,'');
+      if(gv===null)return;
+      edit(sid,{schoolId:sc.id,score:Number(sv),grade:gv===''?null:Number(gv)});
+    };
+  });
+
+  // 그래프 2개
+  requestAnimationFrame(async()=>{
+    if(typeof Chart==='undefined')return;
+    const m=ST.mockAdmin;
+    if(!m||!m.rounds.length)return;
+
+    // ① 회차별 우리 반 평균 vs 학년 평균 — 회차마다 집계를 받아온다(회차 수는 많아야 수십 개)
+    const details=await Promise.all(m.rounds.slice().reverse().map(async r=>{
+      const res=await fetch(`/api/admin/mock-detail?roundId=${encodeURIComponent(r.id)}&schoolId=${encodeURIComponent(sc.id)}`,{credentials:'include'});
+      if(!res.ok)return null;
+      const d=await res.json();
+      return d.success?{title:r.title,agg:d.aggregate}:null;
+    }));
+    const ok=details.filter(Boolean);
+    if(ok.length){
+      mkLine('mock-admin-trend',
+        ok.map(x=>x.title.length>10?x.title.slice(0,10)+'…':x.title),
+        ok.map(x=>x.agg.bySchool?.[sc.id]?.avg??null),
+        ok.map(x=>x.agg.avg??null),
+        '#1E40AF',0,100);
+    }
+
+    // ② 이번 회차 반별 평균 — 우리 반만 강조
+    const bs=m.detail?.aggregate?.bySchool||{};
+    const keys=Object.keys(bs);
+    const bars=document.getElementById('mock-admin-bars');
+    if(bars&&keys.length){
+      new Chart(bars,{type:'bar',data:{
+        labels:keys.map(k=>bs[k].schoolName||k),
+        datasets:[{data:keys.map(k=>bs[k].avg),
+          backgroundColor:keys.map(k=>k===sc.id?'#1E40AF':'#C4CBD6'),borderRadius:6}]
+      },options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`평균 ${ctx.parsed.y}점`}}},
+        scales:{y:{beginAtZero:true,grid:{color:'rgba(128,128,128,.1)'},ticks:{font:{size:10}}},
+          x:{grid:{display:false},ticks:{font:{size:10},maxRotation:0}}}}});
+    }
+  });
+}
 function rDashboard(sc){
   const allR=sc.records;
   const weekSet=[...new Set(allR.map(r=>r.month+'_'+r.week))].sort((a,b)=>{
@@ -4157,6 +4329,7 @@ function bAdmin(){
     }
     ST._dirty=false;ST.atab=t.dataset.atab;render();
   };});
+  if(ST.atab==='mock') bMockAdmin(curSch());
   if(ST.atab==='dashboard'){
     setTimeout(()=>{
       const c=document.getElementById('dash-avg');

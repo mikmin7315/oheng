@@ -1,6 +1,11 @@
 import { requireStudentSession, isSameOrigin, verifyPassword, hashPassword, encryptPwd } from '../_lib/auth.js';
 import { getSchool, mutateSchool, SchoolMutationError } from '../_lib/school.js';
 import { notifyAdminNewSuggestion } from '../_lib/email.js';
+import {
+  listRounds, getRound, getSubmission, putSubmission, getAggregate,
+  countSubmissions, countStudentsInGrade,
+  normalizeGrade, parseScore, parseGradeLevel, isRoundOpen, studentViewOf,
+} from '../_lib/mock.js';
 
 function todayStr() {
   const d = new Date();
@@ -102,6 +107,88 @@ export default async function handler(req, res) {
       if (e instanceof SchoolMutationError) return res.status(e.status).json({ success: false, message: e.message });
       return res.status(500).json({ success: false, message: e.message });
     }
+  }
+
+  if (action === 'mock') {
+    if (req.method !== 'GET') return res.status(405).end();
+    const sc = await getSchool(session.schoolId);
+    if (!sc) return res.status(404).json({ success: false, message: '학교를 찾을 수 없습니다' });
+    const myGrade = normalizeGrade(sc.grade);
+    const rounds = await listRounds();
+    const now = Date.now();
+
+    // 입력칸을 띄울 회차 — 지금 내 학년 기준. 열린 회차가 둘 이상이면(예: 3월 회차 마감 전에
+    // 4월 회차를 미리 열어둔 경우) 마감이 가장 임박한 것을 보여준다. 놓치면 안 되는 쪽이 먼저다.
+    const open = rounds
+      .filter(r => !r.archived && normalizeGrade(r.grade) === myGrade && isRoundOpen(r, now))
+      .sort((a, b) => a.closeAt - b.closeAt)[0];
+    let openRound = null;
+    if (open) {
+      const [mySub, submittedCount, totalCount] = await Promise.all([
+        getSubmission(open.id, session.studentId),
+        countSubmissions(open.id),
+        countStudentsInGrade(myGrade),
+      ]);
+      openRound = {
+        id: open.id, title: open.title, examDate: open.examDate,
+        closeAt: open.closeAt, maxScore: open.maxScore,
+        mySubmission: mySub ? { score: mySub.score, grade: mySub.grade ?? null, updatedAt: mySub.updatedAt } : null,
+        submittedCount, totalCount,
+      };
+    }
+
+    // 지난 기록 — 학년으로 거르지 않는다. 진급은 반의 학년만 바꾸는 방식이라
+    // 학년으로 거르면 2학년이 되는 순간 1학년 기록이 화면에서 사라진다
+    // (데이터는 남아 있는데 안 보이는, 알아채기 어려운 형태의 손실).
+    const closedRounds = rounds.filter(r => now >= r.closeAt);
+    const pairs = await Promise.all(closedRounds.map(async (r) => {
+      const sub = await getSubmission(r.id, session.studentId);
+      if (!sub) return null;
+      const agg = await getAggregate(r.id);
+      return studentViewOf(r, sub, agg, now);
+    }));
+    const history = pairs.filter(Boolean)
+      .sort((a, b) => String(a.examDate || '').localeCompare(String(b.examDate || '')));
+
+    return res.status(200).json({ success: true, openRound, history });
+  }
+
+  if (action === 'mock-submit') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    const { roundId, score, grade } = req.body || {};
+    const round = await getRound(roundId);
+    if (!round) return res.status(404).json({ success: false, message: '회차를 찾을 수 없습니다' });
+    if (!isRoundOpen(round)) return res.status(403).json({ success: false, message: '입력이 마감되었습니다' });
+
+    const sc = await getSchool(session.schoolId);
+    if (!sc) return res.status(404).json({ success: false, message: '학교를 찾을 수 없습니다' });
+    if (normalizeGrade(sc.grade) !== normalizeGrade(round.grade)) {
+      return res.status(403).json({ success: false, message: '학년이 맞지 않는 회차입니다' });
+    }
+    const student = (sc.students || []).find(s => s.id === session.studentId);
+    if (!student) return res.status(404).json({ success: false, message: '학생 정보를 찾을 수 없습니다' });
+
+    const s = parseScore(score, round.maxScore);
+    if (s === null) return res.status(400).json({ success: false, message: `점수는 0~${round.maxScore} 사이 정수로 입력하세요` });
+    const g = parseGradeLevel(grade);
+    if (!g.ok) return res.status(400).json({ success: false, message: '등급은 1~9 중에서 선택하세요' });
+
+    const prev = await getSubmission(roundId, session.studentId);
+    const now = Date.now();
+    const sub = {
+      sid: session.studentId,
+      schoolId: sc.id, schoolName: sc.name, name: student.name,
+      score: s, grade: g.value,
+      submittedAt: prev?.submittedAt || now,
+      updatedAt: now,
+      editedBy: null,
+      // 선생님이 집계에서 제외해둔 학생이 다시 제출한다고 제외가 풀리면 안 된다
+      excluded: prev?.excluded || false,
+      memo: prev?.memo || '',
+    };
+    await putSubmission(roundId, sub);
+    return res.status(200).json({ success: true, submission: { score: sub.score, grade: sub.grade, updatedAt: sub.updatedAt } });
   }
 
   return res.status(404).json({ success: false, message: 'Not found' });

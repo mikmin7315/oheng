@@ -42,6 +42,8 @@ process.env.PWD_ENC_KEY = 'test-pwd-enc-key';
 // 만들면서 키가 없으면 던진다. 실제 발송은 하지 않으므로 더미 값이면 충분하다.
 process.env.SOLAPI_API_KEY = 'test-solapi-key';
 process.env.SOLAPI_API_SECRET = 'test-solapi-secret';
+// student 핸들러가 _lib/email.js를 import하는데 그 파일도 로드 시점에 Resend 클라이언트를 만든다
+process.env.RESEND_API_KEY = 're_test_key';
 
 before(() => {
   mock.module('../api/_lib/redis.js', {
@@ -53,6 +55,7 @@ const mockLib = await import('../api/_lib/mock.js');
 const auth = await import('../api/_lib/auth.js');
 const school = await import('../api/_lib/school.js');
 const adminHandler = (await import('../api/admin/[action].js')).default;
+const studentHandler = (await import('../api/student/[action].js')).default;
 
 function makeRes() {
   const res = {
@@ -434,4 +437,112 @@ test('mock-edit: 점수 범위 밖 값은 400으로 거부한다', async () => {
   }, res);
   assert.equal(res.statusCode, 400);
   assert.match(res.body.message, /점수/);
+});
+
+test('학생 mock 조회: 열린 회차와 제출 현황이 내려온다', async () => {
+  // 다른 테스트가 만든 열린 회차와 섞이지 않도록, 이 테스트에서만 쓰는 학년을 쓴다
+  // (한 파일의 테스트들이 fakeRedis를 공유한다)
+  const sc = await putSchool('sc_view', '학생조회고', '4학년', [{ id: 'st1', name: '조회학생', pwd: '1234' }]);
+  const { token } = await auth.createSession({ role: 'student', schoolId: sc.id, studentId: 'st1' });
+
+  const round = await mockLib.saveRound({
+    grade: '4학년', title: '학생용 회차', examDate: '2026.03.26',
+    openAt: 1, closeAt: Date.now() + 100000, maxScore: 100,
+  }, 'master');
+
+  const res = makeRes();
+  await studentHandler({
+    method: 'GET', headers: { cookie: `oheng_session=${token}` }, query: { action: 'mock' },
+  }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.openRound.id, round.id);
+  assert.equal(res.body.openRound.mySubmission, null);
+  assert.equal(res.body.openRound.submittedCount, 0);
+  // 한 파일의 테스트들이 fakeRedis를 공유하므로 같은 학년 학교가 누적된다 — 정확값 대신 하한만 본다
+  assert.ok(res.body.openRound.totalCount >= 1);
+  assert.deepEqual(res.body.history, []);
+});
+
+test('학생 mock-submit: 제출하면 조회에 반영되고 재제출은 덮어쓴다', async () => {
+  const sc = await putSchool('sc_submit', '제출고', '2학년', [{ id: 'st2', name: '제출학생', pwd: '1234' }]);
+  const { token } = await auth.createSession({ role: 'student', schoolId: sc.id, studentId: 'st2' });
+  const headers = { cookie: `oheng_session=${token}`, origin: 'https://x', host: 'x' };
+
+  const round = await mockLib.saveRound({
+    grade: '2학년', title: '제출 회차', examDate: '2026.03.26',
+    openAt: 1, closeAt: Date.now() + 100000, maxScore: 100,
+  }, 'master');
+
+  const res1 = makeRes();
+  await studentHandler({ method: 'POST', headers, query: { action: 'mock-submit' }, body: { roundId: round.id, score: 88, grade: 2 } }, res1);
+  assert.equal(res1.statusCode, 200);
+
+  const res2 = makeRes();
+  await studentHandler({ method: 'POST', headers, query: { action: 'mock-submit' }, body: { roundId: round.id, score: 91, grade: 1 } }, res2);
+  assert.equal(res2.statusCode, 200);
+
+  assert.equal(await mockLib.countSubmissions(round.id), 1, '재제출은 새 행이 아니라 덮어쓰기');
+  const stored = await mockLib.getSubmission(round.id, 'st2');
+  assert.equal(stored.score, 91);
+  assert.equal(stored.name, '제출학생', '이름을 스냅샷으로 남겨야 함');
+  assert.equal(stored.schoolName, '제출고');
+});
+
+test('학생 mock-submit: 마감된 회차와 다른 학년 회차는 거부한다', async () => {
+  const sc = await putSchool('sc_reject', '거부고', '3학년', [{ id: 'st3', name: '거부학생', pwd: '1234' }]);
+  const { token } = await auth.createSession({ role: 'student', schoolId: sc.id, studentId: 'st3' });
+  const headers = { cookie: `oheng_session=${token}`, origin: 'https://x', host: 'x' };
+
+  const closed = await mockLib.saveRound({ grade: '3학년', title: '마감됨', examDate: '2026.01.01', openAt: 1, closeAt: 2, maxScore: 100 }, 'm');
+  const resClosed = makeRes();
+  await studentHandler({ method: 'POST', headers, query: { action: 'mock-submit' }, body: { roundId: closed.id, score: 50 } }, resClosed);
+  assert.equal(resClosed.statusCode, 403);
+  assert.match(resClosed.body.message, /마감/);
+
+  const otherGrade = await mockLib.saveRound({ grade: '1학년', title: '남의 학년', examDate: '2026.04.01', openAt: 1, closeAt: Date.now() + 100000, maxScore: 100 }, 'm');
+  const resGrade = makeRes();
+  await studentHandler({ method: 'POST', headers, query: { action: 'mock-submit' }, body: { roundId: otherGrade.id, score: 50 } }, resGrade);
+  assert.equal(resGrade.statusCode, 403);
+});
+
+test('학생 mock-submit: 점수·등급 검증을 서버에서 다시 한다', async () => {
+  const sc = await putSchool('sc_valid', '검증고', '1학년', [{ id: 'st4', name: '검증학생', pwd: '1234' }]);
+  const { token } = await auth.createSession({ role: 'student', schoolId: sc.id, studentId: 'st4' });
+  const headers = { cookie: `oheng_session=${token}`, origin: 'https://x', host: 'x' };
+  const round = await mockLib.saveRound({ grade: '1학년', title: '검증', examDate: '2026.04.02', openAt: 1, closeAt: Date.now() + 100000, maxScore: 100 }, 'm');
+
+  const resScore = makeRes();
+  await studentHandler({ method: 'POST', headers, query: { action: 'mock-submit' }, body: { roundId: round.id, score: 120 } }, resScore);
+  assert.equal(resScore.statusCode, 400);
+
+  const resGrade = makeRes();
+  await studentHandler({ method: 'POST', headers, query: { action: 'mock-submit' }, body: { roundId: round.id, score: 80, grade: 12 } }, resGrade);
+  assert.equal(resGrade.statusCode, 400);
+});
+
+test('학생 mock 조회: 학년이 올라가도 지난 학년 회차가 history에 남는다', async () => {
+  const sc = await putSchool('sc_promote', '진급고', '1학년', [{ id: 'st5', name: '진급학생', pwd: '1234' }]);
+  const { token } = await auth.createSession({ role: 'student', schoolId: sc.id, studentId: 'st5' });
+
+  // 1학년 때 본 마감된 회차 — 응시자 5명을 채워 등수가 공개되는 상태로 만든다
+  const g1 = await mockLib.saveRound({ grade: '1학년', title: '1학년 3월', examDate: '2026.03.26', openAt: 1, closeAt: 2, maxScore: 100 }, 'm');
+  await mockLib.putSubmission(g1.id, { sid: 'st5', schoolId: sc.id, schoolName: sc.name, name: '진급학생', score: 88, grade: 2 });
+  for (let i = 0; i < 4; i++) {
+    await mockLib.putSubmission(g1.id, { sid: 'other' + i, schoolId: sc.id, schoolName: sc.name, name: '기타', score: 60 + i, grade: 5 });
+  }
+
+  // 반이 통째로 2학년이 됨 — 학교의 학년만 바꾼다 (반도 학생도 그대로)
+  await putSchool('sc_promote', '진급고', '2학년', [{ id: 'st5', name: '진급학생', pwd: '1234' }]);
+
+  const res = makeRes();
+  await studentHandler({ method: 'GET', headers: { cookie: `oheng_session=${token}` }, query: { action: 'mock' } }, res);
+  assert.equal(res.statusCode, 200);
+  const past = res.body.history.find(h => h.roundId === g1.id);
+  assert.ok(past, '2학년이 되어도 1학년 회차가 history에 남아야 함');
+  assert.equal(past.score, 88);
+  assert.equal(past.rank, 1);
+  assert.equal(past.count, 5);
+  assert.equal(past.avg, 66.8);  // (88+60+61+62+63)/5
+  // 다른 학생 정보가 새어나가지 않는지
+  assert.equal(JSON.stringify(res.body).includes('기타'), false, '다른 학생 이름이 응답에 있으면 안 됨');
 });

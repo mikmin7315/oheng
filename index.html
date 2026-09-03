@@ -4232,12 +4232,26 @@ function rVideos(sc){
     </table></div>`}
   </div>`;}
 
+// 현재 등록된 학년 목록 — 학교 요약 캐시에서 뽑는다. 지금 반의 학년은 목록에 없어도 반드시 포함한다.
+function knownGrades(current){
+  const src=(ST.schoolsSummary&&ST.schoolsSummary.length)?ST.schoolsSummary:DB.schools;
+  const set=new Set((src||[]).map(s=>String(s.grade||'').trim()).filter(Boolean));
+  if(current)set.add(String(current).trim());
+  return [...set].sort();
+}
 function rSchoolSettings(sc){return`
   <div class="section-card">
     <div class="section-ttl">학교 기본 정보</div>
     <div class="form2" style="margin-bottom:14px">
       <div class="fgrp"><label class="flbl">학교 이름</label><input class="finp" id="ss-name" value="${sc.name}"></div>
-      <div class="fgrp"><label class="flbl">학년</label><input class="finp" id="ss-grade" value="${sc.grade}"></div>
+      <div class="fgrp"><label class="flbl">학년</label>
+        <select class="finp" id="ss-grade">
+          ${knownGrades(sc.grade).map(g=>`<option value="${esc(g)}" ${g===sc.grade?'selected':''}>${esc(g)}</option>`).join('')}
+          <option value="__new__">+ 새 학년 입력</option>
+        </select>
+        <input class="finp" id="ss-grade-new" placeholder="예: 3학년" style="display:none;margin-top:6px">
+        <div style="font-size:11px;color:#9BA3AF;margin-top:5px">학년은 모의고사 회차와 반을 잇는 기준입니다. 표기가 흔들리면 그 반이 회차에서 빠집니다.</div>
+      </div>
     </div>
     <div class="fgrp" style="margin-bottom:14px">
       <label class="flbl">구분</label>
@@ -4550,10 +4564,18 @@ function bAdmin(){
     return;
   }
   if(ST.atab==='school-settings'){
+    const gSel=document.getElementById('ss-grade');
+    const gNew=document.getElementById('ss-grade-new');
+    if(gSel&&gNew){
+      gSel.onchange=()=>{gNew.style.display=gSel.value==='__new__'?'block':'none';if(gSel.value==='__new__')gNew.focus();};
+    }
     document.getElementById('btn-ss-save').onclick=()=>{
       const nm=document.getElementById('ss-name').value.trim();
-      const gr=document.getElementById('ss-grade').value.trim();
+      const gr=(gSel.value==='__new__'?(gNew.value||''):gSel.value).trim();
       if(!nm){alert('학교명을 입력하세요');return;}
+      if(!gr){alert('학년을 고르거나 입력하세요');return;}
+      // 학년이 바뀌면 그 반 학생 전원의 모의고사 대상 회차가 통째로 바뀐다 — 확인을 받는다
+      if(gr!==sc.grade&&!confirm(`이 반을 [${gr}]으로 바꿉니다.\n\n학생 ${sc.students.length}명이 앞으로 ${gr} 모의고사 대상이 됩니다.\n지난 학년의 모의고사 기록은 그대로 남습니다.\n\n계속하시겠습니까?`))return;
       sc.name=nm;sc.grade=gr;
       sc.type=document.getElementById('ss-type')?.value==='lecture'?'lecture':'regular';
       sc.hw1=document.getElementById('ss-hw1')?.value.trim()||'숙제1';

@@ -12,6 +12,10 @@ import {
   getSchoolIndex, getSchool, createSchool, putSchoolRaw,
   getSchoolSummaries, summarizeSchool, setSchoolSummaryEntry,
 } from '../_lib/school.js';
+import {
+  listRounds, getRound, saveRound, deleteRound,
+  countSubmissions, countStudentsInGrade, normalizeGrade, MockError,
+} from '../_lib/mock.js';
 import { getMessageHistory } from '../_lib/sms.js';
 
 const MAX_BODY_CHARS = 5_000_000; // 5MB — 마이그레이션 업로드용 상한
@@ -122,6 +126,55 @@ export default async function handler(req, res) {
 
   const session = await requireAdminSessionOrApiToken(req);
   if (!session) return res.status(401).json({ success: false, message: 'Unauthorized' });
+
+  // ── 모의고사 ────────────────────────────────────────────────────────────
+  // 회차는 학년 단위(여러 반 공통)라 특정 학교 blob에 담지 않고 별도 Redis 해시에 둔다.
+  // 자세한 구조는 docs/superpowers/specs/2026-09-03-mock-exam-design.md 참고.
+
+  if (action === 'mock-rounds') {
+    if (req.method !== 'GET') return res.status(405).end();
+    const wanted = normalizeGrade(req.query.grade || '');
+    const all = await listRounds();
+    const rounds = wanted ? all.filter(r => normalizeGrade(r.grade) === wanted) : all;
+    // 제출률은 회차 목록의 핵심 정보라 함께 내려준다(HLEN이라 가볍다).
+    const withCounts = await Promise.all(rounds.map(async (r) => ({
+      ...r,
+      submittedCount: await countSubmissions(r.id),
+      totalCount: await countStudentsInGrade(r.grade),
+    })));
+    // 회차 개설 드롭다운용 — 현존 학년만 고를 수 있게 해서 '1학년'/'고1' 오타로
+    // 등수가 두 덩어리로 갈라지는 사고를 원천 차단한다.
+    const summaries = await getSchoolSummaries();
+    const grades = [...new Set(summaries.map(s => normalizeGrade(s.grade)).filter(Boolean))].sort();
+    return res.status(200).json({ success: true, rounds: withCounts, grades });
+  }
+
+  if (action === 'mock-round-save') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    const masterCheck = await requireMasterAdminSessionOrApiToken(req);
+    if (!masterCheck) return res.status(403).json({ success: false, message: '원장님 계정만 가능합니다' });
+    try {
+      const round = await saveRound(req.body || {}, session.actorId || '');
+      return res.status(200).json({ success: true, round });
+    } catch (e) {
+      if (e instanceof MockError) return res.status(e.status).json({ success: false, message: e.message });
+      return res.status(500).json({ success: false, message: e.message });
+    }
+  }
+
+  if (action === 'mock-round-delete') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    const masterCheck = await requireMasterAdminSessionOrApiToken(req);
+    if (!masterCheck) return res.status(403).json({ success: false, message: '원장님 계정만 가능합니다' });
+    const { id } = req.body || {};
+    if (!id) return res.status(400).json({ success: false, message: '회차 id가 없습니다' });
+    const round = await getRound(id);
+    if (!round) return res.status(404).json({ success: false, message: '회차를 찾을 수 없습니다' });
+    await deleteRound(id);
+    return res.status(200).json({ success: true });
+  }
 
   if (action === 'schools') {
     if (req.method === 'GET') {

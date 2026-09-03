@@ -38,6 +38,10 @@ const fakeRedis = makeFakeRedis();
 process.env.API_AUTH_TOKEN = 'test-admin-token';
 // putSchoolRaw()가 학생 비밀번호를 암호화할 때 필요 (없으면 encryptPwd가 던진다)
 process.env.PWD_ENC_KEY = 'test-pwd-enc-key';
+// admin 핸들러가 _lib/sms.js를 import하는데, 그 파일이 모듈 로드 시점에 Solapi 클라이언트를
+// 만들면서 키가 없으면 던진다. 실제 발송은 하지 않으므로 더미 값이면 충분하다.
+process.env.SOLAPI_API_KEY = 'test-solapi-key';
+process.env.SOLAPI_API_SECRET = 'test-solapi-secret';
 
 before(() => {
   mock.module('../api/_lib/redis.js', {
@@ -46,6 +50,28 @@ before(() => {
 });
 
 const mockLib = await import('../api/_lib/mock.js');
+const auth = await import('../api/_lib/auth.js');
+const school = await import('../api/_lib/school.js');
+const adminHandler = (await import('../api/admin/[action].js')).default;
+
+function makeRes() {
+  const res = {
+    statusCode: 200, body: undefined, ended: false,
+    status(code) { res.statusCode = code; return res; },
+    json(obj) { res.body = obj; return res; },
+    end() { res.ended = true; return res; },
+    setHeader() {},
+  };
+  return res;
+}
+// 관리자 요청은 API_AUTH_TOKEN으로 인증한다(마스터 권한까지 함께 통과).
+const ADMIN_HEADERS = { 'x-api-token': 'test-admin-token', origin: 'https://x', host: 'x' };
+
+// school.saveSchool()은 Lua 스크립트(redis.eval)로 원자적 CAS 저장을 하는데 가짜 Redis에는
+// eval이 없다. 테스트에서 학교를 만들 때는 eval을 타지 않는 putSchoolRaw()를 쓴다.
+async function putSchool(id, name, grade, students) {
+  return school.putSchoolRaw({ id, name, grade, type: 'regular', students, records: [] });
+}
 
 test('normalizeGrade: 공백과 고N 표기를 같은 키로 접는다', () => {
   assert.equal(mockLib.normalizeGrade(' 1학년 '), '1학년');
@@ -247,4 +273,55 @@ test('removeSubmission / deleteRound: 제출과 집계가 함께 정리된다', 
   assert.equal(await mockLib.getRound(round.id), null);
   assert.equal(await mockLib.countSubmissions(round.id), 0);
   assert.equal(fakeRedis.store.has('mock:agg:' + round.id), false);
+});
+
+test('mock-round-save → mock-rounds: 회차를 만들고 제출률과 함께 목록에 나온다', async () => {
+  await school.createSchool('테스트고', '고1', 'regular');
+
+  const saveRes = makeRes();
+  await adminHandler({
+    method: 'POST', headers: ADMIN_HEADERS, query: { action: 'mock-round-save' },
+    body: { grade: '1학년', title: 'API 회차', examDate: '2026.03.26', openAt: 1, closeAt: Date.now() + 100000, maxScore: 100 },
+  }, saveRes);
+  assert.equal(saveRes.statusCode, 200);
+  const roundId = saveRes.body.round.id;
+
+  const listRes = makeRes();
+  await adminHandler({
+    method: 'GET', headers: ADMIN_HEADERS, query: { action: 'mock-rounds', grade: '1학년' },
+  }, listRes);
+  assert.equal(listRes.statusCode, 200);
+  const row = listRes.body.rounds.find(r => r.id === roundId);
+  assert.ok(row, '방금 만든 회차가 목록에 있어야 함');
+  assert.equal(row.submittedCount, 0);
+  assert.ok(row.totalCount >= 0);
+  assert.ok(listRes.body.grades.includes('1학년'), '현존 학년 목록을 함께 내려줘야 함');
+});
+
+test('mock-round-save: 잘못된 입력은 400으로 거부한다', async () => {
+  const res = makeRes();
+  await adminHandler({
+    method: 'POST', headers: ADMIN_HEADERS, query: { action: 'mock-round-save' },
+    body: { grade: '1학년', title: '', examDate: '2026.03.26', openAt: 1, closeAt: 2 },
+  }, res);
+  assert.equal(res.statusCode, 400);
+  assert.match(res.body.message, /제목/);
+});
+
+test('mock-round-delete: 회차와 제출이 함께 사라진다', async () => {
+  const saveRes = makeRes();
+  await adminHandler({
+    method: 'POST', headers: ADMIN_HEADERS, query: { action: 'mock-round-save' },
+    body: { grade: '2학년', title: '지울 회차', examDate: '2026.05.01', openAt: 1, closeAt: Date.now() + 100000, maxScore: 100 },
+  }, saveRes);
+  const roundId = saveRes.body.round.id;
+  await mockLib.putSubmission(roundId, { sid: 'z1', schoolId: 'sc1', schoolName: 'A반', name: '바', score: 70, grade: 4 });
+
+  const delRes = makeRes();
+  await adminHandler({
+    method: 'POST', headers: ADMIN_HEADERS, query: { action: 'mock-round-delete' }, body: { id: roundId },
+  }, delRes);
+  assert.equal(delRes.statusCode, 200);
+  assert.equal(await mockLib.getRound(roundId), null);
+  assert.equal(await mockLib.countSubmissions(roundId), 0);
 });

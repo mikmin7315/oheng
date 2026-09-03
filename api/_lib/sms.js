@@ -1,4 +1,4 @@
-const { SolapiMessageService } = require('solapi');
+import { SolapiMessageService } from 'solapi';
 
 const messageService = new SolapiMessageService(
   process.env.SOLAPI_API_KEY,

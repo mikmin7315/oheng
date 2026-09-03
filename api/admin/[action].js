@@ -14,7 +14,9 @@ import {
 } from '../_lib/school.js';
 import {
   listRounds, getRound, saveRound, deleteRound,
-  countSubmissions, countStudentsInGrade, normalizeGrade, MockError,
+  getSubmissions, getSubmission, putSubmission, getAggregate,
+  countSubmissions, countStudentsInGrade,
+  normalizeGrade, parseScore, parseGradeLevel, MockError,
 } from '../_lib/mock.js';
 import { getMessageHistory } from '../_lib/sms.js';
 
@@ -174,6 +176,85 @@ export default async function handler(req, res) {
     if (!round) return res.status(404).json({ success: false, message: '회차를 찾을 수 없습니다' });
     await deleteRound(id);
     return res.status(200).json({ success: true });
+  }
+
+  if (action === 'mock-detail') {
+    if (req.method !== 'GET') return res.status(405).end();
+    const { roundId, schoolId } = req.query;
+    const round = await getRound(roundId);
+    if (!round) return res.status(404).json({ success: false, message: '회차를 찾을 수 없습니다' });
+
+    const all = await getSubmissions(roundId);
+    const aggregate = await getAggregate(roundId);
+    const submitted = new Set(all.map(s => s.sid));
+
+    // 미제출자: schoolId가 있으면 그 반 blob 1개만 읽는다. 없으면(회차 관리 화면)
+    // 그 학년 반들을 전부 읽는데, 이 화면에서만 일어난다.
+    const roundGrade = normalizeGrade(round.grade);
+    let targetSchoolIds;
+    if (schoolId) {
+      targetSchoolIds = [schoolId];
+    } else {
+      const summaries = await getSchoolSummaries();
+      targetSchoolIds = summaries.filter(s => normalizeGrade(s.grade) === roundGrade).map(s => s.id);
+    }
+    const missing = [];
+    for (const sid of targetSchoolIds) {
+      const sc = await getSchool(sid);
+      if (!sc) continue;
+      (sc.students || []).forEach(st => {
+        if (!submitted.has(st.id)) missing.push({ id: st.id, name: st.name, schoolId: sc.id, schoolName: sc.name });
+      });
+    }
+
+    const submissions = schoolId ? all.filter(s => s.schoolId === schoolId) : all;
+    submissions.sort((a, b) => (b.score - a.score));
+    return res.status(200).json({ success: true, round, submissions, aggregate, missing });
+  }
+
+  if (action === 'mock-edit') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    const { roundId, sid, schoolId, score, grade, excluded, memo } = req.body || {};
+    if (!roundId || !sid) return res.status(400).json({ success: false, message: 'roundId와 학생 id가 필요합니다' });
+    const round = await getRound(roundId);
+    if (!round) return res.status(404).json({ success: false, message: '회차를 찾을 수 없습니다' });
+
+    const prev = await getSubmission(roundId, sid);
+
+    // 마감 후에는 학생이 낼 방법이 없으므로, 선생님의 대리 입력이 유일한 경로다.
+    // 이때는 이름·반 스냅샷을 학교에서 찾아 채운다.
+    let snapshot = prev;
+    if (!snapshot) {
+      if (!schoolId) return res.status(400).json({ success: false, message: '새로 입력하려면 schoolId가 필요합니다' });
+      const sc = await getSchool(schoolId);
+      const student = (sc?.students || []).find(s => s.id === sid);
+      if (!student) return res.status(404).json({ success: false, message: '학생을 찾을 수 없습니다' });
+      snapshot = {
+        sid, schoolId: sc.id, schoolName: sc.name, name: student.name,
+        score: null, grade: null, submittedAt: Date.now(), excluded: false, memo: '',
+      };
+    }
+
+    const next = { ...snapshot };
+    if (score !== undefined) {
+      const s = parseScore(score, round.maxScore);
+      if (s === null) return res.status(400).json({ success: false, message: `점수는 0~${round.maxScore} 사이 정수여야 합니다` });
+      next.score = s;
+    }
+    if (grade !== undefined) {
+      const g = parseGradeLevel(grade);
+      if (!g.ok) return res.status(400).json({ success: false, message: '등급은 1~9 중에서 선택하세요' });
+      next.grade = g.value;
+    }
+    if (excluded !== undefined) next.excluded = !!excluded;
+    if (memo !== undefined) next.memo = String(memo || '').slice(0, 200);
+    if (next.score === null) return res.status(400).json({ success: false, message: '점수를 입력하세요' });
+
+    next.updatedAt = Date.now();
+    next.editedBy = session.actorId || 'admin';
+    const aggregate = await putSubmission(roundId, next);
+    return res.status(200).json({ success: true, submission: next, aggregate });
   }
 
   if (action === 'schools') {

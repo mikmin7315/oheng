@@ -325,3 +325,113 @@ test('mock-round-delete: 회차와 제출이 함께 사라진다', async () => {
   assert.equal(await mockLib.getRound(roundId), null);
   assert.equal(await mockLib.countSubmissions(roundId), 0);
 });
+
+test('mock-detail: 그 반의 제출·미제출자와 학년 전체 집계를 함께 준다', async () => {
+  const sc = await putSchool('sc_detail', '상세고', '3학년', [
+    { id: 'sd1', name: '제출학생', pwd: '1234' },
+    { id: 'sd2', name: '미제출학생', pwd: '1234' },
+  ]);
+
+  const saveRes = makeRes();
+  await adminHandler({
+    method: 'POST', headers: ADMIN_HEADERS, query: { action: 'mock-round-save' },
+    body: { grade: '3학년', title: '상세 회차', examDate: '2026.07.01', openAt: 1, closeAt: Date.now() + 100000, maxScore: 100 },
+  }, saveRes);
+  const roundId = saveRes.body.round.id;
+  await mockLib.putSubmission(roundId, { sid: 'sd1', schoolId: sc.id, schoolName: sc.name, name: '제출학생', score: 77, grade: 3 });
+
+  const res = makeRes();
+  await adminHandler({
+    method: 'GET', headers: ADMIN_HEADERS, query: { action: 'mock-detail', roundId, schoolId: sc.id },
+  }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.submissions.length, 1);
+  assert.equal(res.body.submissions[0].name, '제출학생');
+  assert.equal(res.body.missing.length, 1);
+  assert.equal(res.body.missing[0].id, 'sd2');
+  assert.equal(res.body.aggregate.count, 1);
+});
+
+test('mock-edit: 선생님이 점수를 고치면 집계가 다시 계산되고 editedBy가 남는다', async () => {
+  const sc = await putSchool('sc_edit', '수정고', '1학년', [{ id: 'se1', name: '수정대상', pwd: '1234' }]);
+
+  const saveRes = makeRes();
+  await adminHandler({
+    method: 'POST', headers: ADMIN_HEADERS, query: { action: 'mock-round-save' },
+    body: { grade: '1학년', title: '수정 회차', examDate: '2026.08.01', openAt: 1, closeAt: Date.now() + 100000, maxScore: 100 },
+  }, saveRes);
+  const roundId = saveRes.body.round.id;
+  await mockLib.putSubmission(roundId, { sid: 'se1', schoolId: sc.id, schoolName: sc.name, name: '수정대상', score: 50, grade: 6 });
+
+  const res = makeRes();
+  await adminHandler({
+    method: 'POST', headers: ADMIN_HEADERS, query: { action: 'mock-edit' },
+    body: { roundId, sid: 'se1', score: 95, grade: 1 },
+  }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.submission.score, 95);
+  assert.ok(res.body.submission.editedBy !== null, '누가 고쳤는지 남아야 함');
+  assert.equal(res.body.aggregate.avg, 95);
+});
+
+test('mock-edit: 미제출자도 선생님이 대신 입력할 수 있다 (마감 후 유일한 입력 경로)', async () => {
+  const sc = await putSchool('sc_proxy', '대리고', '2학년', [{ id: 'sf1', name: '대리입력', pwd: '1234' }]);
+
+  const saveRes = makeRes();
+  await adminHandler({
+    method: 'POST', headers: ADMIN_HEADERS, query: { action: 'mock-round-save' },
+    body: { grade: '2학년', title: '대리 회차', examDate: '2026.08.02', openAt: 1, closeAt: 2, maxScore: 100 },
+  }, saveRes);
+  const roundId = saveRes.body.round.id;   // 이미 마감된 회차
+
+  const res = makeRes();
+  await adminHandler({
+    method: 'POST', headers: ADMIN_HEADERS, query: { action: 'mock-edit' },
+    body: { roundId, sid: 'sf1', schoolId: sc.id, score: 62, grade: 5 },
+  }, res);
+  assert.equal(res.statusCode, 200, '마감된 회차라도 선생님은 입력할 수 있어야 함');
+  assert.equal(res.body.submission.name, '대리입력', '학생 이름을 학교에서 찾아 스냅샷으로 넣어야 함');
+  assert.equal(res.body.submission.score, 62);
+});
+
+test('mock-edit: excluded 처리하면 집계 분모에서 빠진다', async () => {
+  const sc = await putSchool('sc_exclude', '제외고', '1학년', [
+    { id: 'sg1', name: '제외대상', pwd: '1234' },
+    { id: 'sg2', name: '정상', pwd: '1234' },
+  ]);
+
+  const saveRes = makeRes();
+  await adminHandler({
+    method: 'POST', headers: ADMIN_HEADERS, query: { action: 'mock-round-save' },
+    body: { grade: '1학년', title: '제외 회차', examDate: '2026.08.03', openAt: 1, closeAt: Date.now() + 100000, maxScore: 100 },
+  }, saveRes);
+  const roundId = saveRes.body.round.id;
+  await mockLib.putSubmission(roundId, { sid: 'sg1', schoolId: sc.id, schoolName: sc.name, name: '제외대상', score: 100, grade: 1 });
+  await mockLib.putSubmission(roundId, { sid: 'sg2', schoolId: sc.id, schoolName: sc.name, name: '정상', score: 60, grade: 5 });
+
+  const res = makeRes();
+  await adminHandler({
+    method: 'POST', headers: ADMIN_HEADERS, query: { action: 'mock-edit' },
+    body: { roundId, sid: 'sg1', excluded: true, memo: '중복 응시' },
+  }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.aggregate.count, 1);
+  assert.equal(res.body.aggregate.avg, 60);
+});
+
+test('mock-edit: 점수 범위 밖 값은 400으로 거부한다', async () => {
+  const saveRes = makeRes();
+  await adminHandler({
+    method: 'POST', headers: ADMIN_HEADERS, query: { action: 'mock-round-save' },
+    body: { grade: '1학년', title: '검증 회차', examDate: '2026.08.04', openAt: 1, closeAt: Date.now() + 100000, maxScore: 100 },
+  }, saveRes);
+  const roundId = saveRes.body.round.id;
+
+  const res = makeRes();
+  await adminHandler({
+    method: 'POST', headers: ADMIN_HEADERS, query: { action: 'mock-edit' },
+    body: { roundId, sid: 'sg2', schoolId: 'sc_exclude', score: 250 },
+  }, res);
+  assert.equal(res.statusCode, 400);
+  assert.match(res.body.message, /점수/);
+});

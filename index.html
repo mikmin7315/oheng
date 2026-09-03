@@ -3206,6 +3206,16 @@ async function loadMockAdmin(sc,roundId){
     ST.mockAdmin={rounds,roundId:pick,detail};
   }catch(e){ST.mockAdmin={rounds:[],roundId:null,detail:null};}
 }
+function ymdToMs(s,endOfDay){
+  const m=/^(\d{4})[.\-/](\d{2})[.\-/](\d{2})$/.exec(String(s||'').trim());
+  if(!m)return NaN;
+  return new Date(+m[1],+m[2]-1,+m[3],endOfDay?23:0,endOfDay?59:0,endOfDay?59:0).getTime();
+}
+function msToYmd(ms){
+  if(!ms)return'';
+  const d=new Date(ms);
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+}
 function rMockAdmin(sc){
   const m=ST.mockAdmin;
   if(!m){loadMockAdmin(sc,null).then(()=>render());return`<div class="section-card"><div style="color:#9BA3AF;font-size:13px">불러오는 중...</div></div>`;}
@@ -3226,7 +3236,7 @@ function rMockAdmin(sc){
 
   const rows=subs.map(s=>`
     <tr>
-      <td style="font-weight:700">${esc(s.name)}</td>
+      <td style="font-weight:700"><span data-mock-hist="${esc(s.sid)}" style="cursor:pointer;color:#1E40AF;text-decoration:underline dotted" title="전체 회차 이력 보기">${esc(s.name)}</span></td>
       <td style="text-align:center;font-weight:800;color:#1E40AF">${s.score}</td>
       <td style="text-align:center">${s.grade?s.grade+'등급':'-'}</td>
       <td style="text-align:center;font-weight:700">${s.excluded?'<span style="color:#B3261E">제외</span>':(agg.rankOf?.[s.sid]??'-')}</td>
@@ -3257,7 +3267,10 @@ function rMockAdmin(sc){
     </div>
   </div>
   <div class="section-card">
-    <div class="section-ttl">📋 우리 반 결과</div>
+    <div class="section-ttl" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <span>📋 우리 반 결과</span>
+      ${missing.length?`<button class="abtn abtn-gray" id="mock-copy-missing" style="font-size:11px;padding:6px 12px">📋 미제출 ${missing.length}명 명단 복사</button>`:''}
+    </div>
     <table class="tbl" style="width:100%">
       <thead><tr>
         <th style="text-align:left">이름</th><th>원점수</th><th>등급</th><th>학년 등수</th><th>제출</th><th></th>
@@ -3274,10 +3287,81 @@ function rMockAdmin(sc){
     <div style="position:relative;height:190px"><canvas id="mock-admin-bars"></canvas></div>
   </div>`;
 }
+// 학생 한 명의 전체 회차 이력 — 학년이 올라가도 같은 학생 ID로 묶여 있어 쭉 이어진다.
+// 회차마다 상세를 받아 그 학생 행만 추린다(회차 수는 많아야 수십 개).
+// schoolId로 좁히는 이유는 미제출자 계산 비용 때문 — 진급은 반의 학년만 바꾸는 방식이라
+// 같은 학생의 과거 제출도 같은 schoolId를 갖는다.
+async function openMockHistoryModal(sc,sid){
+  const m=ST.mockAdmin;
+  if(!m)return;
+  const name=(m.detail?.submissions||[]).find(s=>s.sid===sid)?.name||sid;
+
+  const popup=document.createElement('div');
+  popup.className='mock-hist-popup';
+  popup.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  popup.innerHTML=`
+    <div style="background:#fff;border-radius:18px;max-width:560px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.25)">
+      <div style="position:sticky;top:0;background:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;border-bottom:1.5px solid #E8ECF0;border-radius:18px 18px 0 0">
+        <div style="font-size:14px;font-weight:800;color:#1A237E">📈 ${esc(name)} 학생 모의고사 이력</div>
+        <button class="btn-close-hist" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9BA3AF">✕</button>
+      </div>
+      <div id="mock-hist-body" style="padding:16px 18px;font-size:13px;color:#9BA3AF">불러오는 중...</div>
+    </div>`;
+  document.body.appendChild(popup);
+  const close=()=>popup.remove();
+  popup.querySelector('.btn-close-hist').onclick=close;
+  popup.onclick=e=>{if(e.target===popup)close();};
+
+  const results=await Promise.all(m.rounds.slice().reverse().map(async r=>{
+    const res=await fetch(`/api/admin/mock-detail?roundId=${encodeURIComponent(r.id)}&schoolId=${encodeURIComponent(sc.id)}`,{credentials:'include'});
+    if(!res.ok)return null;
+    const d=await res.json();
+    if(!d.success)return null;
+    const mine=(d.submissions||[]).find(x=>x.sid===sid);
+    if(!mine)return null;
+    return {title:r.title,examDate:r.examDate,grade:r.grade,score:mine.score,g:mine.grade,
+      excluded:mine.excluded,rank:d.aggregate.rankOf?.[sid]??null,count:d.aggregate.count,avg:d.aggregate.avg};
+  }));
+  const rows=results.filter(Boolean);
+  const body=popup.querySelector('#mock-hist-body');
+  if(!rows.length){body.textContent='이 학생의 모의고사 기록이 없습니다.';return;}
+  body.style.color='#10192B';
+  body.innerHTML=`
+    <table class="tbl" style="width:100%">
+      <thead><tr><th style="text-align:left">회차</th><th>학년</th><th>점수</th><th>등급</th><th>학년 등수</th><th>학년 평균</th></tr></thead>
+      <tbody>${rows.map(x=>`<tr>
+        <td style="font-weight:700">${esc(x.title)}<div style="font-size:11px;color:#9BA3AF;font-weight:600">${esc(x.examDate)}</div></td>
+        <td style="text-align:center">${esc(x.grade)}</td>
+        <td style="text-align:center;font-weight:800;color:#1E40AF">${x.score}</td>
+        <td style="text-align:center">${x.g?x.g+'등급':'-'}</td>
+        <td style="text-align:center;font-weight:700">${x.excluded?'<span style="color:#B3261E">제외</span>':(x.rank!=null?`${x.rank}/${x.count}`:'-')}</td>
+        <td style="text-align:center;color:#57616F">${x.avg??'-'}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+}
 function bMockAdmin(sc){
   const pick=document.getElementById('mock-round-pick');
   if(!pick)return;
   pick.onchange=async()=>{await loadMockAdmin(sc,pick.value);render();};
+
+  // 알림톡 템플릿은 통신사 사전 등록이 필요해 자동 발송은 붙일 수 없다.
+  // 명단을 복사해 반 단톡방에 붙여넣는 쪽이 지금 당장 쓸 수 있는 방법이다.
+  const copyBtn=document.getElementById('mock-copy-missing');
+  if(copyBtn){
+    copyBtn.onclick=async()=>{
+      const miss=ST.mockAdmin.detail?.missing||[];
+      const r=ST.mockAdmin.rounds.find(x=>x.id===ST.mockAdmin.roundId);
+      const due=r?`${msToYmd(r.closeAt)}까지`:'';
+      const text=`[${r?r.title:'모의고사'}] 점수 미입력 ${miss.length}명 ${due}\n`+miss.map(s=>s.name).join(', ');
+      try{
+        await navigator.clipboard.writeText(text);
+        copyBtn.textContent='✓ 복사됨';
+        setTimeout(()=>{copyBtn.textContent=`📋 미제출 ${miss.length}명 명단 복사`;},1500);
+      }catch(e){
+        prompt('아래 명단을 복사하세요', text);
+      }
+    };
+  }
 
   const edit=async(sid,body)=>{
     const res=await fetch('/api/admin/mock-edit',{
@@ -3319,6 +3403,10 @@ function bMockAdmin(sc){
       if(gv===null)return;
       edit(sid,{schoolId:sc.id,score:Number(sv),grade:gv===''?null:Number(gv)});
     };
+  });
+
+  document.querySelectorAll('[data-mock-hist]').forEach(el=>{
+    el.onclick=()=>openMockHistoryModal(sc,el.dataset.mockHist);
   });
 
   // 그래프 2개

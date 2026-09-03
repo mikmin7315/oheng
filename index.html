@@ -1713,10 +1713,10 @@ function rRoundManager(){
 
     <div class="section-card">
       <div class="section-ttl">📋 회차 목록 (${m.rounds.length})</div>
-      ${m.rounds.length?`<table class="tbl" style="width:100%">
+      ${m.rounds.length?`<div style="overflow-x:auto"><table class="rec-tbl">
         <thead><tr><th style="text-align:left">제목</th><th>학년</th><th>응시일</th><th>입력 기간</th><th>제출률</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
-      </table>`:`<div style="color:#9BA3AF;font-size:13px">아직 만든 회차가 없습니다.</div>`}
+      </table></div>`:`<div style="color:#9BA3AF;font-size:13px">아직 만든 회차가 없습니다.</div>`}
     </div>
   </div>`;
 }
@@ -3397,12 +3397,12 @@ function rMockAdmin(sc){
       <span>📋 우리 반 결과</span>
       ${missing.length?`<button class="abtn abtn-gray" id="mock-copy-missing" style="font-size:11px;padding:6px 12px">📋 미제출 ${missing.length}명 명단 복사</button>`:''}
     </div>
-    <table class="tbl" style="width:100%">
+    <div style="overflow-x:auto"><table class="rec-tbl">
       <thead><tr>
         <th style="text-align:left">이름</th><th>원점수</th><th>등급</th><th>학년 등수</th><th>제출</th><th></th>
       </tr></thead>
       <tbody>${rows}${missRows}</tbody>
-    </table>
+    </table></div>
   </div>
   <div class="section-card">
     <div class="section-ttl">📈 회차별 우리 반 vs 학년 평균</div>
@@ -3453,7 +3453,7 @@ async function openMockHistoryModal(sc,sid){
   if(!rows.length){body.textContent='이 학생의 모의고사 기록이 없습니다.';return;}
   body.style.color='#10192B';
   body.innerHTML=`
-    <table class="tbl" style="width:100%">
+    <div style="overflow-x:auto"><table class="rec-tbl">
       <thead><tr><th style="text-align:left">회차</th><th>학년</th><th>점수</th><th>등급</th><th>학년 등수</th><th>학년 평균</th></tr></thead>
       <tbody>${rows.map(x=>`<tr>
         <td style="font-weight:700">${esc(x.title)}<div style="font-size:11px;color:#9BA3AF;font-weight:600">${esc(x.examDate)}</div></td>
@@ -3463,7 +3463,7 @@ async function openMockHistoryModal(sc,sid){
         <td style="text-align:center;font-weight:700">${x.excluded?'<span style="color:#B3261E">제외</span>':(x.rank!=null?`${x.rank}/${x.count}`:'-')}</td>
         <td style="text-align:center;color:#57616F">${x.avg??'-'}</td>
       </tr>`).join('')}</tbody>
-    </table>`;
+    </table></div>`;
 }
 function bMockAdmin(sc){
   const pick=document.getElementById('mock-round-pick');

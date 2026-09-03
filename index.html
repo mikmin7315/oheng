@@ -2279,7 +2279,7 @@ function rStudent(){
   ];
   const recs=sRecs(ST.user.id,ST.userSchool);
   let inner='';
-  if(ST.tab==='report') inner=rMockCard()+rReport(recs);
+  if(ST.tab==='report') inner=rMockCard()+rMockTrend()+rReport(recs);
   else if(ST.tab==='suggest') inner=rSuggest();
   else if(ST.tab==='inquiry') inner=rInquiry();
   else inner=rStudentSettings();
@@ -2496,6 +2496,132 @@ async function submitMockScore(roundId,score,grade,msgEl){
     if(msgEl){msgEl.textContent='네트워크 오류로 저장하지 못했습니다';msgEl.style.color='#C62828';}
     return false;
   }
+}
+// 모의고사 추이 — 기존 성적표의 RT/WT 차트(mkLine)와 같은 스타일로 맞춘다.
+// 학년이 바뀌는 지점에 세로 구분선을 그려, 1학년부터 3학년까지 한 그래프에 이어지게 한다.
+function rMockTrend(){
+  const hist=(ST.mock?.history||[]);
+  if(hist.length<2)return'';
+  return `
+  <div class="no-print" style="margin-bottom:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-size:10.5px;font-weight:800;color:#57616F;letter-spacing:1px">📈 모의고사 추이</div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <span style="display:flex;align-items:center;gap:4px;font-size:11px;color:#57616F;font-weight:700"><span style="width:8px;height:8px;border-radius:50%;background:#1E40AF;display:inline-block"></span>내 점수</span>
+        <span style="display:flex;align-items:center;gap:4px;font-size:11px;color:#57616F;font-weight:700"><span style="width:14px;height:0;border-top:2px dashed #8C93A0;display:inline-block"></span>학년 평균</span>
+      </div>
+    </div>
+    <div style="background:#fff;border:1.5px solid #D9E0EA;border-radius:12px;padding:14px;margin-bottom:10px">
+      <div style="position:relative;height:160px"><canvas id="mock-trend"></canvas></div>
+    </div>
+    <div style="background:#fff;border:1.5px solid #D9E0EA;border-radius:12px;padding:14px">
+      <div style="font-size:11px;font-weight:800;color:#1E40AF;margin-bottom:10px">학년 등수 추이</div>
+      <div style="position:relative;height:140px"><canvas id="mock-rank"></canvas></div>
+    </div>
+  </div>`;
+}
+function drawMockCharts(){
+  const hist=(ST.mock?.history||[]);
+  if(hist.length<2||typeof Chart==='undefined')return;
+  const labels=hist.map(h=>h.title.length>10?h.title.slice(0,10)+'…':h.title);
+  const scores=hist.map(h=>h.score);
+  const avgs=hist.map(h=>h.avg);
+  const all=[...scores,...avgs].filter(v=>v!=null);
+  const yMin=all.length?Math.max(0,Math.floor(Math.min(...all)/10)*10-10):0;
+  const yMax=all.length?Math.min(100,Math.ceil(Math.max(...all)/10)*10+10):100;
+  // 학년이 바뀌는 지점의 세로 구분선. 차트를 그린 뒤 캔버스에 직접 그리면 다음 애니메이션
+  // 프레임에 지워지므로, Chart.js의 afterDraw 훅에 붙여 매 프레임 다시 그리게 한다.
+  const gradeMarks=[];
+  hist.forEach((h,i)=>{if(i>0&&h.grade!==hist[i-1].grade)gradeMarks.push({i,label:h.grade});});
+  const gradeLinePlugin={
+    id:'mockGradeLine',
+    afterDraw(chart){
+      if(!gradeMarks.length)return;
+      const ctx=chart.ctx,area=chart.chartArea;
+      gradeMarks.forEach(mk=>{
+        const x=chart.scales.x.getPixelForValue(mk.i);
+        ctx.save();
+        ctx.strokeStyle='#C4CBD6';ctx.lineWidth=1.5;ctx.setLineDash([4,4]);
+        ctx.beginPath();ctx.moveTo(x,area.top);ctx.lineTo(x,area.bottom);ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle='#8C93A0';ctx.font='600 10px Pretendard, sans-serif';ctx.textAlign='left';
+        ctx.fillText(mk.label+' ▶',x+3,area.top+11);
+        ctx.restore();
+      });
+    }
+  };
+
+  const tc=document.getElementById('mock-trend');
+  if(tc){
+    new Chart(tc,{type:'line',data:{labels,datasets:[
+      {label:'내 점수',data:scores,borderColor:'#1E40AF',backgroundColor:'#1E40AF18',borderWidth:3,tension:.35,pointRadius:5,pointBackgroundColor:'#fff',pointBorderColor:'#1E40AF',pointBorderWidth:2.5,fill:true,spanGaps:true},
+      {label:'학년 평균',data:avgs,borderColor:'#1E40AF',backgroundColor:'transparent',borderWidth:1.8,borderDash:[7,4],tension:.35,pointRadius:3,pointBackgroundColor:'#1E40AF',fill:false,spanGaps:true},
+    ]},options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.parsed.y}점`}}},
+      scales:{y:{min:yMin,max:yMax,grid:{color:'rgba(128,128,128,.1)'},ticks:{font:{size:10},callback:v=>`${v}점`}},
+        x:{grid:{display:false},ticks:{font:{size:10},maxRotation:0}}}},
+      plugins:[gradeLinePlugin]});
+  }
+
+  // 등수 추이 — 1등이 위로 오도록 y축을 뒤집는다
+  const rc=document.getElementById('mock-rank');
+  const ranks=hist.map(h=>h.rank);
+  if(rc&&ranks.some(r=>r!=null)){
+    new Chart(rc,{type:'line',data:{labels,datasets:[{
+      label:'학년 등수',data:ranks,borderColor:'#0F2A5C',backgroundColor:'#0F2A5C18',
+      borderWidth:3,tension:.35,pointRadius:5,pointBackgroundColor:'#fff',
+      pointBorderColor:'#0F2A5C',pointBorderWidth:2.5,fill:false,spanGaps:true,
+    }]},options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.parsed.y}등`}}},
+      scales:{y:{reverse:true,min:1,grid:{color:'rgba(128,128,128,.1)'},ticks:{font:{size:10},precision:0,callback:v=>`${v}등`}},
+        x:{grid:{display:false},ticks:{font:{size:10},maxRotation:0}}}}});
+  }
+}
+// 로그인 직후 1회 — 열린 회차가 있는데 아직 안 낸 학생에게만 뜬다.
+// "나중에"는 sessionStorage에만 기록해서 그 세션 동안만 숨긴다. 다음 로그인 때 다시 뜬다.
+function mockLaterKey(roundId){return 'oheng_mock_later_'+roundId;}
+function maybeShowMockPopup(){
+  const open=ST.mock?.openRound;
+  if(!open||open.mySubmission)return;
+  if(document.querySelector('.mock-popup'))return;
+  try{ if(sessionStorage.getItem(mockLaterKey(open.id)))return; }catch(e){}
+
+  const popup=document.createElement('div');
+  popup.className='mock-popup';
+  popup.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px';
+  popup.innerHTML=`
+    <div style="background:#fff;border-radius:18px;max-width:400px;width:100%;padding:22px 22px 18px;box-shadow:0 8px 32px rgba(0,0,0,0.25)">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+        <div style="font-size:15px;font-weight:800;color:#10192B">📢 ${esc(open.title)}</div>
+        ${mockDdayBadge(open.closeAt)}
+      </div>
+      <div style="font-size:12px;color:#57616F;margin-bottom:2px">${mockRatioText(open)}</div>
+      ${rMockInputForm(open)}
+      <button id="mock-later" style="width:100%;margin-top:8px;padding:10px;background:transparent;border:none;font-size:13px;font-weight:700;color:#8C93A0;cursor:pointer;font-family:inherit">나중에 할게요</button>
+    </div>`;
+  document.body.appendChild(popup);
+
+  const close=()=>popup.remove();
+  popup.querySelector('#mock-later').onclick=()=>{
+    try{ sessionStorage.setItem(mockLaterKey(open.id),'1'); }catch(e){}
+    close();
+  };
+  popup.querySelector('#mock-submit').onclick=async()=>{
+    const msg=popup.querySelector('#mock-msg');
+    const raw=(popup.querySelector('#mock-score').value||'').trim();
+    if(raw===''){msg.textContent='원점수를 입력하세요';msg.style.color='#C62828';return;}
+    const score=Number(raw);
+    if(!Number.isInteger(score)||score<0||score>open.maxScore){
+      msg.textContent=`점수는 0~${open.maxScore} 사이 정수로 입력하세요`;msg.style.color='#C62828';return;
+    }
+    const gv=popup.querySelector('#mock-grade').value;
+    const btn=popup.querySelector('#mock-submit');
+    btn.disabled=true;btn.style.opacity='0.6';
+    msg.textContent='저장 중...';msg.style.color='#57616F';
+    const ok=await submitMockScore(open.id,score,gv===''?null:Number(gv),msg);
+    if(ok){close();render();}
+    else{btn.disabled=false;btn.style.opacity='1';}
+  };
 }
 function bMockCard(){
   const btn=document.getElementById('mock-submit');
@@ -2819,6 +2945,8 @@ function bD(recs){return{
 function bStudent(){
   document.getElementById('btn-lo').onclick=doLogout;
   bMockCard();
+  requestAnimationFrame(()=>drawMockCharts());
+  maybeShowMockPopup();
   document.querySelectorAll('.tab[data-tab]').forEach(t=>{t.onclick=()=>{ST.tab=t.dataset.tab;render()}});
   document.querySelectorAll('[data-hist]').forEach(t=>{t.onclick=()=>{ST.histTab=t.dataset.hist;render()}});
   const saveImgBtn=document.getElementById('btn-save-report-img');

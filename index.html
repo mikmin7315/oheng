@@ -569,9 +569,9 @@ const VAPID_PUBLIC_KEY='BClrX5_mErAwCfnxMnn7JxqUECaVChgQ8zTADG7HWfg8vCcNTGE2Xx0v
 const CHANGELOG=[
   {date:'2026-09-03',items:[
     '모의고사 점수를 학생이 직접 입력하고, 같은 학년 전체 기준 등수를 확인할 수 있는 기능 추가',
-    '성적표에 모의고사 회차별 점수 추이와 학년 등수 추이 그래프 추가 (학년이 올라가도 이어서 표시)',
+    '성적표에 모의고사 회차별 점수 추이 그래프 추가 (학년이 올라가도 이어서 표시)',
     '모의고사 입력 기간에는 로그인 시 입력 팝업이 떠서 점수만 빠르게 넣을 수 있게 함',
-    '선생님 화면에 모의고사 탭 추가 — 우리 반 제출 현황·학년 등수, 반 평균과 학년 평균 비교',
+    '선생님 화면에 모의고사 탭 추가 — 우리 반 제출 현황·학년 등수, 반 평균과 학년 평균 비교 (학년 등수는 선생님에게만 보이고 학생 화면에는 표시되지 않음)',
     '학교 설정의 학년을 드롭다운으로 변경 (표기가 흔들리면 그 반이 모의고사 집계에서 빠지는 문제 예방)',
   ]},
   {date:'2026-08-30',items:[
@@ -2549,9 +2549,10 @@ function rMockInputForm(r){
 }
 function rMockResultCard(h){
   const pf="font-family:'Public Sans',Pretendard,-apple-system,sans-serif";
-  const rankLine = h.rank!=null
-    ? `학년 ${h.rank}등 / ${h.count}명${h.tieCount>1?` <span style="color:#8C93A0">(동점 ${h.tieCount}명)</span>`:''}`
-    : (h.count<5 ? `응시자 ${h.count}명 — 응시자가 적어 등수는 표시하지 않습니다` : '마감 후 등수가 공개됩니다');
+  // 등수는 학생에게 보여주지 않는다 — 응시자 수와 학년 평균까지만
+  const rankLine = h.avg!=null
+    ? `우리 학년 응시자 ${h.count}명`
+    : (h.count<5 ? `응시자 ${h.count}명 — 응시자가 적어 학년 평균은 표시하지 않습니다` : '마감 후 학년 평균이 공개됩니다');
   const dist=h.gradeDist||null;
   const distMax=dist?Math.max(1,...Object.values(dist)):1;
   const distBars=dist?`
@@ -2637,12 +2638,8 @@ function rMockTrend(){
         <span style="display:flex;align-items:center;gap:4px;font-size:11px;color:#57616F;font-weight:700"><span style="width:14px;height:0;border-top:2px dashed #8C93A0;display:inline-block"></span>학년 평균</span>
       </div>
     </div>
-    <div style="background:#fff;border:1.5px solid #D9E0EA;border-radius:12px;padding:14px;margin-bottom:10px">
-      <div style="position:relative;height:160px"><canvas id="mock-trend"></canvas></div>
-    </div>
     <div style="background:#fff;border:1.5px solid #D9E0EA;border-radius:12px;padding:14px">
-      <div style="font-size:11px;font-weight:800;color:#1E40AF;margin-bottom:10px">학년 등수 추이</div>
-      <div style="position:relative;height:140px"><canvas id="mock-rank"></canvas></div>
+      <div style="position:relative;height:160px"><canvas id="mock-trend"></canvas></div>
     </div>
   </div>`;
 }
@@ -2689,23 +2686,8 @@ function drawMockCharts(){
       plugins:[gradeLinePlugin]});
   }
 
-  // 등수 추이 — 1등이 위로 오도록 y축을 뒤집는다
-  const rc=document.getElementById('mock-rank');
-  const ranks=hist.map(h=>h.rank);
-  if(rc&&ranks.some(r=>r!=null)){
-    new Chart(rc,{type:'line',data:{labels,datasets:[{
-      label:'학년 등수',data:ranks,borderColor:'#0F2A5C',backgroundColor:'#0F2A5C18',
-      borderWidth:3,tension:.35,pointRadius:5,pointBackgroundColor:'#fff',
-      pointBorderColor:'#0F2A5C',pointBorderWidth:2.5,fill:false,spanGaps:true,
-    }]},options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.parsed.y}등`}}},
-      scales:{y:{reverse:true,min:1,grid:{color:'rgba(128,128,128,.1)'},ticks:{font:{size:10},precision:0,callback:v=>`${v}등`}},
-        x:{grid:{display:false},ticks:{font:{size:10},maxRotation:0}}}}});
-  }
 }
-// 로그인 직후 1회 — 열린 회차가 있는데 아직 안 낸 학생에게만 뜬다.
-// "나중에"는 sessionStorage에만 기록해서 그 세션 동안만 숨긴다. 다음 로그인 때 다시 뜬다.
-function mockLaterKey(roundId){return 'oheng_mock_later_'+roundId;}
+
 function maybeShowMockPopup(){
   const open=ST.mock?.openRound;
   if(!open||open.mySubmission)return;

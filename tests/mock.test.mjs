@@ -167,7 +167,7 @@ test('studentViewOf: 마감 전에는 등수·평균을 내려보내지 않는�
   assert.equal(view.gradeDist, null);
 });
 
-test('studentViewOf: 응시자 5명 미만이면 마감 후에도 등수·평균을 숨긴다', () => {
+test('studentViewOf: 응시자 5명 미만이면 마감 후에도 평균을 숨긴다', () => {
   const round = { id: 'r1', title: '3월 학평', examDate: '2026.03.26', grade: '1학년', maxScore: 100, closeAt: 1 };
   const sub = { sid: 'a', score: 88, grade: 2 };
   const few = { count: 4, avg: 70, max: 98, rankOf: { a: 1 }, rankCounts: { 1: 1 }, gradeDist: { 2: 1 } };
@@ -178,9 +178,22 @@ test('studentViewOf: 응시자 5명 미만이면 마감 후에도 등수·평균
 
   const many = { count: 5, avg: 70, max: 98, rankOf: { a: 1 }, rankCounts: { 1: 2 }, gradeDist: { 2: 1 } };
   const manyView = mockLib.studentViewOf(round, sub, many);
-  assert.equal(manyView.rank, 1);
-  assert.equal(manyView.tieCount, 2);
   assert.equal(manyView.avg, 70);
+  assert.equal(manyView.max, 98);
+  assert.deepEqual(manyView.gradeDist, { 2: 1 });
+  assert.equal(manyView.rank, null, '등수는 마감 후에도 학생에게 내려보내지 않는다');
+  assert.equal(manyView.tieCount, null);
+});
+
+test('studentViewOf: 등수는 어떤 경우에도 학생 응답에 담기지 않는다', () => {
+  const round = { id: 'r1', title: '3월 학평', examDate: '2026.03.26', grade: '1학년', maxScore: 100, closeAt: 1 };
+  const agg = { count: 40, avg: 70, max: 98, rankOf: { a: 1, b: 2 }, rankCounts: { 1: 1, 2: 1 }, gradeDist: { 2: 10 } };
+  for (const sid of ['a', 'b']) {
+    const view = mockLib.studentViewOf(round, { sid, score: 88, grade: 2 }, agg);
+    assert.equal(view.rank, null);
+    assert.equal(view.tieCount, null);
+    assert.equal(JSON.stringify(view).includes('rankOf'), false, '집계 원본이 새어나가면 안 됨');
+  }
 });
 
 test('saveRound → listRounds → getRound: 회차가 저장되고 응시일 내림차순으로 나온다', async () => {
@@ -540,7 +553,7 @@ test('학생 mock 조회: 학년이 올라가도 지난 학년 회차가 history
   const past = res.body.history.find(h => h.roundId === g1.id);
   assert.ok(past, '2학년이 되어도 1학년 회차가 history에 남아야 함');
   assert.equal(past.score, 88);
-  assert.equal(past.rank, 1);
+  assert.equal(past.rank, null, '학생에게는 등수를 내려보내지 않는다');
   assert.equal(past.count, 5);
   assert.equal(past.avg, 66.8);  // (88+60+61+62+63)/5
   // 다른 학생 정보가 새어나가지 않는지

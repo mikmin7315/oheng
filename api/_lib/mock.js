@@ -108,7 +108,6 @@ export function computeAggregate(subs) {
 export function studentViewOf(round, sub, agg, now = Date.now()) {
   const closed = now >= round.closeAt;
   const reveal = closed && (agg.count || 0) >= MIN_VISIBLE_COUNT;
-  const rank = reveal ? (agg.rankOf?.[sub.sid] ?? null) : null;
   return {
     roundId: round.id,
     title: round.title,
@@ -118,8 +117,10 @@ export function studentViewOf(round, sub, agg, now = Date.now()) {
     score: sub.score,
     myGrade: sub.grade ?? null,
     excluded: !!sub.excluded,
-    rank,
-    tieCount: rank != null ? (agg.rankCounts?.[rank] || 0) : null,
+    // 등수는 학생에게 내려보내지 않는다 — 선생님 화면(mock-detail)에서만 본다.
+    // 서버가 아예 담지 않으므로 프런트엔드가 실수로 그려버릴 여지도 없다.
+    rank: null,
+    tieCount: null,
     count: agg.count || 0,
     avg: reveal ? agg.avg : null,
     max: reveal ? agg.max : null,

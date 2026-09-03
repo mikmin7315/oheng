@@ -1247,6 +1247,7 @@ function render(){
   if(ST.role==='admin'){
     if(ST.adminView==='courses'){app.innerHTML=rCourseAdmin();bCourseAdmin();return;}
     if(ST.adminView==='account'){app.innerHTML=rAccountAdmin();bAccountAdmin();return;}
+    if(ST.adminView==='rounds'){app.innerHTML=rRoundManager();bRoundManager();return;}
     if(!ST.school){app.innerHTML=rSchoolSelect();bSchoolSelect();return;}
     app.innerHTML=rAdmin();bAdmin();return;
   }
@@ -1645,6 +1646,121 @@ function schoolCardHtml(sc){
       <div class="school-card-count">학생 ${sc.students?.length??sc.studentCount??0}명 · 성적 ${sc.records?.length??sc.recordCount??0}건</div>
     </div>`;
 }
+// 모의고사 회차 관리 — 회차는 학년 단위(여러 반 공통)라 학원 전체 레벨에 둔다.
+// 개설·수정·삭제는 마스터만. 학년은 자유 입력이 아니라 현존 학년 드롭다운에서 고른다
+// ('1학년'과 '고1'이 섞이면 등수가 두 덩어리로 갈라진다).
+async function loadRoundMgr(){
+  try{
+    const res=await fetch('/api/admin/mock-rounds',{credentials:'include'});
+    if(!res.ok){ST.roundMgr={rounds:[],grades:[]};return;}
+    const d=await res.json();
+    ST.roundMgr={rounds:d.rounds||[],grades:d.grades||[]};
+  }catch(e){ST.roundMgr={rounds:[],grades:[]};}
+}
+// ymdToMs / msToYmd 는 Task 9에서 이미 추가했다 — 다시 정의하지 않는다
+function rRoundManager(){
+  const m=ST.roundMgr;
+  if(!m){loadRoundMgr().then(()=>render());return`<div style="padding:40px;text-align:center;color:#9BA3AF">불러오는 중...</div>`;}
+  const master=!!ST.isMaster;
+  const rows=m.rounds.map(r=>{
+    const pct=r.totalCount?Math.round(r.submittedCount/r.totalCount*100):0;
+    const open=Date.now()>=r.openAt&&Date.now()<r.closeAt;
+    return`<tr>
+      <td style="font-weight:700">${esc(r.title)}</td>
+      <td style="text-align:center">${esc(r.grade)}</td>
+      <td style="text-align:center">${esc(r.examDate)}</td>
+      <td style="text-align:center;font-size:11.5px;color:#57616F">${msToYmd(r.closeAt)}까지 ${open?'<span style="color:#146C43;font-weight:800">입력중</span>':'<span style="color:#8C93A0">마감</span>'}</td>
+      <td style="text-align:center;font-weight:800;color:#1E40AF">${r.submittedCount}/${r.totalCount} <span style="font-size:11px;color:#8C93A0">(${pct}%)</span></td>
+      <td style="text-align:center;white-space:nowrap">${master?`<button class="abtn" data-round-del="${esc(r.id)}" data-cnt="${r.submittedCount}" data-title="${esc(r.title)}" title="회차 삭제">🗑️</button>`:''}</td>
+    </tr>`;
+  }).join('');
+
+  const today=msToYmd(Date.now());
+  return`
+  <div class="top-nav">
+    <div class="nav-logo"><img src="/assets/logo-symbol-white.png" alt="OHENG" style="height:22px;width:auto;display:block"></div>
+    <div class="nav-right"><button class="nbtn nbtn-school" id="btn-rm-back">← 학교 선택</button></div>
+  </div>
+  <div style="max-width:920px;margin:0 auto;padding:22px 18px">
+    <div style="font-size:20px;font-weight:800;color:#1A237E;margin-bottom:4px">📈 모의고사 회차 관리</div>
+    <div style="font-size:12.5px;color:#9BA3AF;margin-bottom:18px">회차는 학년 단위입니다. 회차를 열면 그 학년 학생 전원의 앱에 입력창이 뜹니다.</div>
+
+    ${master?`
+    <div class="section-card">
+      <div class="section-ttl">➕ 회차 만들기</div>
+      <div class="form3" style="margin-bottom:12px">
+        <div class="fgrp"><label class="flbl">학년</label>
+          <select class="finp" id="rm-grade">${m.grades.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join('')}</select>
+        </div>
+        <div class="fgrp"><label class="flbl">회차 제목</label><input class="finp" id="rm-title" placeholder="예: 2026년 3월 학력평가"></div>
+        <div class="fgrp"><label class="flbl">응시일</label><input class="finp" id="rm-exam" placeholder="${today}" value="${today}"></div>
+        <div class="fgrp"><label class="flbl">입력 시작일</label><input class="finp" id="rm-open" value="${today}"></div>
+        <div class="fgrp"><label class="flbl">입력 마감일</label><input class="finp" id="rm-close" placeholder="${today}"></div>
+        <div class="fgrp"><label class="flbl">만점</label><input class="finp" id="rm-max" type="number" value="100"></div>
+      </div>
+      <button class="abtn abtn-green" id="rm-save">회차 만들기</button>
+      <div id="rm-msg" style="font-size:12px;margin-top:8px;min-height:16px"></div>
+      ${m.grades.length?'':`<div style="font-size:12px;color:#B45309;margin-top:8px">등록된 학년이 없습니다. 학교(반)를 먼저 만들어 주세요.</div>`}
+    </div>`:`
+    <div class="section-card"><div style="font-size:12.5px;color:#9BA3AF">회차 개설·삭제는 원장님 계정만 가능합니다. 아래 목록은 조회만 됩니다.</div></div>`}
+
+    <div class="section-card">
+      <div class="section-ttl">📋 회차 목록 (${m.rounds.length})</div>
+      ${m.rounds.length?`<table class="tbl" style="width:100%">
+        <thead><tr><th style="text-align:left">제목</th><th>학년</th><th>응시일</th><th>입력 기간</th><th>제출률</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`:`<div style="color:#9BA3AF;font-size:13px">아직 만든 회차가 없습니다.</div>`}
+    </div>
+  </div>`;
+}
+function bRoundManager(){
+  document.getElementById('btn-rm-back').onclick=()=>{ST.adminView=null;ST.roundMgr=null;render();};
+
+  const save=document.getElementById('rm-save');
+  if(save){
+    save.onclick=async()=>{
+      const msg=document.getElementById('rm-msg');
+      const grade=document.getElementById('rm-grade').value;
+      const title=document.getElementById('rm-title').value.trim();
+      const examDate=document.getElementById('rm-exam').value.trim();
+      const openAt=ymdToMs(document.getElementById('rm-open').value,false);
+      const closeAt=ymdToMs(document.getElementById('rm-close').value,true);
+      const maxScore=Number(document.getElementById('rm-max').value)||100;
+      if(!grade){msg.textContent='학년을 고르세요';msg.style.color='#C62828';return;}
+      if(!title){msg.textContent='회차 제목을 입력하세요';msg.style.color='#C62828';return;}
+      if(!/^\d{4}\.\d{2}\.\d{2}$/.test(examDate)){msg.textContent='응시일은 2026.03.26 형식으로 입력하세요';msg.style.color='#C62828';return;}
+      if(!Number.isFinite(openAt)||!Number.isFinite(closeAt)){msg.textContent='입력 시작일·마감일을 2026.03.26 형식으로 입력하세요';msg.style.color='#C62828';return;}
+      if(closeAt<=openAt){msg.textContent='마감일은 시작일보다 뒤여야 합니다';msg.style.color='#C62828';return;}
+
+      save.disabled=true;msg.textContent='저장 중...';msg.style.color='#57616F';
+      try{
+        const res=await fetch('/api/admin/mock-round-save',{
+          method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({grade,title,examDate,openAt,closeAt,maxScore})
+        });
+        const data=await res.json().catch(()=>({}));
+        if(!res.ok||!data.success){msg.textContent=data.message||'저장에 실패했습니다';msg.style.color='#C62828';save.disabled=false;return;}
+        await loadRoundMgr();render();
+      }catch(e){msg.textContent='네트워크 오류로 저장하지 못했습니다';msg.style.color='#C62828';save.disabled=false;}
+    };
+  }
+
+  document.querySelectorAll('[data-round-del]').forEach(b=>{
+    b.onclick=async()=>{
+      const id=b.dataset.roundDel;
+      const cnt=b.dataset.cnt;
+      if(!confirm(`[${b.dataset.title}] 회차를 삭제할까요?\n\n제출된 점수 ${cnt}건이 함께 삭제되며 되돌릴 수 없습니다.`))return;
+      b.disabled=true;
+      const res=await fetch('/api/admin/mock-round-delete',{
+        method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({id})
+      });
+      const data=await res.json().catch(()=>({}));
+      if(!res.ok||!data.success){alert(data.message||'삭제에 실패했습니다');b.disabled=false;return;}
+      await loadRoundMgr();render();
+    };
+  });
+}
 function rSchoolSelect(){
   const typeFilter=ST.schoolTypeFilter||'';
   const sortMode=ST.schoolSort||'count';
@@ -1660,6 +1776,7 @@ function rSchoolSelect(){
           <div style="width:60px;height:60px;border-radius:18px;background:linear-gradient(135deg,#1A237E,#3949AB);display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 14px;box-shadow:0 8px 24px rgba(26,35,126,0.25)">🏫</div>
           <div class="school-title">관리 학교 선택</div>
           <div class="school-sub">수업할 학교를 선택하면 해당 학교 전용 관리 화면으로 이동합니다</div>
+    <button id="btn-round-mgr" style="margin-top:10px;padding:8px 14px;background:#EFF6FF;border:1.5px solid #BFDBFE;border-radius:9px;font-size:12.5px;font-weight:700;color:#1E40AF;cursor:pointer;font-family:inherit">📈 모의고사 회차 관리</button>
         </div>
         <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap">
           <input id="sch-search" value="${esc(ST.schoolSearch||'')}" placeholder="🔍 학교명 검색" style="flex:1;min-width:160px;padding:9px 12px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px;outline:none;font-family:inherit">
@@ -1787,6 +1904,8 @@ function bindSchoolCardHandlers(){
 }
 
 function bSchoolSelect(){
+  const rmBtn=document.getElementById('btn-round-mgr');
+  if(rmBtn)rmBtn.onclick=()=>{ST.adminView='rounds';ST.roundMgr=null;render();};
   document.getElementById('btn-alo-main').onclick=doLogout;
   document.getElementById('btn-goto-courses').onclick=()=>{ST.adminView='courses';render();};
   document.getElementById('btn-goto-account').onclick=()=>{ST.adminView='account';render();};

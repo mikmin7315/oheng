@@ -1,4 +1,5 @@
 import { requireAdminSessionOrApiToken, isSameOrigin } from '../../_lib/auth.js';
+import { normalizeGrade } from '../../_lib/mock.js';
 import { getSchool, saveSchool, deleteSchool, toAdminView, VersionConflictError } from '../../_lib/school.js';
 
 export default async function handler(req, res) {
@@ -18,7 +19,10 @@ export default async function handler(req, res) {
     if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
     try {
       const body = req.body || {};
-      const updated = await saveSchool(id, { ...body, id }, body.version);
+      // 학년은 모의고사 회차와 반을 잇는 유일한 키라, 클라이언트 검증만 믿지 않고 서버에서도 정규화한다.
+      // 정규화 결과가 빈 문자열이면 원래 값을 그대로 둔다(정규화가 값을 삼켜버리는 일 방지).
+      const grade = normalizeGrade(body.grade) || body.grade;
+      const updated = await saveSchool(id, { ...body, id, grade }, body.version);
       return res.status(200).json({ success: true, school: toAdminView(updated) });
     } catch (e) {
       if (e instanceof VersionConflictError) {

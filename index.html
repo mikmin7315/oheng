@@ -570,6 +570,7 @@ const CHANGELOG=[
   {date:'2026-09-03',items:[
     '모의고사 점수를 학생이 직접 입력하면, 같은 학년 전체 기준 평균·최고점·등급 분포와 비교해 볼 수 있는 기능 추가',
     '성적표에 모의고사 회차별 점수 추이 그래프 추가 (학년이 올라가도 이어서 표시)',
+    '학생 화면에 모의고사 탭을 따로 분리 — 성적표는 예전 그대로 유지되고, 입력 기간에만 성적표 위에 안내 한 줄이 뜹니다',
     '모의고사 입력 기간에는 로그인 시 입력 팝업이 떠서 점수만 빠르게 넣을 수 있게 함',
     '선생님 화면에 모의고사 탭 추가 — 우리 반 제출 현황·학년 등수, 반 평균과 학년 평균 비교 (학년 등수는 선생님에게만 보이고 학생 화면에는 표시되지 않음)',
     '학교 설정의 학년을 드롭다운으로 변경 (표기가 흔들리면 그 반이 모의고사 집계에서 빠지는 문제 예방)',
@@ -1659,10 +1660,10 @@ function schoolCardHtml(sc){
 async function loadRoundMgr(){
   try{
     const res=await fetch('/api/admin/mock-rounds',{credentials:'include'});
-    if(!res.ok){ST.roundMgr={rounds:[],grades:[]};return;}
+    if(!res.ok){ST.roundMgr={error:res.status===401?'auth':'net',rounds:[],grades:[]};return;}
     const d=await res.json();
     ST.roundMgr={rounds:d.rounds||[],grades:d.grades||[]};
-  }catch(e){ST.roundMgr={rounds:[],grades:[]};}
+  }catch(e){ST.roundMgr={error:'net',rounds:[],grades:[]};}
 }
 // ymdToMs / msToYmd 는 Task 9에서 이미 추가했다 — 다시 정의하지 않는다
 function rRoundManager(){
@@ -1691,6 +1692,7 @@ function rRoundManager(){
   <div style="max-width:920px;margin:0 auto;padding:22px 18px">
     <div style="font-size:20px;font-weight:800;color:#1A237E;margin-bottom:4px">📈 모의고사 회차 관리</div>
     <div style="font-size:12.5px;color:#9BA3AF;margin-bottom:18px">회차는 학년 단위입니다. 회차를 열면 그 학년 학생 전원의 앱에 입력창이 뜹니다.</div>
+    ${m.error?rMockLoadError(m.error):''}
 
     ${master?`
     <div class="section-card">
@@ -2397,15 +2399,19 @@ function bAccountAdmin(){
 function rStudent(){
   const sc=ST.userSchool;
   const unreadReplies=(sc?.suggestions||[]).filter(s=>s.sid===ST.user.id&&s.reply&&!s.replyRead).length;
+  // 아직 안 낸 회차가 있으면 탭에 빨간 점을 찍어, 탭을 분리해도 놓치지 않게 한다
+  const mockPending=!!(ST.mock?.openRound&&!ST.mock.openRound.mySubmission);
   const tabs=[
     {id:'report',l:'성적표'},
+    {id:'mock',l:'모의고사'+(mockPending?` <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#E53935;vertical-align:middle;margin-left:2px"></span>`:'')},
     {id:'suggest',l:'제안하기'+(unreadReplies?` <span style="background:#E53935;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;vertical-align:middle">${unreadReplies}</span>`:'')},
     {id:'inquiry',l:'문의하기'},
     {id:'settings',l:'설정'}
   ];
   const recs=sRecs(ST.user.id,ST.userSchool);
   let inner='';
-  if(ST.tab==='report') inner=rMockCard()+rMockTrend()+rReport(recs);
+  if(ST.tab==='report') inner=rMockBanner()+rReport(recs);
+  else if(ST.tab==='mock') inner=(rMockCard()||rMockEmpty())+rMockTrend();
   else if(ST.tab==='suggest') inner=rSuggest();
   else if(ST.tab==='inquiry') inner=rInquiry();
   else inner=rStudentSettings();
@@ -2579,6 +2585,27 @@ function rMockResultCard(h){
   ${h.avg!=null?`<div style="font-size:12px;color:#57616F;margin-top:3px">학년 평균 ${h.avg}점 · 최고 ${h.max}점</div>`:''}
   ${distBars}`;
 }
+// 성적표 탭 맨 위 한 줄 배너 — 아직 안 낸 입력 기간에만 뜬다.
+// 모의고사는 1년에 몇 번뿐이라 매주 보는 성적표 자리를 상시 차지하면 안 된다.
+function rMockBanner(){
+  const o=ST.mock?.openRound;
+  if(!o||o.mySubmission)return'';
+  const d=new Date(o.closeAt);
+  return `<div id="mock-banner" class="no-print" role="button" tabindex="0" style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:#EFF6FF;border:1.5px solid #BFDBFE;border-radius:12px;padding:12px 15px;margin-bottom:14px;cursor:pointer">
+    <div style="min-width:0">
+      <div style="font-size:13.5px;font-weight:800;color:#1E40AF">📢 ${esc(o.title)} 점수를 입력해주세요</div>
+      <div style="font-size:11.5px;color:#57616F;margin-top:3px">마감 ${d.getMonth()+1}/${d.getDate()} · 우리 학년 ${o.totalCount}명 중 ${o.submittedCount}명 입력 완료</div>
+    </div>
+    <span style="font-size:13px;font-weight:800;color:#1E40AF;white-space:nowrap">입력하러 가기 →</span>
+  </div>`;
+}
+function rMockEmpty(){
+  return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;color:#9BA3AF;text-align:center">
+    <div style="font-size:36px;margin-bottom:12px">📈</div>
+    <div style="font-size:15px;font-weight:600;color:#5C6470;margin-bottom:6px">아직 모의고사 기록이 없습니다</div>
+    <div style="font-size:13px">입력 기간이 되면 여기에서 점수를 넣을 수 있어요</div>
+  </div>`;
+}
 function rMockCard(){
   const m=ST.mock;
   if(!m)return'';
@@ -2729,7 +2756,7 @@ function maybeShowMockPopup(){
     btn.disabled=true;btn.style.opacity='0.6';
     msg.textContent='저장 중...';msg.style.color='#57616F';
     const ok=await submitMockScore(open.id,score,gv===''?null:Number(gv),msg);
-    if(ok){close();render();}
+    if(ok){close();ST.tab='mock';render();}
     else{btn.disabled=false;btn.style.opacity='1';}
   };
 }
@@ -3055,6 +3082,12 @@ function bD(recs){return{
 function bStudent(){
   document.getElementById('btn-lo').onclick=doLogout;
   bMockCard();
+  const mb=document.getElementById('mock-banner');
+  if(mb){
+    const go=()=>{ST.tab='mock';render();};
+    mb.onclick=go;
+    mb.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}};
+  }
   requestAnimationFrame(()=>drawMockCharts());
   maybeShowMockPopup();
   document.querySelectorAll('.tab[data-tab]').forEach(t=>{t.onclick=()=>{ST.tab=t.dataset.tab;render()}});
@@ -3305,7 +3338,10 @@ function rAdmin(){
 async function loadMockAdmin(sc,roundId){
   try{
     const listRes=await fetch(`/api/admin/mock-rounds?grade=${encodeURIComponent(sc.grade||'')}`,{credentials:'include'});
-    const listData=listRes.ok?await listRes.json():{rounds:[]};
+    // 실패를 빈 목록으로 뭉개면 "회차가 없습니다"로 보여서 원인을 알 수 없다.
+    // 특히 401(다른 탭에서 다른 계정으로 로그인해 세션이 덮인 경우)은 반드시 구분해야 한다.
+    if(!listRes.ok){ST.mockAdmin={error:listRes.status===401?'auth':'net',rounds:[],roundId:null,detail:null};return;}
+    const listData=await listRes.json();
     const rounds=listData.rounds||[];
     const pick=roundId||rounds[0]?.id||null;
     let detail=null;
@@ -3314,7 +3350,15 @@ async function loadMockAdmin(sc,roundId){
       if(dRes.ok){const d=await dRes.json();if(d.success)detail=d;}
     }
     ST.mockAdmin={rounds,roundId:pick,detail};
-  }catch(e){ST.mockAdmin={rounds:[],roundId:null,detail:null};}
+  }catch(e){ST.mockAdmin={error:'net',rounds:[],roundId:null,detail:null};}
+}
+// 불러오기 실패 안내 — "데이터가 없다"와 "못 불러왔다"는 완전히 다른 상황이다
+function rMockLoadError(kind){
+  const msg = kind==='auth'
+    ? '로그인이 풀렸습니다. 다른 탭에서 다른 계정(학생 등)으로 로그인하면 이 창의 로그인이 해제됩니다.<br>페이지를 새로고침한 뒤 다시 로그인해 주세요.'
+    : '모의고사 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.';
+  return `<div class="section-card"><div style="display:flex;gap:9px;align-items:flex-start;font-size:13px;color:#B3261E;line-height:1.7">
+    <span>⚠️</span><span>${msg}</span></div></div>`;
 }
 function ymdToMs(s,endOfDay){
   const m=/^(\d{4})[.\-/](\d{2})[.\-/](\d{2})$/.exec(String(s||'').trim());
@@ -3329,6 +3373,7 @@ function msToYmd(ms){
 function rMockAdmin(sc){
   const m=ST.mockAdmin;
   if(!m){loadMockAdmin(sc,null).then(()=>render());return`<div class="section-card"><div style="color:#9BA3AF;font-size:13px">불러오는 중...</div></div>`;}
+  if(m.error)return rMockLoadError(m.error);
   if(!m.rounds.length){
     return`<div class="section-card">
       <div style="color:#9BA3AF;font-size:13px;line-height:1.7">

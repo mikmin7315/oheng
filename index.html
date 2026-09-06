@@ -568,7 +568,7 @@ const VAPID_PUBLIC_KEY='BClrX5_mErAwCfnxMnn7JxqUECaVChgQ8zTADG7HWfg8vCcNTGE2Xx0v
 // 관리 학교 선택 화면에 표시할 업데이트 내역 — 배포할 때마다 최신 항목을 맨 위에 직접 추가
 const CHANGELOG=[
   {date:'2026-09-06',items:[
-    '성적 일괄입력에 정렬 기능 추가 — "기본 정렬"(이름·RT점수·WT점수·전체점수)과 "숙제/시험 정렬"(숙제1~4·RT/WT 합격여부)을 따로 두어, 오름차순/내림차순으로 같은 상태끼리 모아볼 수 있음',
+    '성적 일괄입력에 정렬 기능 추가 — "기본 정렬"(이름·RT점수·WT점수·전체점수), "숙제 정렬"(숙제1~4), "시험 정렬"(RT/WT 합격여부)을 따로 두어, 오름차순/내림차순으로 같은 상태끼리 모아볼 수 있음',
     '숙제를 2개까지만 관리할 수 있던 것을 숙제 3·4번까지 추가해 각각 독립적으로 이름 설정·생략 처리 가능하도록 확장',
     '학생이 새 제안을 올리면 원장님 이메일로 알림이 가도록 추가',
     '학생 관리 목록의 아이콘 버튼(💬/✏️/🚪)에 마우스를 올리면 어떤 기능인지 설명이 뜨도록 추가',
@@ -3927,17 +3927,26 @@ function rBulk(sc){
       <option value="desc">내림차순</option>
     </select>
     <span style="width:1px;height:18px;background:#D9E0EA"></span>
-    <span style="font-size:11px;font-weight:700;color:#5C6470;white-space:nowrap">↕️ 숙제/시험 정렬</span>
-    <select id="sort-field-group" class="cs" style="width:auto;min-width:100px">
+    <span style="font-size:11px;font-weight:700;color:#5C6470;white-space:nowrap">↕️ 숙제 정렬</span>
+    <select id="sort-field-hw" class="cs" style="width:auto;min-width:100px">
       <option value="">기본 순서</option>
-      <option value="examRt">RT 합격여부</option>
-      <option value="examWt">WT 합격여부</option>
       <option value="hw1">${esc(hw1)}</option>
       <option value="hw2">${esc(hw2)}</option>
       <option value="hw3">${esc(hw3)}</option>
       <option value="hw4">${esc(hw4)}</option>
     </select>
-    <select id="sort-dir-group" class="cs" style="width:auto;min-width:80px">
+    <select id="sort-dir-hw" class="cs" style="width:auto;min-width:80px">
+      <option value="asc">오름차순</option>
+      <option value="desc">내림차순</option>
+    </select>
+    <span style="width:1px;height:18px;background:#D9E0EA"></span>
+    <span style="font-size:11px;font-weight:700;color:#5C6470;white-space:nowrap">↕️ 시험 정렬</span>
+    <select id="sort-field-exam" class="cs" style="width:auto;min-width:100px">
+      <option value="">기본 순서</option>
+      <option value="examRt">RT 합격여부</option>
+      <option value="examWt">WT 합격여부</option>
+    </select>
+    <select id="sort-dir-exam" class="cs" style="width:auto;min-width:80px">
       <option value="asc">오름차순</option>
       <option value="desc">내림차순</option>
     </select>
@@ -5196,8 +5205,11 @@ function bAdmin(){
   ['sort-field-basic','sort-dir-basic'].forEach(id=>{
     document.getElementById(id)?.addEventListener('change',()=>applyBulkSort('sort-field-basic','sort-dir-basic'));
   });
-  ['sort-field-group','sort-dir-group'].forEach(id=>{
-    document.getElementById(id)?.addEventListener('change',()=>applyBulkSort('sort-field-group','sort-dir-group'));
+  ['sort-field-hw','sort-dir-hw'].forEach(id=>{
+    document.getElementById(id)?.addEventListener('change',()=>applyBulkSort('sort-field-hw','sort-dir-hw'));
+  });
+  ['sort-field-exam','sort-dir-exam'].forEach(id=>{
+    document.getElementById(id)?.addEventListener('change',()=>applyBulkSort('sort-field-exam','sort-dir-exam'));
   });
   document.getElementById('btn-draft-load')?.addEventListener('click',()=>{
     const draft=loadDraft(sc,ST.bMon,ST.bWk);
@@ -5214,7 +5226,7 @@ function bAdmin(){
     function onScoreChange(e){const t=e.target;if(t.classList.contains('inp-rt')||t.classList.contains('inp-wt'))recalc();}
     tbody.addEventListener('input',onScoreChange);tbody.addEventListener('change',onScoreChange);
     tbody.addEventListener('input',scheduleDraftSave);tbody.addEventListener('change',scheduleDraftSave);
-    tbody.addEventListener('change',e=>{const t=e.target;if(t.classList.contains('inp-hw1')||t.classList.contains('inp-hw2')||t.classList.contains('inp-hw3')||t.classList.contains('inp-hw4'))applyBulkSort('sort-field-group','sort-dir-group');});
+    tbody.addEventListener('change',e=>{const t=e.target;if(t.classList.contains('inp-hw1')||t.classList.contains('inp-hw2')||t.classList.contains('inp-hw3')||t.classList.contains('inp-hw4'))applyBulkSort('sort-field-hw','sort-dir-hw');});
     // 탭/엔터를 누르면 같은 행의 다음 칸(가로)이 아니라 같은 칸의 다음 학생(세로·아래)으로 이동 —
     // 학생 수가 많을 때 한 항목씩 쭉 훑어 입력하는 방식이 더 편해서 그렇게 변경.
     tbody.addEventListener('keydown',e=>{

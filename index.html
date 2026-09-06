@@ -568,7 +568,7 @@ const VAPID_PUBLIC_KEY='BClrX5_mErAwCfnxMnn7JxqUECaVChgQ8zTADG7HWfg8vCcNTGE2Xx0v
 // 관리 학교 선택 화면에 표시할 업데이트 내역 — 배포할 때마다 최신 항목을 맨 위에 직접 추가
 const CHANGELOG=[
   {date:'2026-09-06',items:[
-    '성적 일괄입력에 정렬 기능 추가 — "기본 정렬"(이름·RT점수·WT점수·전체점수), "숙제 정렬"(숙제1~4), "시험 정렬"(RT/WT 합격여부)을 따로 두어, 오름차순/내림차순으로 같은 상태끼리 모아볼 수 있음',
+    '성적 일괄입력 표에서 이름·RT점수·WT점수·전체점수·숙제1~4·RT/WT합격 열 제목을 클릭하면 그 기준으로 정렬(다시 클릭하면 오름차순→내림차순→기본 순서로 순환) — 같은 상태끼리 모아볼 수 있음',
     '숙제를 2개까지만 관리할 수 있던 것을 숙제 3·4번까지 추가해 각각 독립적으로 이름 설정·생략 처리 가능하도록 확장',
     '학생이 새 제안을 올리면 원장님 이메일로 알림이 가도록 추가',
     '학생 관리 목록의 아이콘 버튼(💬/✏️/🚪)에 마우스를 올리면 어떤 기능인지 설명이 뜨도록 추가',
@@ -3913,59 +3913,21 @@ function rBulk(sc){
     <button class="abtn" id="btn-wt-all" style="background:#1565c0;color:#fff;border-color:#1565c0;font-size:11px;padding:5px 10px">전체생략</button>
     <button class="abtn abtn-gray" id="btn-wt-none" style="font-size:11px;padding:5px 10px">전체해제</button>
   </div>
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;padding:10px 12px;background:#F7F8FA;border:1px solid #E8ECF0;border-radius:8px">
-    <span style="font-size:11px;font-weight:700;color:#5C6470;white-space:nowrap">↕️ 기본 정렬</span>
-    <select id="sort-field-basic" class="cs" style="width:auto;min-width:100px">
-      <option value="">기본 순서</option>
-      <option value="name">이름</option>
-      <option value="rt">RT점수</option>
-      <option value="wt">WT점수</option>
-      <option value="tot">전체점수</option>
-    </select>
-    <select id="sort-dir-basic" class="cs" style="width:auto;min-width:80px">
-      <option value="asc">오름차순</option>
-      <option value="desc">내림차순</option>
-    </select>
-    <span style="width:1px;height:18px;background:#D9E0EA"></span>
-    <span style="font-size:11px;font-weight:700;color:#5C6470;white-space:nowrap">↕️ 숙제 정렬</span>
-    <select id="sort-field-hw" class="cs" style="width:auto;min-width:100px">
-      <option value="">기본 순서</option>
-      <option value="hw1">${esc(hw1)}</option>
-      <option value="hw2">${esc(hw2)}</option>
-      <option value="hw3">${esc(hw3)}</option>
-      <option value="hw4">${esc(hw4)}</option>
-    </select>
-    <select id="sort-dir-hw" class="cs" style="width:auto;min-width:80px">
-      <option value="asc">오름차순</option>
-      <option value="desc">내림차순</option>
-    </select>
-    <span style="width:1px;height:18px;background:#D9E0EA"></span>
-    <span style="font-size:11px;font-weight:700;color:#5C6470;white-space:nowrap">↕️ 시험 정렬</span>
-    <select id="sort-field-exam" class="cs" style="width:auto;min-width:100px">
-      <option value="">기본 순서</option>
-      <option value="examRt">RT 합격여부</option>
-      <option value="examWt">WT 합격여부</option>
-    </select>
-    <select id="sort-dir-exam" class="cs" style="width:auto;min-width:80px">
-      <option value="asc">오름차순</option>
-      <option value="desc">내림차순</option>
-    </select>
-  </div>
   <div class="btbl-wrap"><table class="btbl">
     <thead><tr>
-      <th class="sn" style="background:#1A237E;color:#fff;min-width:70px">이름</th>
-      <th class="th-input2">RT점수</th>
+      <th class="sn sortable-th" data-sort="name" style="background:#1A237E;color:#fff;min-width:70px;cursor:pointer;user-select:none">이름<span class="sort-arrow"></span></th>
+      <th class="th-input2 sortable-th" data-sort="rt" style="cursor:pointer;user-select:none">RT점수<span class="sort-arrow"></span></th>
       <th class="th-auto2">RT등수</th>
-      <th class="th-auto2">RT합격</th>
-      <th class="th-input2">WT점수</th>
+      <th class="th-auto2 sortable-th" data-sort="examRt" style="cursor:pointer;user-select:none">RT합격<span class="sort-arrow"></span></th>
+      <th class="th-input2 sortable-th" data-sort="wt" style="cursor:pointer;user-select:none">WT점수<span class="sort-arrow"></span></th>
       <th class="th-auto2">WT등수</th>
-      <th class="th-auto2">WT합격</th>
-      <th class="th-auto2">전체점수</th>
+      <th class="th-auto2 sortable-th" data-sort="examWt" style="cursor:pointer;user-select:none">WT합격<span class="sort-arrow"></span></th>
+      <th class="th-auto2 sortable-th" data-sort="tot" style="cursor:pointer;user-select:none">전체점수<span class="sort-arrow"></span></th>
       <th class="th-auto2">전체등수</th>
-      <th class="th-hw2 th-hw1-name">${hw1}</th>
-      <th class="th-hw2 th-hw2-name">${hw2}</th>
-      <th class="th-hw2 th-hw3-name">${hw3}</th>
-      <th class="th-hw2 th-hw4-name">${hw4}</th>
+      <th class="th-hw2 th-hw1-name sortable-th" data-sort="hw1" style="cursor:pointer;user-select:none">${hw1}<span class="sort-arrow"></span></th>
+      <th class="th-hw2 th-hw2-name sortable-th" data-sort="hw2" style="cursor:pointer;user-select:none">${hw2}<span class="sort-arrow"></span></th>
+      <th class="th-hw2 th-hw3-name sortable-th" data-sort="hw3" style="cursor:pointer;user-select:none">${hw3}<span class="sort-arrow"></span></th>
+      <th class="th-hw2 th-hw4-name sortable-th" data-sort="hw4" style="cursor:pointer;user-select:none">${hw4}<span class="sort-arrow"></span></th>
       <th class="th-hw2">재시험</th>
       <th class="th-hw2">출석</th>
     </tr></thead>
@@ -5201,15 +5163,7 @@ function bAdmin(){
       if(v4){const s4=r.querySelector('.inp-hw4');if(s4&&!s4.disabled)s4.value=v4;}
     });
     recalc();scheduleDraftSave();
-  });
-  ['sort-field-basic','sort-dir-basic'].forEach(id=>{
-    document.getElementById(id)?.addEventListener('change',()=>applyBulkSort('sort-field-basic','sort-dir-basic'));
-  });
-  ['sort-field-hw','sort-dir-hw'].forEach(id=>{
-    document.getElementById(id)?.addEventListener('change',()=>applyBulkSort('sort-field-hw','sort-dir-hw'));
-  });
-  ['sort-field-exam','sort-dir-exam'].forEach(id=>{
-    document.getElementById(id)?.addEventListener('change',()=>applyBulkSort('sort-field-exam','sort-dir-exam'));
+    reapplyActiveSort(document.getElementById('bk-body'));
   });
   document.getElementById('btn-draft-load')?.addEventListener('click',()=>{
     const draft=loadDraft(sc,ST.bMon,ST.bWk);
@@ -5224,10 +5178,17 @@ function bAdmin(){
   ST._dirty=false;
   if(tbody){
     tbody._defaultOrder=[...tbody.querySelectorAll('tr')].map(r=>r.dataset.sid);
+    const theadEl=tbody.closest('table')?.querySelector('thead');
+    theadEl?.addEventListener('click',e=>{
+      const th=e.target.closest('.sortable-th');if(!th)return;
+      sortByHeader(th.dataset.sort,theadEl,tbody);
+    });
     function onScoreChange(e){const t=e.target;if(t.classList.contains('inp-rt')||t.classList.contains('inp-wt'))recalc();}
     tbody.addEventListener('input',onScoreChange);tbody.addEventListener('change',onScoreChange);
+    // 정렬 재적용은 change(입력을 마치고 포커스를 벗어날 때)에만 — input마다(키 입력마다) 재정렬하면 타이핑 중 행이 계속 튀어서 방해됨
+    tbody.addEventListener('change',e=>{const t=e.target;if(t.classList.contains('inp-rt')||t.classList.contains('inp-wt'))reapplyActiveSort(tbody);});
     tbody.addEventListener('input',scheduleDraftSave);tbody.addEventListener('change',scheduleDraftSave);
-    tbody.addEventListener('change',e=>{const t=e.target;if(t.classList.contains('inp-hw1')||t.classList.contains('inp-hw2')||t.classList.contains('inp-hw3')||t.classList.contains('inp-hw4'))applyBulkSort('sort-field-hw','sort-dir-hw');});
+    tbody.addEventListener('change',e=>{const t=e.target;if(t.classList.contains('inp-hw1')||t.classList.contains('inp-hw2')||t.classList.contains('inp-hw3')||t.classList.contains('inp-hw4'))reapplyActiveSort(tbody);});
     // 탭/엔터를 누르면 같은 행의 다음 칸(가로)이 아니라 같은 칸의 다음 학생(세로·아래)으로 이동 —
     // 학생 수가 많을 때 한 항목씩 쭉 훑어 입력하는 방식이 더 편해서 그렇게 변경.
     tbody.addEventListener('keydown',e=>{
@@ -5416,35 +5377,24 @@ function recalc(){
   });
 }
 
-// 정렬 — 입력값은 그대로 두고 행(tr) 순서만 재배치 (등록된 select/input의 값·상태 유지됨).
-// 기본 정렬(이름·점수)과 숙제/시험 정렬(같은 상태끼리 모아보기)을 서로 독립된 별도 컨트롤로 둠 —
-// 둘 중 나중에 바꾼 쪽 기준으로 다시 정렬됨(동시 적용/2단 정렬은 아님).
+// 표 헤더 클릭 정렬 — 입력값은 그대로 두고 행(tr) 순서만 재배치 (등록된 select/input의 값·상태 유지됨).
+// 헤더를 클릭할 때마다 오름차순 → 내림차순 → 기본 순서로 3단 순환. 숙제/RT·WT 합격여부로 정렬하면
+// 같은 상태끼리 자연스럽게 모여서 그룹으로 보임(별도 필터 없이도 그룹별 확인 가능).
 const SORT_NUMERIC_FIELDS=new Set(['rt','wt','tot']);
-function applyBulkSort(fieldId,dirId){
-  const tbody=document.getElementById('bk-body');if(!tbody)return;
-  const field=document.getElementById(fieldId)?.value||'';
-  if(!field){
-    // "기본 순서" 선택 시 처음 불러왔을 때의 학생 순서로 되돌림
-    if(tbody._defaultOrder){
-      const bySid=new Map([...tbody.querySelectorAll('tr')].map(r=>[r.dataset.sid,r]));
-      tbody._defaultOrder.forEach(sid=>{const r=bySid.get(sid);if(r)tbody.appendChild(r);});
-    }
-    return;
-  }
-  const dir=document.getElementById(dirId)?.value||'asc';
+function sortValueOf(r,field){
+  if(field==='name')return r.querySelector('.sn')?.textContent||'';
+  if(field==='rt'){const v=parseFloat(r.querySelector('.inp-rt')?.value);return isNaN(v)?null:v;}
+  if(field==='wt'){const v=parseFloat(r.querySelector('.inp-wt')?.value);return isNaN(v)?null:v;}
+  if(field==='tot'){const v=parseFloat(r.querySelector('.auto-tot')?.value);return isNaN(v)?null:v;}
+  if(field==='examRt')return r.querySelector('.auto-rt-pass')?.textContent||'';
+  if(field==='examWt')return r.querySelector('.auto-wt-pass')?.textContent||'';
+  if(field==='hw1'||field==='hw2'||field==='hw3'||field==='hw4')return r.querySelector('.inp-'+field)?.value||'';
+  return '';
+}
+function sortRowsBy(tbody,field,dir){
   const rows=[...tbody.querySelectorAll('tr')];
-  const val=r=>{
-    if(field==='name')return r.querySelector('.sn')?.textContent||'';
-    if(field==='rt'){const v=parseFloat(r.querySelector('.inp-rt')?.value);return isNaN(v)?null:v;}
-    if(field==='wt'){const v=parseFloat(r.querySelector('.inp-wt')?.value);return isNaN(v)?null:v;}
-    if(field==='tot'){const v=parseFloat(r.querySelector('.auto-tot')?.value);return isNaN(v)?null:v;}
-    if(field==='examRt')return r.querySelector('.auto-rt-pass')?.textContent||'';
-    if(field==='examWt')return r.querySelector('.auto-wt-pass')?.textContent||'';
-    if(field==='hw1'||field==='hw2'||field==='hw3'||field==='hw4')return r.querySelector('.inp-'+field)?.value||'';
-    return '';
-  };
   rows.sort((a,b)=>{
-    const av=val(a),bv=val(b);
+    const av=sortValueOf(a,field),bv=sortValueOf(b,field);
     if(!SORT_NUMERIC_FIELDS.has(field))return dir==='asc'?String(av).localeCompare(String(bv),'ko'):String(bv).localeCompare(String(av),'ko');
     if(av===null&&bv===null)return 0;
     if(av===null)return 1; // 빈 값은 정렬 방향과 무관하게 항상 맨 뒤로
@@ -5452,6 +5402,38 @@ function applyBulkSort(fieldId,dirId){
     return dir==='asc'?av-bv:bv-av;
   });
   rows.forEach(r=>tbody.appendChild(r));
+}
+function restoreDefaultOrder(tbody){
+  if(!tbody._defaultOrder)return;
+  const bySid=new Map([...tbody.querySelectorAll('tr')].map(r=>[r.dataset.sid,r]));
+  tbody._defaultOrder.forEach(sid=>{const r=bySid.get(sid);if(r)tbody.appendChild(r);});
+}
+function updateSortIndicators(theadEl,field,dir){
+  theadEl.querySelectorAll('.sortable-th').forEach(th=>{
+    const arrow=th.querySelector('.sort-arrow');
+    arrow.textContent=(th.dataset.sort===field)?(dir==='asc'?' ▲':' ▼'):'';
+  });
+}
+// 헤더 클릭 — 정렬 상태가 없으면 오름차순, 오름차순이면 내림차순, 내림차순이면 기본 순서로 순환
+function sortByHeader(field,theadEl,tbody){
+  let dir='asc';
+  if(tbody._sortField===field){
+    if(tbody._sortDir==='asc')dir='desc';
+    else if(tbody._sortDir==='desc'){
+      tbody._sortField='';tbody._sortDir='';
+      restoreDefaultOrder(tbody);
+      updateSortIndicators(theadEl,'','');
+      return;
+    }
+  }
+  tbody._sortField=field;tbody._sortDir=dir;
+  sortRowsBy(tbody,field,dir);
+  updateSortIndicators(theadEl,field,dir);
+}
+// 점수 변경 등으로 값이 바뀐 뒤, 현재 활성화된 정렬 기준이 있으면 같은 기준으로 다시 정렬(토글 없이)
+function reapplyActiveSort(tbody){
+  if(!tbody._sortField)return;
+  sortRowsBy(tbody,tbody._sortField,tbody._sortDir);
 }
 
 function renderSavedTable(sc,mon,wk){

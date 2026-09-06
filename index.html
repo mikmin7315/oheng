@@ -567,6 +567,11 @@ const KAKAO_CHANNEL_ID='_QXNZX';
 const VAPID_PUBLIC_KEY='BClrX5_mErAwCfnxMnn7JxqUECaVChgQ8zTADG7HWfg8vCcNTGE2Xx0vzX-Gl3UE6lhj6RZgJYxCu6cjjVcgIHg';
 // 관리 학교 선택 화면에 표시할 업데이트 내역 — 배포할 때마다 최신 항목을 맨 위에 직접 추가
 const CHANGELOG=[
+  {date:'2026-09-06',items:[
+    '숙제를 2개까지만 관리할 수 있던 것을 숙제 3·4번까지 추가해 각각 독립적으로 이름 설정·생략 처리 가능하도록 확장',
+    '학생이 새 제안을 올리면 원장님 이메일로 알림이 가도록 추가',
+    '학생 관리 목록의 아이콘 버튼(💬/✏️/🚪)에 마우스를 올리면 어떤 기능인지 설명이 뜨도록 추가',
+  ]},
   {date:'2026-09-03',items:[
     '모의고사 점수를 학생이 직접 입력하면, 같은 학년 전체 기준 평균·최고점·등급 분포와 비교해 볼 수 있는 기능 추가',
     '성적표에 모의고사 회차별 점수 추이 그래프 추가 (학년이 올라가도 이어서 표시)',
@@ -703,7 +708,8 @@ async function syncSchoolToServer(sc,attempt,intent){
         const latestWithdrawnIds=new Set(latestWithdrawn.map(x=>x.id));
         const newLocalDirtyWithdrawn=[...localWithdrawnMap.entries()].filter(([id])=>dirtyWithdrawnIds.has(id)&&!latestWithdrawnIds.has(id)).map(([,x])=>x);
         sc.withdrawnStudents=[...mergedWithdrawn,...newLocalDirtyWithdrawn];
-        sc.hw1=latest.hw1??sc.hw1;sc.hw2=latest.hw2??sc.hw2;sc.hw1Skip=latest.hw1Skip??sc.hw1Skip;sc.hw2Skip=latest.hw2Skip??sc.hw2Skip;sc.hwNames=latest.hwNames??sc.hwNames;
+        sc.hw1=latest.hw1??sc.hw1;sc.hw2=latest.hw2??sc.hw2;sc.hw3=latest.hw3??sc.hw3;sc.hw4=latest.hw4??sc.hw4;
+        sc.hw1Skip=latest.hw1Skip??sc.hw1Skip;sc.hw2Skip=latest.hw2Skip??sc.hw2Skip;sc.hw3Skip=latest.hw3Skip??sc.hw3Skip;sc.hw4Skip=latest.hw4Skip??sc.hw4Skip;sc.hwNames=latest.hwNames??sc.hwNames;
         sc.kakaoChannel=latest.kakaoChannel??sc.kakaoChannel;
         const key=r=>r.sid+'|'+r.month+'|'+r.week;
         const localMap=new Map(sc.records.map(r=>[key(r),r]));
@@ -779,6 +785,8 @@ function saveDraft(sc,mon,wk){
     wtSkip:r.dataset.wtskip==='1',
     hw1:r.querySelector('.inp-hw1')?.value??'',
     hw2:r.querySelector('.inp-hw2')?.value??'',
+    hw3:r.querySelector('.inp-hw3')?.value??'',
+    hw4:r.querySelector('.inp-hw4')?.value??'',
     rt2:r.querySelector('.inp-rt2')?.value??'',
   }));
   const draft={savedAt:nowStr(),thrRt:document.getElementById('thr-rt')?.value??'',thrWt:document.getElementById('thr-wt')?.value??'',rows};
@@ -802,6 +810,8 @@ function applyDraftToForm(draft){
     const wtEl=row.querySelector('.inp-wt');if(wtEl&&!dr.wtSkip)wtEl.value=dr.wt;
     const hw1El=row.querySelector('.inp-hw1');if(hw1El)hw1El.value=dr.hw1;
     const hw2El=row.querySelector('.inp-hw2');if(hw2El)hw2El.value=dr.hw2;
+    const hw3El=row.querySelector('.inp-hw3');if(hw3El)hw3El.value=dr.hw3;
+    const hw4El=row.querySelector('.inp-hw4');if(hw4El)hw4El.value=dr.hw4;
     const rt2El=row.querySelector('.inp-rt2');if(rt2El)rt2El.value=dr.rt2;
   });
   ST._dirty=true;
@@ -909,7 +919,7 @@ function recomputeWeekAggregates(sc,mon,week){
 }
 
 // 되돌리기 스냅샷에 담는 "입력 필드" — 등수/평균 같은 계산 필드는 여기 없음(되돌린 뒤 recomputeWeekAggregates가 다시 채움)
-const RECORD_INPUT_FIELDS=['thrRt','thrWt','rtSkip','rtScore','wtSkip','wtScore','hw1','hw2','homework','hwName1','hwName2','retestTime','comment','attendType'];
+const RECORD_INPUT_FIELDS=['thrRt','thrWt','rtSkip','rtScore','wtSkip','wtScore','hw1','hw2','hw3','hw4','homework','hwName1','hwName2','hwName3','hwName4','retestTime','comment','attendType'];
 function snapshotRecord(rec){
   const fields={};
   RECORD_INPUT_FIELDS.forEach(f=>{fields[f]=rec[f]??null;});
@@ -940,11 +950,11 @@ function undoActionLog(sc,entry){
 // 이번 주 입력분(성적·숙제·코멘트·출석) 전체를 지움
 function clearWeekScores(sc,mon,week){
   const wkRecs=sc.records.filter(r=>r.month===mon&&r.week===week);
-  const clearedCount=wkRecs.filter(r=>r.rtScore!=null||r.wtScore!=null||r.retestTime||r.hw1||r.hw2||r.comment||r.attendType).length;
+  const clearedCount=wkRecs.filter(r=>r.rtScore!=null||r.wtScore!=null||r.retestTime||r.hw1||r.hw2||r.hw3||r.hw4||r.comment||r.attendType).length;
   const snapshot=wkRecs.map(r=>({sid:r.sid,wasNew:false,fields:snapshotRecord(r)}));
   wkRecs.forEach(r=>{
     r.rtScore=null;r.wtScore=null;r.retestTime='';
-    r.hw1='';r.hw2='';r.homework='';r.comment='';r.attendType='';
+    r.hw1='';r.hw2='';r.hw3='';r.hw4='';r.homework='';r.comment='';r.attendType='';
   });
   recomputeWeekAggregates(sc,mon,week);
   const dirtyKeys=new Set(wkRecs.map(r=>r.sid+'|'+r.month+'|'+r.week));
@@ -1183,12 +1193,16 @@ async function init(){
   try{loadDB();}catch(e){console.warn('init loadDB 오류:',e);}
   initSW();
   initKakao();
-  // 학교 hw1/hw2 마이그레이션
+  // 학교 hw1~4 마이그레이션
   DB.schools.forEach(sc=>{
     if(!sc.hw1)sc.hw1='숙제1';
     if(!sc.hw2)sc.hw2='숙제2';
+    if(!sc.hw3)sc.hw3='숙제3';
+    if(!sc.hw4)sc.hw4='숙제4';
     if(sc.hw1Skip===undefined)sc.hw1Skip=false;
     if(sc.hw2Skip===undefined)sc.hw2Skip=false;
+    if(sc.hw3Skip===undefined)sc.hw3Skip=false;
+    if(sc.hw4Skip===undefined)sc.hw4Skip=false;
     if(!sc.hwNames)sc.hwNames={};
     if(!sc.notices)sc.notices={};
     if(!sc.suggestions)sc.suggestions=[];
@@ -1529,7 +1543,8 @@ function applyServerStudentData(data){
   ST.user=data.student;
   ST.userSchool={
     id:data.school.id,name:data.school.name,grade:data.school.grade,
-    hw1:data.school.hw1,hw2:data.school.hw2,hw1Skip:data.school.hw1Skip,hw2Skip:data.school.hw2Skip,hwNames:data.school.hwNames,
+    hw1:data.school.hw1,hw2:data.school.hw2,hw3:data.school.hw3,hw4:data.school.hw4,
+    hw1Skip:data.school.hw1Skip,hw2Skip:data.school.hw2Skip,hw3Skip:data.school.hw3Skip,hw4Skip:data.school.hw4Skip,hwNames:data.school.hwNames,
     notices:data.school.notices,kakaoChannel:data.school.kakaoChannel,
     records:data.records,suggestions:data.suggestions,_aggregates:data.aggregates,
   };
@@ -2799,6 +2814,8 @@ function rReport(recs){
 
   const hw1SkipForWeek = sc?.hwNames&&sc.hwNames[rec.month+'_'+rec.week]?sc.hwNames[rec.month+'_'+rec.week].hw1Skip:sc?.hw1Skip;
   const hw2SkipForWeek = sc?.hwNames&&sc.hwNames[rec.month+'_'+rec.week]?sc.hwNames[rec.month+'_'+rec.week].hw2Skip:sc?.hw2Skip;
+  const hw3SkipForWeek = sc?.hwNames&&sc.hwNames[rec.month+'_'+rec.week]?sc.hwNames[rec.month+'_'+rec.week].hw3Skip:sc?.hw3Skip;
+  const hw4SkipForWeek = sc?.hwNames&&sc.hwNames[rec.month+'_'+rec.week]?sc.hwNames[rec.month+'_'+rec.week].hw4Skip:sc?.hw4Skip;
 
   // 지난 주 대비 변화
   const recIdx = recs.findIndex(r=>r===rec);
@@ -2810,11 +2827,17 @@ function rReport(recs){
     if(!r)return false;
     const wk1Skip = sc?.hwNames&&sc.hwNames[r.month+'_'+r.week]?sc.hwNames[r.month+'_'+r.week].hw1Skip:sc?.hw1Skip;
     const wk2Skip = sc?.hwNames&&sc.hwNames[r.month+'_'+r.week]?sc.hwNames[r.month+'_'+r.week].hw2Skip:sc?.hw2Skip;
+    const wk3Skip = sc?.hwNames&&sc.hwNames[r.month+'_'+r.week]?sc.hwNames[r.month+'_'+r.week].hw3Skip:sc?.hw3Skip;
+    const wk4Skip = sc?.hwNames&&sc.hwNames[r.month+'_'+r.week]?sc.hwNames[r.month+'_'+r.week].hw4Skip:sc?.hw4Skip;
     const hw1Val = r.hw1||r.homework||'';
     const hw2Val = r.hw2||'';
+    const hw3Val = r.hw3||'';
+    const hw4Val = r.hw4||'';
     const hw1Missed = (!wk1Skip&&hw1Val) ? hw1Val!=='완료' : false;
     const hw2Missed = (!wk2Skip&&hw2Val) ? hw2Val!=='완료' : false;
-    return hw1Missed||hw2Missed;
+    const hw3Missed = (!wk3Skip&&hw3Val) ? hw3Val!=='완료' : false;
+    const hw4Missed = (!wk4Skip&&hw4Val) ? hw4Val!=='완료' : false;
+    return hw1Missed||hw2Missed||hw3Missed||hw4Missed;
   };
   const hwMissedStreak = hwWeekMissed(rec) && hwWeekMissed(prevRec);
 
@@ -2887,6 +2910,8 @@ function rReport(recs){
     const items=[];
     if(!hw1SkipForWeek) items.push(hwItem(rec.hwName1||sc?.hw1||'숙제1', rec.hw1||rec.homework||'-', (rec.hw1||rec.homework)?((rec.hw1||rec.homework)==='완료'):null));
     if(!hw2SkipForWeek) items.push(hwItem(rec.hwName2||sc?.hw2||'숙제2', rec.hw2||'-', rec.hw2?(rec.hw2==='완료'):null));
+    if(!hw3SkipForWeek) items.push(hwItem(rec.hwName3||sc?.hw3||'숙제3', rec.hw3||'-', rec.hw3?(rec.hw3==='완료'):null));
+    if(!hw4SkipForWeek) items.push(hwItem(rec.hwName4||sc?.hw4||'숙제4', rec.hw4||'-', rec.hw4?(rec.hw4==='완료'):null));
     items.push(`<div style="border:1.5px solid #D9E0EA;border-radius:10px;padding:10px 12px;background:#fff;display:flex;flex-direction:column;gap:5px;min-width:0">
       <span style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:#57616F;white-space:nowrap">${ic('clock')}재시험</span>
       <span style="font-size:13px;font-weight:800;${rec.retestTime?'color:#B3261E':'color:#8C93A0'}">${esc(rec.retestTime||'없음')}</span>
@@ -3742,8 +3767,12 @@ function rBulk(sc){
   const hwEntry=sc.hwNames&&sc.hwNames[hwKey]?sc.hwNames[hwKey]:{};
   const hw1=hwEntry.hw1||sc.hw1||'숙제1';
   const hw2=hwEntry.hw2||sc.hw2||'숙제2';
+  const hw3=hwEntry.hw3||sc.hw3||'숙제3';
+  const hw4=hwEntry.hw4||sc.hw4||'숙제4';
   const hw1Skip=hwEntry.hw1Skip!==undefined?hwEntry.hw1Skip:(sc.hw1Skip||false);
   const hw2Skip=hwEntry.hw2Skip!==undefined?hwEntry.hw2Skip:(sc.hw2Skip||false);
+  const hw3Skip=hwEntry.hw3Skip!==undefined?hwEntry.hw3Skip:(sc.hw3Skip||false);
+  const hw4Skip=hwEntry.hw4Skip!==undefined?hwEntry.hw4Skip:(sc.hw4Skip||false);
   const rows=sortedStudents(sc).map(s=>{
     const ex=sc.records.find(r=>r.sid===s.id&&r.month===mon&&r.week===wk)||{};
     const rtSkipped=!!ex.rtSkip;const wtSkipped=!!ex.wtSkip;
@@ -3761,6 +3790,8 @@ function rBulk(sc){
       <td><input class="ci-auto auto-tot-rank" readonly tabindex="-1" value="${ex.totalRank??''}"></td>
       <td><select class="cs inp-hw1" ${hw1Skip?'disabled style=\"opacity:0.35\"':''}>${HW.map(o=>`<option ${(ex.hw1||ex.homework)===o?'selected':''}>${o}</option>`).join('')}</select></td>
       <td><select class="cs inp-hw2" ${hw2Skip?'disabled style=\"opacity:0.35\"':''}>${HW.map(o=>`<option ${ex.hw2===o?'selected':''}>${o}</option>`).join('')}</select></td>
+      <td><select class="cs inp-hw3" ${hw3Skip?'disabled style=\"opacity:0.35\"':''}>${HW.map(o=>`<option ${ex.hw3===o?'selected':''}>${o}</option>`).join('')}</select></td>
+      <td><select class="cs inp-hw4" ${hw4Skip?'disabled style=\"opacity:0.35\"':''}>${HW.map(o=>`<option ${ex.hw4===o?'selected':''}>${o}</option>`).join('')}</select></td>
       <td><input class="ci inp-rt2" value="${ex.retestTime||''}" list="retest-list" style="min-width:70px" autocomplete="off"></td>
       <td><select class="cs att-sel" data-sid="${s.id}" style="font-weight:700;color:${attColor}">${attOptionsHtml(attVal)}</select></td>
     </tr>`;}).join('');
@@ -3808,6 +3839,22 @@ function rBulk(sc){
         <input type="checkbox" id="hw2-skip" ${hw2Skip?'checked':''} style="width:15px;height:15px;accent-color:#1A237E;cursor:pointer">
         <label for="hw2-skip" style="font-size:11px;color:#92400E;font-weight:600;cursor:pointer;white-space:nowrap">숙제2 생략</label>
       </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <label style="font-size:11px;color:#92400E;font-weight:600;white-space:nowrap">숙제3</label>
+        <input id="hw3-name" value="${hw3}" placeholder="이번 주 숙제3 이름" style="padding:5px 10px;border:1.5px solid #FFD54F;border-radius:7px;font-size:12px;font-weight:600;color:#78350F;background:#fff;width:110px;outline:none;font-family:inherit">
+      </div>
+      <div style="display:flex;align-items:center;gap:5px">
+        <input type="checkbox" id="hw3-skip" ${hw3Skip?'checked':''} style="width:15px;height:15px;accent-color:#1A237E;cursor:pointer">
+        <label for="hw3-skip" style="font-size:11px;color:#92400E;font-weight:600;cursor:pointer;white-space:nowrap">숙제3 생략</label>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <label style="font-size:11px;color:#92400E;font-weight:600;white-space:nowrap">숙제4</label>
+        <input id="hw4-name" value="${hw4}" placeholder="이번 주 숙제4 이름" style="padding:5px 10px;border:1.5px solid #FFD54F;border-radius:7px;font-size:12px;font-weight:600;color:#78350F;background:#fff;width:110px;outline:none;font-family:inherit">
+      </div>
+      <div style="display:flex;align-items:center;gap:5px">
+        <input type="checkbox" id="hw4-skip" ${hw4Skip?'checked':''} style="width:15px;height:15px;accent-color:#1A237E;cursor:pointer">
+        <label for="hw4-skip" style="font-size:11px;color:#92400E;font-weight:600;cursor:pointer;white-space:nowrap">숙제4 생략</label>
+      </div>
       <button id="btn-hw-name-save" style="padding:5px 12px;background:#F59E0B;color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">저장</button>
       <span id="hw-name-msg" style="font-size:11px;color:#00897B;font-weight:600"></span>
     </div>
@@ -3823,6 +3870,16 @@ function rBulk(sc){
       </select>
       <span style="font-size:11px;color:#78350F;font-weight:700;margin-left:6px">${esc(hw2)}</span>
       <select id="bulk-hw2" class="cs" ${hw2Skip?'disabled style="opacity:0.35"':''} style="font-size:11px;padding:4px 8px;border:1.5px solid #FFD54F;border-radius:6px">
+        <option value="">— 변경 안 함 —</option>
+        ${HW.map(o=>`<option>${o}</option>`).join('')}
+      </select>
+      <span style="font-size:11px;color:#78350F;font-weight:700;margin-left:6px">${esc(hw3)}</span>
+      <select id="bulk-hw3" class="cs" ${hw3Skip?'disabled style="opacity:0.35"':''} style="font-size:11px;padding:4px 8px;border:1.5px solid #FFD54F;border-radius:6px">
+        <option value="">— 변경 안 함 —</option>
+        ${HW.map(o=>`<option>${o}</option>`).join('')}
+      </select>
+      <span style="font-size:11px;color:#78350F;font-weight:700;margin-left:6px">${esc(hw4)}</span>
+      <select id="bulk-hw4" class="cs" ${hw4Skip?'disabled style="opacity:0.35"':''} style="font-size:11px;padding:4px 8px;border:1.5px solid #FFD54F;border-radius:6px">
         <option value="">— 변경 안 함 —</option>
         ${HW.map(o=>`<option>${o}</option>`).join('')}
       </select>
@@ -3860,6 +3917,8 @@ function rBulk(sc){
       <th class="th-auto2">전체등수</th>
       <th class="th-hw2 th-hw1-name">${hw1}</th>
       <th class="th-hw2 th-hw2-name">${hw2}</th>
+      <th class="th-hw2 th-hw3-name">${hw3}</th>
+      <th class="th-hw2 th-hw4-name">${hw4}</th>
       <th class="th-hw2">재시험</th>
       <th class="th-hw2">출석</th>
     </tr></thead>
@@ -4301,6 +4360,8 @@ function rSchoolSettings(sc){return`
     <div class="form2" style="margin-bottom:14px">
       <div class="fgrp"><label class="flbl">숙제1 이름</label><input class="finp" id="ss-hw1" value="${sc.hw1||'숙제1'}" placeholder="예: 수능감잡기"></div>
       <div class="fgrp"><label class="flbl">숙제2 이름</label><input class="finp" id="ss-hw2" value="${sc.hw2||'숙제2'}" placeholder="예: 단어장"></div>
+      <div class="fgrp"><label class="flbl">숙제3 이름</label><input class="finp" id="ss-hw3" value="${sc.hw3||'숙제3'}" placeholder="예: 문법책"></div>
+      <div class="fgrp"><label class="flbl">숙제4 이름</label><input class="finp" id="ss-hw4" value="${sc.hw4||'숙제4'}" placeholder="예: 듣기"></div>
     </div>
     <div class="section-ttl" style="margin-top:4px">💬 카카오 채널 연결</div>
     <div class="fgrp" style="margin-bottom:14px">
@@ -4616,6 +4677,8 @@ function bAdmin(){
       sc.type=document.getElementById('ss-type')?.value==='lecture'?'lecture':'regular';
       sc.hw1=document.getElementById('ss-hw1')?.value.trim()||'숙제1';
       sc.hw2=document.getElementById('ss-hw2')?.value.trim()||'숙제2';
+      sc.hw3=document.getElementById('ss-hw3')?.value.trim()||'숙제3';
+      sc.hw4=document.getElementById('ss-hw4')?.value.trim()||'숙제4';
       sc.kakaoChannel=document.getElementById('ss-kakao')?.value.trim()||'';
       saveDB();
       const msg=document.getElementById('ss-msg');
@@ -4826,7 +4889,7 @@ function bAdmin(){
       const sid=sel.dataset.attSid, wk=sel.dataset.attWk, mon=ST.attMon||curMonWk().mon;
       bindAttSelectDraft(sel, val=>{
         let rec=sc.records.find(r=>r.sid===sid&&r.month===mon&&r.week===wk);
-        if(!rec){rec={sid,month:mon,week:wk,rtSkip:false,rtScore:null,wtSkip:false,wtScore:null,totalScore:null,comment:'',hw1:'',hw2:'',homework:'',retestTime:''};sc.records.push(rec);}
+        if(!rec){rec={sid,month:mon,week:wk,rtSkip:false,rtScore:null,wtSkip:false,wtScore:null,totalScore:null,comment:'',hw1:'',hw2:'',hw3:'',hw4:'',homework:'',retestTime:''};sc.records.push(rec);}
         rec.attendType=val||'';
         ST.attDirty=ST.attDirty||new Set();
         ST.attDirty.add(sid+'|'+mon+'|'+wk);
@@ -5047,7 +5110,7 @@ function bAdmin(){
   };
   document.getElementById('btn-clear-week').onclick=()=>{
     const curMon=ST.bMon||curMonWk().mon,curWk=ST.bWk||curMonWk().wk;
-    const cnt=sc.records.filter(r=>r.month===curMon&&r.week===curWk&&(r.rtScore!=null||r.wtScore!=null||r.retestTime||r.hw1||r.hw2||r.comment||r.attendType)).length;
+    const cnt=sc.records.filter(r=>r.month===curMon&&r.week===curWk&&(r.rtScore!=null||r.wtScore!=null||r.retestTime||r.hw1||r.hw2||r.hw3||r.hw4||r.comment||r.attendType)).length;
     if(!cnt){alert(`${curMon} ${curWk}에 지울 내용이 없습니다.`);return;}
     if(!confirm(`${curMon} ${curWk}에 입력된 내용(성적·숙제·코멘트·출석)을 전부 지웁니다. (${cnt}명 대상)\n\n이 작업은 되돌릴 수 없습니다.\n\n계속하시겠습니까?`))return;
     clearWeekScores(sc,curMon,curWk);
@@ -5057,14 +5120,18 @@ function bAdmin(){
   if(hwSaveBtn){hwSaveBtn.onclick=()=>{
     const h1=(document.getElementById('hw1-name')?.value||'').trim()||'숙제1';
     const h2=(document.getElementById('hw2-name')?.value||'').trim()||'숙제2';
+    const h3=(document.getElementById('hw3-name')?.value||'').trim()||'숙제3';
+    const h4=(document.getElementById('hw4-name')?.value||'').trim()||'숙제4';
     const skip1=document.getElementById('hw1-skip')?.checked||false;
     const skip2=document.getElementById('hw2-skip')?.checked||false;
+    const skip3=document.getElementById('hw3-skip')?.checked||false;
+    const skip4=document.getElementById('hw4-skip')?.checked||false;
     // 주차별 저장
     const hwK=ST.bMon+'_'+ST.bWk;
     if(!sc.hwNames)sc.hwNames={};
-    sc.hwNames[hwK]={hw1:h1,hw2:h2,hw1Skip:skip1,hw2Skip:skip2};
+    sc.hwNames[hwK]={hw1:h1,hw2:h2,hw3:h3,hw4:h4,hw1Skip:skip1,hw2Skip:skip2,hw3Skip:skip3,hw4Skip:skip4};
     // 학교 기본값도 업데이트 (신규 주차 기본값으로 사용)
-    sc.hw1=h1;sc.hw2=h2;sc.hw1Skip=skip1;sc.hw2Skip=skip2;
+    sc.hw1=h1;sc.hw2=h2;sc.hw3=h3;sc.hw4=h4;sc.hw1Skip=skip1;sc.hw2Skip=skip2;sc.hw3Skip=skip3;sc.hw4Skip=skip4;
     saveDB();render();
   };}
   let draftTimer=null;
@@ -5073,14 +5140,18 @@ function bAdmin(){
   document.getElementById('btn-rt-none').onclick=()=>{document.querySelectorAll('#bk-body tr').forEach(r=>applyRtSkip(r,false));recalc();scheduleDraftSave();};
   document.getElementById('btn-wt-all').onclick=()=>{document.querySelectorAll('#bk-body tr').forEach(r=>applyWtSkip(r,true));recalc();scheduleDraftSave();};
   document.getElementById('btn-wt-none').onclick=()=>{document.querySelectorAll('#bk-body tr').forEach(r=>applyWtSkip(r,false));recalc();scheduleDraftSave();};
-  // 숙제 상태 일괄 적용 — 선택한 값을 전체 학생의 숙제1/숙제2 select에 채운다(생략/비활성 칸은 건너뜀).
+  // 숙제 상태 일괄 적용 — 선택한 값을 전체 학생의 숙제1~4 select에 채운다(생략/비활성 칸은 건너뜀).
   document.getElementById('btn-hw-bulk')?.addEventListener('click',()=>{
     const v1=document.getElementById('bulk-hw1')?.value||'';
     const v2=document.getElementById('bulk-hw2')?.value||'';
-    if(!v1&&!v2){alert('적용할 숙제 상태를 선택하세요.');return;}
+    const v3=document.getElementById('bulk-hw3')?.value||'';
+    const v4=document.getElementById('bulk-hw4')?.value||'';
+    if(!v1&&!v2&&!v3&&!v4){alert('적용할 숙제 상태를 선택하세요.');return;}
     document.querySelectorAll('#bk-body tr').forEach(r=>{
       if(v1){const s1=r.querySelector('.inp-hw1');if(s1&&!s1.disabled)s1.value=v1;}
       if(v2){const s2=r.querySelector('.inp-hw2');if(s2&&!s2.disabled)s2.value=v2;}
+      if(v3){const s3=r.querySelector('.inp-hw3');if(s3&&!s3.disabled)s3.value=v3;}
+      if(v4){const s4=r.querySelector('.inp-hw4');if(s4&&!s4.disabled)s4.value=v4;}
     });
     recalc();scheduleDraftSave();
   });
@@ -5104,7 +5175,7 @@ function bAdmin(){
     tbody.addEventListener('keydown',e=>{
       if(e.key!=='Enter'&&e.key!=='Tab')return;
       const t=e.target;
-      const COL_CLASSES=['inp-rt','inp-wt','inp-hw1','inp-hw2','inp-rt2','att-sel'];
+      const COL_CLASSES=['inp-rt','inp-wt','inp-hw1','inp-hw2','inp-hw3','inp-hw4','inp-rt2','att-sel'];
       const col=COL_CLASSES.find(c=>t.classList.contains(c));
       if(!col)return;
       e.preventDefault();
@@ -5164,9 +5235,13 @@ function bAdmin(){
         past6:null,past9:null,
         hw1:r.querySelector('.inp-hw1')?.value||'',
         hw2:r.querySelector('.inp-hw2')?.value||'',
+        hw3:r.querySelector('.inp-hw3')?.value||'',
+        hw4:r.querySelector('.inp-hw4')?.value||'',
         homework:r.querySelector('.inp-hw1')?.value||'',
         hwName1:(()=>{const _k=mon+'_'+wk;return sc.hwNames&&sc.hwNames[_k]?sc.hwNames[_k].hw1:sc.hw1||'숙제1';})(),
         hwName2:(()=>{const _k=mon+'_'+wk;return sc.hwNames&&sc.hwNames[_k]?sc.hwNames[_k].hw2:sc.hw2||'숙제2';})(),
+        hwName3:(()=>{const _k=mon+'_'+wk;return sc.hwNames&&sc.hwNames[_k]?sc.hwNames[_k].hw3:sc.hw3||'숙제3';})(),
+        hwName4:(()=>{const _k=mon+'_'+wk;return sc.hwNames&&sc.hwNames[_k]?sc.hwNames[_k].hw4:sc.hw4||'숙제4';})(),
         retestTime:r.querySelector('.inp-rt2').value,comment:existingComment,
         attendType:r.querySelector('.att-sel')?.value||''};
       if(existingIdx>=0)sc.records[existingIdx]=rec;else sc.records.push(rec);saved++;savedSids.push(sid);
@@ -5289,6 +5364,8 @@ function renderSavedTable(sc,mon,wk){
   const hwEntry2=sc.hwNames&&sc.hwNames[hwKey2]?sc.hwNames[hwKey2]:{};
   const hw1=hwEntry2.hw1||sc.hw1||'숙제1';
   const hw2=hwEntry2.hw2||sc.hw2||'숙제2';
+  const hw3=hwEntry2.hw3||sc.hw3||'숙제3';
+  const hw4=hwEntry2.hw4||sc.hw4||'숙제4';
   if(!recs.length){
     return '<div style="font-size:12px;color:#9BA3AF;padding:16px 0;text-align:center">전체 저장 버튼을 누르면 여기에 결과가 표시됩니다.</div>';
   }
@@ -5301,6 +5378,8 @@ function renderSavedTable(sc,mon,wk){
     const totCell=r.totalScore!=null?r.totalScore+'점':'-';
     const hw1Val=r.hw1||r.homework||'-';
     const hw2Val=r.hw2||'-';
+    const hw3Val=r.hw3||'-';
+    const hw4Val=r.hw4||'-';
     function passTag(v,sk){
       if(sk)return'<span class="tag tg-s">생략</span>';
       if(v===true)return'<span class="cp cp-y">합격</span>';
@@ -5322,6 +5401,8 @@ function renderSavedTable(sc,mon,wk){
       +'<td>'+(r.totalRank!=null?r.totalRank+'등':'-')+'</td>'
       +'<td style="font-size:12px">'+hw1Val+'</td>'
       +'<td style="font-size:12px">'+hw2Val+'</td>'
+      +'<td style="font-size:12px">'+hw3Val+'</td>'
+      +'<td style="font-size:12px">'+hw4Val+'</td>'
       +'<td style="white-space:nowrap;display:flex;gap:4px">'
       +'<button class="abtn" data-cm="'+gi+'" style="'+(r.comment?'background:#1A237E;color:#fff;border-color:#1A237E':'')+'" title="선생님 코멘트">💬</button>'
       +'<button class="abtn" data-preview="'+r.sid+'" title="학생 성적표 보기">👁️</button>'
@@ -5333,7 +5414,7 @@ function renderSavedTable(sc,mon,wk){
     +'<th><input type="checkbox" id="score-select-all" checked style="width:15px;height:15px;cursor:pointer;accent-color:#1A237E"></th>'
     +'<th>학생</th><th>RT기준</th><th>WT기준</th><th>RT점수</th><th>RT등수</th><th>RT합격</th>'
     +'<th>WT점수</th><th>WT등수</th><th>WT합격</th><th>전체점수</th><th>전체등수</th>'
-    +'<th>'+hw1+'</th><th>'+hw2+'</th><th></th>'
+    +'<th>'+hw1+'</th><th>'+hw2+'</th><th>'+hw3+'</th><th>'+hw4+'</th><th></th>'
     +'</tr></thead>'
     +'<tbody>'+rows+'</tbody>'
     +'</table></div>';
@@ -6371,6 +6452,8 @@ function sendKakaoScoreNotify(sc, mon, wk){
       '',
       '■ ' + (r.hwName1||sc.hw1||'숙제1') + ' : ' + (r.hw1||r.homework||'-'),
       r.hw2 ? ('■ ' + (r.hwName2||sc.hw2||'숙제2') + ' : ' + r.hw2) : '',
+      r.hw3 ? ('■ ' + (r.hwName3||sc.hw3||'숙제3') + ' : ' + r.hw3) : '',
+      r.hw4 ? ('■ ' + (r.hwName4||sc.hw4||'숙제4') + ' : ' + r.hw4) : '',
       r.retestTime ? ('■ 재시험 : ' + r.retestTime) : '',
       '',
       '자세한 내용은 성적표 앱에서 확인하세요 :)'
@@ -6540,7 +6623,7 @@ function exportStudentsExcel(sc){
 }
 
 function exportScoresExcel(sc){
-  const rows=[['학교','학년','학생ID','이름','월','주차','RT점수','RT등수','RT합격','WT점수','WT등수','WT합격','전체점수','전체등수','전체반평균','숙제1','숙제2','재시험']];
+  const rows=[['학교','학년','학생ID','이름','월','주차','RT점수','RT등수','RT합격','WT점수','WT등수','WT합격','전체점수','전체등수','전체반평균','숙제1','숙제2','숙제3','숙제4','재시험']];
   sc.records.forEach(r=>{
     const s=sc.students.find(x=>x.id===r.sid);
     rows.push([sc.name,sc.grade,r.sid,s?s.name:r.sid,r.month,r.week,
@@ -6549,7 +6632,7 @@ function exportScoresExcel(sc){
       r.wtSkip?'생략':(r.wtScore??''),r.wtSkip?'생략':(r.wtRank??''),
       r.wtSkip?'생략':(r.wtPass===true?'합격':r.wtPass===false?'불합격':'-'),
       r.totalScore??'',r.totalRank??'',r.totalAvg??'',
-      r.hw1||r.homework||'',r.hw2||'',r.retestTime||'']);
+      r.hw1||r.homework||'',r.hw2||'',r.hw3||'',r.hw4||'',r.retestTime||'']);
   });
   const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});

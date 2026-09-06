@@ -5223,6 +5223,7 @@ function bAdmin(){
   const tbody=document.getElementById('bk-body');
   ST._dirty=false;
   if(tbody){
+    tbody._defaultOrder=[...tbody.querySelectorAll('tr')].map(r=>r.dataset.sid);
     function onScoreChange(e){const t=e.target;if(t.classList.contains('inp-rt')||t.classList.contains('inp-wt'))recalc();}
     tbody.addEventListener('input',onScoreChange);tbody.addEventListener('change',onScoreChange);
     tbody.addEventListener('input',scheduleDraftSave);tbody.addEventListener('change',scheduleDraftSave);
@@ -5422,7 +5423,14 @@ const SORT_NUMERIC_FIELDS=new Set(['rt','wt','tot']);
 function applyBulkSort(fieldId,dirId){
   const tbody=document.getElementById('bk-body');if(!tbody)return;
   const field=document.getElementById(fieldId)?.value||'';
-  if(!field)return;
+  if(!field){
+    // "기본 순서" 선택 시 처음 불러왔을 때의 학생 순서로 되돌림
+    if(tbody._defaultOrder){
+      const bySid=new Map([...tbody.querySelectorAll('tr')].map(r=>[r.dataset.sid,r]));
+      tbody._defaultOrder.forEach(sid=>{const r=bySid.get(sid);if(r)tbody.appendChild(r);});
+    }
+    return;
+  }
   const dir=document.getElementById(dirId)?.value||'asc';
   const rows=[...tbody.querySelectorAll('tr')];
   const val=r=>{

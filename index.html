@@ -3863,26 +3863,34 @@ function rBulk(sc){
     <!-- 아랫줄: 숙제 상태 일괄 적용 — 선택한 값을 전체 학생 칸에 한 번에 채운다(저장 버튼을 눌러야 영구 반영). -->
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <span style="font-size:11px;font-weight:700;color:#92400E;white-space:nowrap;min-width:64px">✅ 상태 일괄</span>
-      <span style="font-size:11px;color:#78350F;font-weight:700">${esc(hw1)}</span>
-      <select id="bulk-hw1" class="cs" ${hw1Skip?'disabled style="opacity:0.35"':''} style="font-size:11px;padding:4px 8px;border:1.5px solid #FFD54F;border-radius:6px">
-        <option value="">— 변경 안 함 —</option>
-        ${HW.map(o=>`<option>${o}</option>`).join('')}
-      </select>
-      <span style="font-size:11px;color:#78350F;font-weight:700;margin-left:6px">${esc(hw2)}</span>
-      <select id="bulk-hw2" class="cs" ${hw2Skip?'disabled style="opacity:0.35"':''} style="font-size:11px;padding:4px 8px;border:1.5px solid #FFD54F;border-radius:6px">
-        <option value="">— 변경 안 함 —</option>
-        ${HW.map(o=>`<option>${o}</option>`).join('')}
-      </select>
-      <span style="font-size:11px;color:#78350F;font-weight:700;margin-left:6px">${esc(hw3)}</span>
-      <select id="bulk-hw3" class="cs" ${hw3Skip?'disabled style="opacity:0.35"':''} style="font-size:11px;padding:4px 8px;border:1.5px solid #FFD54F;border-radius:6px">
-        <option value="">— 변경 안 함 —</option>
-        ${HW.map(o=>`<option>${o}</option>`).join('')}
-      </select>
-      <span style="font-size:11px;color:#78350F;font-weight:700;margin-left:6px">${esc(hw4)}</span>
-      <select id="bulk-hw4" class="cs" ${hw4Skip?'disabled style="opacity:0.35"':''} style="font-size:11px;padding:4px 8px;border:1.5px solid #FFD54F;border-radius:6px">
-        <option value="">— 변경 안 함 —</option>
-        ${HW.map(o=>`<option>${o}</option>`).join('')}
-      </select>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:11px;color:#78350F;font-weight:700;white-space:nowrap;max-width:100px;overflow:hidden;text-overflow:ellipsis">${esc(hw1)}</span>
+        <select id="bulk-hw1" class="cs" ${hw1Skip?'disabled style="opacity:0.35"':''} style="width:110px;font-size:11px;padding:4px 8px;border:1.5px solid #FFD54F;border-radius:6px">
+          <option value="">— 변경 안 함 —</option>
+          ${HW.map(o=>`<option>${o}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:11px;color:#78350F;font-weight:700;white-space:nowrap;max-width:100px;overflow:hidden;text-overflow:ellipsis">${esc(hw2)}</span>
+        <select id="bulk-hw2" class="cs" ${hw2Skip?'disabled style="opacity:0.35"':''} style="width:110px;font-size:11px;padding:4px 8px;border:1.5px solid #FFD54F;border-radius:6px">
+          <option value="">— 변경 안 함 —</option>
+          ${HW.map(o=>`<option>${o}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:11px;color:#78350F;font-weight:700;white-space:nowrap;max-width:100px;overflow:hidden;text-overflow:ellipsis">${esc(hw3)}</span>
+        <select id="bulk-hw3" class="cs" ${hw3Skip?'disabled style="opacity:0.35"':''} style="width:110px;font-size:11px;padding:4px 8px;border:1.5px solid #FFD54F;border-radius:6px">
+          <option value="">— 변경 안 함 —</option>
+          ${HW.map(o=>`<option>${o}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:11px;color:#78350F;font-weight:700;white-space:nowrap;max-width:100px;overflow:hidden;text-overflow:ellipsis">${esc(hw4)}</span>
+        <select id="bulk-hw4" class="cs" ${hw4Skip?'disabled style="opacity:0.35"':''} style="width:110px;font-size:11px;padding:4px 8px;border:1.5px solid #FFD54F;border-radius:6px">
+          <option value="">— 변경 안 함 —</option>
+          ${HW.map(o=>`<option>${o}</option>`).join('')}
+        </select>
+      </div>
       <button class="abtn" id="btn-hw-bulk" style="background:#F59E0B;color:#fff;border-color:#F59E0B;font-size:11px;padding:5px 12px">전체 적용</button>
     </div>
   </div>

@@ -577,6 +577,7 @@ const CHANGELOG=[
     '숙제 상태에 "사유인정" 항목 추가 — 완료와 마찬가지로 미완료 경고·성적표 표시에서 정상 처리됨',
     '선생님 코멘트 작성 방식을 한 줄짜리 입력창에서 여러 줄로 나눠 쓸 수 있는 큰 입력창으로 변경 (성적표에 줄바꿈 그대로 표시되어 가독성 향상)',
     '코멘트·공지사항 작성 창에 글자 설정(폰트·크기·색상) 도구 추가 — 전체가 아니라 드래그로 선택한 부분에만 서식이 적용됨',
+    '코멘트·공지사항 작성 창에 굵게·기울임·밑줄 버튼 추가',
   ]},
   {date:'2026-09-06',items:[
     '성적 일괄입력 표에서 이름·RT점수·WT점수·전체점수·숙제1~4·RT/WT합격 열 제목을 클릭하면 그 기준으로 정렬(다시 클릭하면 오름차순→내림차순→기본 순서로 순환) — 같은 상태끼리 모아볼 수 있음',
@@ -1052,7 +1053,7 @@ if(window.DOMPurify){
 }
 function sanitizeRichHtml(html){
   if(!window.DOMPurify)return esc(String(html??''));
-  return DOMPurify.sanitize(String(html??''),{ALLOWED_TAGS:['span','b','i','u','br','a'],ALLOWED_ATTR:['style','href','target','rel']});
+  return DOMPurify.sanitize(String(html??''),{ALLOWED_TAGS:['span','b','i','u','strong','em','br','a'],ALLOWED_ATTR:['style','href','target','rel']});
 }
 // 레거시(줄바꿈 문자가 그대로 저장된 옛날 평문)와 새 서식(HTML) 데이터를 구분해 렌더링용 HTML로 변환.
 // 새 리치 에디터는 Enter를 <br>로 저장하므로 실제 개행문자(\n)가 절대 섞이지 않음 — 그 특성으로 구분.
@@ -1067,6 +1068,11 @@ const RICH_COLOR_PRESETS=['#10192B','#1A237E','#B3261E','#146C43','#7C3AED'];
 function richToolbarHtml(idPrefix){
   return`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;padding:8px 10px;background:#F7F8FA;border:1px solid #E8ECF0;border-radius:8px">
     <span style="font-size:11px;font-weight:700;color:#5C6470;white-space:nowrap">🎨 드래그해서 선택한 글자에 적용</span>
+    <div style="display:flex;gap:3px">
+      <button type="button" id="${idPrefix}-bold" title="굵게" style="width:26px;height:26px;font-size:12px;font-weight:800;border:1.5px solid #C7D2FE;border-radius:6px;background:#fff;cursor:pointer;color:#1A237E">B</button>
+      <button type="button" id="${idPrefix}-italic" title="기울임" style="width:26px;height:26px;font-size:12px;font-style:italic;border:1.5px solid #C7D2FE;border-radius:6px;background:#fff;cursor:pointer;color:#1A237E">I</button>
+      <button type="button" id="${idPrefix}-underline" title="밑줄" style="width:26px;height:26px;font-size:12px;text-decoration:underline;border:1.5px solid #C7D2FE;border-radius:6px;background:#fff;cursor:pointer;color:#1A237E">U</button>
+    </div>
     <select id="${idPrefix}-font" style="font-size:11px;padding:4px 8px;border:1.5px solid #C7D2FE;border-radius:6px;background:#fff">
       <option value="">폰트</option>
       ${RICH_FONTS.map(f=>`<option value="${f.v}">${f.l}</option>`).join('')}
@@ -1097,6 +1103,17 @@ function wrapSelectionStyle(editableEl,styleProp,value){
   const nr=document.createRange();nr.selectNodeContents(span);sel.addRange(nr);
   return true;
 }
+// 굵게/기울임/밑줄은 브라우저 내장 토글 명령을 그대로 사용 — 이미 적용된 부분을 다시 누르면 자동으로 해제됨
+function toggleInlineFormat(editableEl,cmd){
+  const sel=window.getSelection();
+  if(!sel||!sel.rangeCount)return false;
+  const range=sel.getRangeAt(0);
+  if(range.collapsed)return false;
+  if(!editableEl.contains(range.commonAncestorContainer))return false;
+  try{document.execCommand('styleWithCSS',false,false);}catch(e){}
+  document.execCommand(cmd,false,null);
+  return true;
+}
 function clearSelectionStyle(editableEl){
   const sel=window.getSelection();
   if(!sel||!sel.rangeCount)return false;
@@ -1115,7 +1132,13 @@ function wireRichToolbar(idPrefix,editableEl){
   const sizeSel=document.getElementById(idPrefix+'-size');
   const colorInp=document.getElementById(idPrefix+'-color');
   const clearBtn=document.getElementById(idPrefix+'-clear');
+  const boldBtn=document.getElementById(idPrefix+'-bold');
+  const italicBtn=document.getElementById(idPrefix+'-italic');
+  const underlineBtn=document.getElementById(idPrefix+'-underline');
   const noSelWarn=()=>alert('먼저 스타일을 적용할 글자를 마우스나 손가락으로 드래그해서 선택하세요.');
+  boldBtn.onclick=()=>{if(!toggleInlineFormat(editableEl,'bold'))noSelWarn();editableEl.focus();};
+  italicBtn.onclick=()=>{if(!toggleInlineFormat(editableEl,'italic'))noSelWarn();editableEl.focus();};
+  underlineBtn.onclick=()=>{if(!toggleInlineFormat(editableEl,'underline'))noSelWarn();editableEl.focus();};
   fontSel.onchange=()=>{if(fontSel.value){if(!wrapSelectionStyle(editableEl,'fontFamily',fontSel.value))noSelWarn();fontSel.value='';editableEl.focus();}};
   sizeSel.onchange=()=>{if(sizeSel.value){if(!wrapSelectionStyle(editableEl,'fontSize',sizeSel.value+'px'))noSelWarn();sizeSel.value='';editableEl.focus();}};
   colorInp.oninput=()=>{wrapSelectionStyle(editableEl,'color',colorInp.value);};

@@ -546,7 +546,9 @@ const INIT_SCHOOLS=[
 const SKEY='oheng_v1';
 const MONTHS=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
 const WEEKS=['1주','2주','3주','4주','5주'];
-const HW=['완료','미완료','동영상','미제출','미제출(동영상)','신규'];
+const HW=['완료','미완료','동영상','미제출','미제출(동영상)','신규','사유인정'];
+// 사유인정(결석 등 정당한 사유로 인정)은 완료와 마찬가지로 "미완료 처리"하지 않음 — 숙제 상태 판정은 항상 이 함수로
+function isHwDone(v){return v==='완료'||v==='사유인정';}
 // 오늘 날짜 기준 "이번 달 · 이번 주"를 계산 — 월/주차 선택 화면들의 기본값으로 사용 (1~7일=1주 ... 29일 이후도 5주로 고정)
 function curMonWk(){
   const d=new Date();
@@ -570,6 +572,10 @@ const KAKAO_CHANNEL_ID='_QXNZX';
 const VAPID_PUBLIC_KEY='BClrX5_mErAwCfnxMnn7JxqUECaVChgQ8zTADG7HWfg8vCcNTGE2Xx0vzX-Gl3UE6lhj6RZgJYxCu6cjjVcgIHg';
 // 관리 학교 선택 화면에 표시할 업데이트 내역 — 배포할 때마다 최신 항목을 맨 위에 직접 추가
 const CHANGELOG=[
+  {date:'2026-09-08',items:[
+    '숙제 상태에 "사유인정" 항목 추가 — 완료와 마찬가지로 미완료 경고·성적표 표시에서 정상 처리됨',
+    '선생님 코멘트 작성 방식을 한 줄짜리 입력창에서 여러 줄로 나눠 쓸 수 있는 큰 입력창으로 변경 (성적표에 줄바꿈 그대로 표시되어 가독성 향상)',
+  ]},
   {date:'2026-09-06',items:[
     '성적 일괄입력 표에서 이름·RT점수·WT점수·전체점수·숙제1~4·RT/WT합격 열 제목을 클릭하면 그 기준으로 정렬(다시 클릭하면 오름차순→내림차순→기본 순서로 순환) — 같은 상태끼리 모아볼 수 있음',
     '정렬 열 제목에 클릭 가능 안내 아이콘(↕)과 안내 문구 추가, Shift+클릭 시 여러 기준으로 동시 정렬(1차 기준이 같으면 2차 기준으로 재정렬) 가능하도록 개선',
@@ -2838,10 +2844,10 @@ function rReport(recs){
     const hw2Val = r.hw2||'';
     const hw3Val = r.hw3||'';
     const hw4Val = r.hw4||'';
-    const hw1Missed = (!wk1Skip&&hw1Val) ? hw1Val!=='완료' : false;
-    const hw2Missed = (!wk2Skip&&hw2Val) ? hw2Val!=='완료' : false;
-    const hw3Missed = (!wk3Skip&&hw3Val) ? hw3Val!=='완료' : false;
-    const hw4Missed = (!wk4Skip&&hw4Val) ? hw4Val!=='완료' : false;
+    const hw1Missed = (!wk1Skip&&hw1Val) ? !isHwDone(hw1Val) : false;
+    const hw2Missed = (!wk2Skip&&hw2Val) ? !isHwDone(hw2Val) : false;
+    const hw3Missed = (!wk3Skip&&hw3Val) ? !isHwDone(hw3Val) : false;
+    const hw4Missed = (!wk4Skip&&hw4Val) ? !isHwDone(hw4Val) : false;
     return hw1Missed||hw2Missed||hw3Missed||hw4Missed;
   };
   const hwMissedStreak = hwWeekMissed(rec) && hwWeekMissed(prevRec);
@@ -2913,10 +2919,10 @@ function rReport(recs){
       <span style="font-size:13px;font-weight:800;${done===true?'color:#146C43':done===false?'color:#B3261E':'color:#8C93A0'}">${esc(value)}</span>
     </div>`;
     const items=[];
-    if(!hw1SkipForWeek) items.push(hwItem(rec.hwName1||sc?.hw1||'숙제1', rec.hw1||rec.homework||'-', (rec.hw1||rec.homework)?((rec.hw1||rec.homework)==='완료'):null));
-    if(!hw2SkipForWeek) items.push(hwItem(rec.hwName2||sc?.hw2||'숙제2', rec.hw2||'-', rec.hw2?(rec.hw2==='완료'):null));
-    if(!hw3SkipForWeek) items.push(hwItem(rec.hwName3||sc?.hw3||'숙제3', rec.hw3||'-', rec.hw3?(rec.hw3==='완료'):null));
-    if(!hw4SkipForWeek) items.push(hwItem(rec.hwName4||sc?.hw4||'숙제4', rec.hw4||'-', rec.hw4?(rec.hw4==='완료'):null));
+    if(!hw1SkipForWeek) items.push(hwItem(rec.hwName1||sc?.hw1||'숙제1', rec.hw1||rec.homework||'-', (rec.hw1||rec.homework)?isHwDone(rec.hw1||rec.homework):null));
+    if(!hw2SkipForWeek) items.push(hwItem(rec.hwName2||sc?.hw2||'숙제2', rec.hw2||'-', rec.hw2?isHwDone(rec.hw2):null));
+    if(!hw3SkipForWeek) items.push(hwItem(rec.hwName3||sc?.hw3||'숙제3', rec.hw3||'-', rec.hw3?isHwDone(rec.hw3):null));
+    if(!hw4SkipForWeek) items.push(hwItem(rec.hwName4||sc?.hw4||'숙제4', rec.hw4||'-', rec.hw4?isHwDone(rec.hw4):null));
     items.push(`<div style="border:1.5px solid #D9E0EA;border-radius:10px;padding:10px 12px;background:#fff;display:flex;flex-direction:column;gap:5px;min-width:0">
       <span style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:#57616F;white-space:nowrap">${ic('clock')}재시험</span>
       <span style="font-size:13px;font-weight:800;${rec.retestTime?'color:#B3261E':'color:#8C93A0'}">${esc(rec.retestTime||'없음')}</span>
@@ -2995,7 +3001,7 @@ function rHistory(recs){
   const col=tabs.find(t=>t.id===ht)?.c||'#1A237E';
   const _sc=ST.userSchool;
   const cards=[...recs].reverse().map(r=>{
-    const hw0=r.homework==='완료';
+    const hw0=isHwDone(r.homework);
     const hasRT=!r.rtSkip&&r.rtScore!=null;
     const hasWT=!r.wtSkip&&r.wtScore!=null;
     const rTotAvg=calcTotalAvg(_sc,r.month,r.week);
@@ -3757,9 +3763,6 @@ function cpH(pass,skip){
 function tgH(pass,skip){return cpH(pass,skip);}
 
 function rBulk(sc){
-  const HW=['완료','미완료','동영상','미제출','미제출(동영상)','신규'];
-  const MONTHS=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
-  const WEEKS=['1주','2주','3주','4주','5주'];
   const mon=ST.bMon||curMonWk().mon,wk=ST.bWk||curMonWk().wk;
   const prevThr=lastThr(sc,mon,wk);
   const savedRec=sc.records.find(r=>r.month===mon&&r.week===wk&&r.sid===sc.students[0]?.id)||sc.records.find(r=>r.month===mon&&r.week===wk);
@@ -5519,19 +5522,52 @@ function renderSavedTable(sc,mon,wk){
     +'<tbody>'+rows+'</tbody>'
     +'</table></div>';
 }
+// 코멘트 작성 모달 — 예전엔 브라우저 기본 prompt()라 한 줄로만 입력됐음. 여러 줄로 나눠 쓸 수 있게
+// 큰 textarea로 바꾸고, 성적표(rReport)에서 white-space:pre-wrap으로 그대로 줄바꿈 표시됨.
+function openCommentEditor(sc,rec,onSaved){
+  const s=sc.students.find(x=>x.id===rec.sid);
+  const popup=document.createElement('div');
+  popup.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  popup.innerHTML=`
+    <div style="background:#fff;border-radius:16px;max-width:480px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25)">
+      <div style="padding:16px 20px;border-bottom:1.5px solid #E8ECF0;display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:14px;font-weight:800;color:#1A237E">💬 ${esc(s?.name||rec.sid)} 학생 코멘트</div>
+        <button class="btn-cm-close" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9BA3AF">✕</button>
+      </div>
+      <div style="padding:18px 20px">
+        <div style="font-size:11px;color:#9BA3AF;margin-bottom:8px">성적표에 표시됩니다 · 줄바꿈으로 문단을 나눠 쓰면 읽기 편해요 · 비워두면 숨김</div>
+        <textarea id="cm-textarea" rows="7" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #C7D2FE;border-radius:8px;font-size:13.5px;line-height:1.6;font-family:inherit;resize:vertical;outline:none">${esc(rec.comment||'')}</textarea>
+      </div>
+      <div style="padding:14px 20px;border-top:1.5px solid #E8ECF0;display:flex;justify-content:flex-end;gap:8px">
+        <button class="abtn abtn-gray btn-cm-cancel" style="padding:8px 16px">취소</button>
+        <button class="abtn abtn-blue btn-cm-save" style="padding:8px 16px">저장</button>
+      </div>
+    </div>`;
+  document.body.appendChild(popup);
+  const close=()=>popup.remove();
+  popup.querySelector('.btn-cm-close').onclick=close;
+  popup.querySelector('.btn-cm-cancel').onclick=close;
+  popup.onclick=e=>{if(e.target===popup)close();};
+  const ta=popup.querySelector('#cm-textarea');
+  ta.focus();
+  popup.querySelector('.btn-cm-save').onclick=()=>{
+    rec.comment=ta.value.trim();
+    saveDB({dirtyKeys:new Set([rec.sid+'|'+rec.month+'|'+rec.week])});
+    close();
+    onSaved();
+  };
+}
 function wireCommentBtns(root,sc){
   root.querySelectorAll('[data-cm]').forEach(b=>{
     b.onclick=()=>{
       const gi=parseInt(b.dataset.cm);
       const rec=sc.records[gi];
       if(!rec)return;
-      const val=prompt('선생님 코멘트 (성적표에 표시됩니다, 비워두면 숨김)',rec.comment||'');
-      if(val===null)return;
-      rec.comment=val.trim();
-      saveDB({dirtyKeys:new Set([rec.sid+'|'+rec.month+'|'+rec.week])});
-      root.innerHTML=renderSavedTable(sc,rec.month,rec.week);
-      wireCommentBtns(root,sc);
-      root.querySelectorAll('[data-dr]').forEach(db=>{db.onclick=()=>{const _i=parseInt(db.dataset.dr);const _r=sc.records[_i];sc.records.splice(_i,1);saveDB(_r?{deletedKeys:new Set([_r.sid+'|'+_r.month+'|'+_r.week])}:undefined);root.innerHTML=renderSavedTable(sc,ST.bMon,ST.bWk);wireCommentBtns(root,sc);};});
+      openCommentEditor(sc,rec,()=>{
+        root.innerHTML=renderSavedTable(sc,rec.month,rec.week);
+        wireCommentBtns(root,sc);
+        root.querySelectorAll('[data-dr]').forEach(db=>{db.onclick=()=>{const _i=parseInt(db.dataset.dr);const _r=sc.records[_i];sc.records.splice(_i,1);saveDB(_r?{deletedKeys:new Set([_r.sid+'|'+_r.month+'|'+_r.week])}:undefined);root.innerHTML=renderSavedTable(sc,ST.bMon,ST.bWk);wireCommentBtns(root,sc);};});
+      });
     };
   });
   root.querySelectorAll('[data-preview]').forEach(b=>{

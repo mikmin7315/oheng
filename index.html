@@ -575,6 +575,7 @@ const CHANGELOG=[
   {date:'2026-09-08',items:[
     '숙제 상태에 "사유인정" 항목 추가 — 완료와 마찬가지로 미완료 경고·성적표 표시에서 정상 처리됨',
     '선생님 코멘트 작성 방식을 한 줄짜리 입력창에서 여러 줄로 나눠 쓸 수 있는 큰 입력창으로 변경 (성적표에 줄바꿈 그대로 표시되어 가독성 향상)',
+    '코멘트 작성 창에 글자 설정(폰트·크기·색상) 추가 — 설정한 스타일이 성적표에도 그대로 반영됨',
   ]},
   {date:'2026-09-06',items:[
     '성적 일괄입력 표에서 이름·RT점수·WT점수·전체점수·숙제1~4·RT/WT합격 열 제목을 클릭하면 그 기준으로 정렬(다시 클릭하면 오름차순→내림차순→기본 순서로 순환) — 같은 상태끼리 모아볼 수 있음',
@@ -930,7 +931,7 @@ function recomputeWeekAggregates(sc,mon,week){
 }
 
 // 되돌리기 스냅샷에 담는 "입력 필드" — 등수/평균 같은 계산 필드는 여기 없음(되돌린 뒤 recomputeWeekAggregates가 다시 채움)
-const RECORD_INPUT_FIELDS=['thrRt','thrWt','rtSkip','rtScore','wtSkip','wtScore','hw1','hw2','hw3','hw4','homework','hwName1','hwName2','hwName3','hwName4','retestTime','comment','attendType'];
+const RECORD_INPUT_FIELDS=['thrRt','thrWt','rtSkip','rtScore','wtSkip','wtScore','hw1','hw2','hw3','hw4','homework','hwName1','hwName2','hwName3','hwName4','retestTime','comment','commentStyle','attendType'];
 function snapshotRecord(rec){
   const fields={};
   RECORD_INPUT_FIELDS.forEach(f=>{fields[f]=rec[f]??null;});
@@ -2931,10 +2932,10 @@ function rReport(recs){
   })()}
 
   <!-- 선생님 코멘트: 이 학생 개인에게 남긴 메시지라 공지보다 눈에 띄게 별도 카드+강조색으로 표시 -->
-  ${rec.comment?`<div style="border:1.5px solid #BFDBFE;background:#EFF6FF;border-radius:12px;padding:16px 18px;margin-bottom:14px">
+  ${rec.comment?(()=>{const _cs=sanitizeCommentStyle(rec.commentStyle);return`<div style="border:1.5px solid #BFDBFE;background:#EFF6FF;border-radius:12px;padding:16px 18px;margin-bottom:14px">
     <div style="display:flex;align-items:center;gap:7px;font-size:12px;font-weight:800;letter-spacing:0.3px;color:#1E40AF;margin-bottom:8px">${ic('comment')}${esc(ST.user.name)} 학생에게 선생님 코멘트</div>
-    <div style="font-size:14.5px;line-height:1.7;color:#10192B;font-weight:500;white-space:pre-wrap">${esc(rec.comment)}</div>
-  </div>`:''}
+    <div style="line-height:1.7;font-weight:500;white-space:pre-wrap;font-family:${_cs.font};font-size:${_cs.size}px;color:${_cs.color}">${esc(rec.comment)}</div>
+  </div>`;})():''}
 
   <!-- 우리 반 공지 -->
   ${notice?`<div style="border:1.5px solid #D9E0EA;border-radius:12px;padding:15px 16px;margin-bottom:20px;background:#fff">
@@ -5524,8 +5525,19 @@ function renderSavedTable(sc,mon,wk){
 }
 // 코멘트 작성 모달 — 예전엔 브라우저 기본 prompt()라 한 줄로만 입력됐음. 여러 줄로 나눠 쓸 수 있게
 // 큰 textarea로 바꾸고, 성적표(rReport)에서 white-space:pre-wrap으로 그대로 줄바꿈 표시됨.
+// 코멘트 글자 스타일 — 저장된 값이 직접 API로 조작됐을 가능성까지 감안해 항상 허용 목록으로 정규화한 뒤 사용
+const CM_FONTS=[{v:'inherit',l:'기본체'},{v:'sans-serif',l:'고딕체'},{v:'serif',l:'명조체'},{v:'cursive',l:'손글씨체'},{v:'monospace',l:'타자기체'}];
+const CM_SIZES=[{v:'12',l:'작게'},{v:'14.5',l:'보통'},{v:'17',l:'크게'},{v:'20',l:'아주 크게'}];
+const CM_COLOR_PRESETS=['#10192B','#1A237E','#B3261E','#146C43','#7C3AED'];
+function sanitizeCommentStyle(cs){
+  const font=CM_FONTS.some(f=>f.v===cs?.font)?cs.font:'inherit';
+  const size=/^\d{1,2}(\.\d)?$/.test(cs?.size)&&+cs.size>=10&&+cs.size<=28?cs.size:'14.5';
+  const color=/^#[0-9a-fA-F]{6}$/.test(cs?.color)?cs.color:'#10192B';
+  return {font,size,color};
+}
 function openCommentEditor(sc,rec,onSaved){
   const s=sc.students.find(x=>x.id===rec.sid);
+  const cs=sanitizeCommentStyle(rec.commentStyle);
   const popup=document.createElement('div');
   popup.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
   popup.innerHTML=`
@@ -5536,7 +5548,20 @@ function openCommentEditor(sc,rec,onSaved){
       </div>
       <div style="padding:18px 20px">
         <div style="font-size:11px;color:#9BA3AF;margin-bottom:8px">성적표에 표시됩니다 · 줄바꿈으로 문단을 나눠 쓰면 읽기 편해요 · 비워두면 숨김</div>
-        <textarea id="cm-textarea" rows="7" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #C7D2FE;border-radius:8px;font-size:13.5px;line-height:1.6;font-family:inherit;resize:vertical;outline:none">${esc(rec.comment||'')}</textarea>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;padding:8px 10px;background:#F7F8FA;border:1px solid #E8ECF0;border-radius:8px">
+          <span style="font-size:11px;font-weight:700;color:#5C6470;white-space:nowrap">🎨 글자 설정</span>
+          <select id="cm-font" style="font-size:11px;padding:4px 8px;border:1.5px solid #C7D2FE;border-radius:6px;background:#fff">
+            ${CM_FONTS.map(f=>`<option value="${f.v}" ${f.v===cs.font?'selected':''}>${f.l}</option>`).join('')}
+          </select>
+          <select id="cm-size" style="font-size:11px;padding:4px 8px;border:1.5px solid #C7D2FE;border-radius:6px;background:#fff">
+            ${CM_SIZES.map(sz=>`<option value="${sz.v}" ${sz.v===cs.size?'selected':''}>${sz.l}</option>`).join('')}
+          </select>
+          <input id="cm-color" type="color" value="${cs.color}" style="width:32px;height:28px;padding:0;border:1.5px solid #C7D2FE;border-radius:6px;cursor:pointer">
+          <div style="display:flex;gap:5px">
+            ${CM_COLOR_PRESETS.map(c=>`<button type="button" class="cm-preset" data-color="${c}" title="${c}" style="width:20px;height:20px;border-radius:50%;background:${c};border:none;box-shadow:0 0 0 1.5px #D9E0EA;cursor:pointer"></button>`).join('')}
+          </div>
+        </div>
+        <textarea id="cm-textarea" rows="7" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #C7D2FE;border-radius:8px;line-height:1.6;resize:vertical;outline:none;font-family:${cs.font};font-size:${cs.size}px;color:${cs.color}">${esc(rec.comment||'')}</textarea>
       </div>
       <div style="padding:14px 20px;border-top:1.5px solid #E8ECF0;display:flex;justify-content:flex-end;gap:8px">
         <button class="abtn abtn-gray btn-cm-cancel" style="padding:8px 16px">취소</button>
@@ -5549,9 +5574,18 @@ function openCommentEditor(sc,rec,onSaved){
   popup.querySelector('.btn-cm-cancel').onclick=close;
   popup.onclick=e=>{if(e.target===popup)close();};
   const ta=popup.querySelector('#cm-textarea');
+  const fontSel=popup.querySelector('#cm-font');
+  const sizeSel=popup.querySelector('#cm-size');
+  const colorInp=popup.querySelector('#cm-color');
+  const applyPreview=()=>{ta.style.fontFamily=fontSel.value;ta.style.fontSize=sizeSel.value+'px';ta.style.color=colorInp.value;};
+  fontSel.onchange=applyPreview;sizeSel.onchange=applyPreview;colorInp.oninput=applyPreview;
+  popup.querySelectorAll('.cm-preset').forEach(btn=>{
+    btn.onclick=()=>{colorInp.value=btn.dataset.color;applyPreview();};
+  });
   ta.focus();
   popup.querySelector('.btn-cm-save').onclick=()=>{
     rec.comment=ta.value.trim();
+    rec.commentStyle={font:fontSel.value,size:sizeSel.value,color:colorInp.value};
     saveDB({dirtyKeys:new Set([rec.sid+'|'+rec.month+'|'+rec.week])});
     close();
     onSaved();

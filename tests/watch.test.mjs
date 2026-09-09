@@ -1,4 +1,7 @@
 // 영상 단위 시청 기록(자기확인/교사정정) + 다운로드 정책 최소 회귀 테스트.
+// 시청기록 액션(watch-*)은 별도 함수 파일이 아니라 api/videos/[action].js에 합쳐져
+// 있다 — Vercel Hobby 플랜의 서버리스 함수 12개 제한 때문(별도 파일로 뒀다가 배포가
+// 막혔던 걸 여기로 합쳐서 해결함).
 import { test, mock, before } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -31,7 +34,7 @@ before(() => {
 
 const auth = await import('../api/_lib/auth.js');
 const course = await import('../api/_lib/course.js');
-const watchHandler = (await import('../api/watch/[action].js')).default;
+const videoHandler = (await import('../api/videos/[action].js')).default;
 
 test('학생 자기확인: "다 봤어요" → self_confirmed/student로 저장되고 본인 조회에 반영된다', async () => {
   const schoolId = 'sch_w1', studentId = 'stu_w1', videoId = 'vidA';
@@ -39,34 +42,34 @@ test('학생 자기확인: "다 봤어요" → self_confirmed/student로 저장�
 
   const reqConfirm = {
     method: 'POST', headers: { cookie: `oheng_session=${token}` },
-    body: { videoId }, query: { action: 'confirm' },
+    body: { videoId }, query: { action: 'watch-confirm' },
   };
   const resConfirm = makeRes();
-  await watchHandler(reqConfirm, resConfirm);
+  await videoHandler(reqConfirm, resConfirm);
   assert.equal(resConfirm.statusCode, 200);
   assert.equal(resConfirm.body.record.status, 'self_confirmed');
   assert.equal(resConfirm.body.record.source, 'student');
 
-  const reqMine = { method: 'GET', headers: { cookie: `oheng_session=${token}` }, query: { action: 'mine', videoIds: videoId } };
+  const reqMine = { method: 'GET', headers: { cookie: `oheng_session=${token}` }, query: { action: 'watch-mine', videoIds: videoId } };
   const resMine = makeRes();
-  await watchHandler(reqMine, resMine);
+  await videoHandler(reqMine, resMine);
   assert.equal(resMine.body.statuses[videoId].status, 'self_confirmed');
 });
 
 test('교사 정정: 자기확인을 teacher_confirmed로 덮어쓰면 이전 값이 history에 남는다', async () => {
   const schoolId = 'sch_w2', studentId = 'stu_w2', videoId = 'vidB';
   const { token } = await auth.createSession({ role: 'student', schoolId, studentId });
-  await watchHandler(
-    { method: 'POST', headers: { cookie: `oheng_session=${token}` }, body: { videoId }, query: { action: 'confirm' } },
+  await videoHandler(
+    { method: 'POST', headers: { cookie: `oheng_session=${token}` }, body: { videoId }, query: { action: 'watch-confirm' } },
     makeRes()
   );
 
   const reqSet = {
     method: 'POST', headers: { 'x-api-token': 'test-admin-token' },
-    body: { schoolId, studentId, videoId, status: 'teacher_confirmed' }, query: { action: 'admin-set' },
+    body: { schoolId, studentId, videoId, status: 'teacher_confirmed' }, query: { action: 'watch-admin-set' },
   };
   const resSet = makeRes();
-  await watchHandler(reqSet, resSet);
+  await videoHandler(reqSet, resSet);
   assert.equal(resSet.statusCode, 200);
   assert.equal(resSet.body.record.status, 'teacher_confirmed');
   assert.equal(resSet.body.record.source, 'teacher');
@@ -75,10 +78,10 @@ test('교사 정정: 자기확인을 teacher_confirmed로 덮어쓰면 이전 �
 
   const reqList = {
     method: 'GET', headers: { 'x-api-token': 'test-admin-token' },
-    query: { action: 'admin-list', videoId, schoolId, studentIds: studentId },
+    query: { action: 'watch-admin-list', videoId, schoolId, studentIds: studentId },
   };
   const resList = makeRes();
-  await watchHandler(reqList, resList);
+  await videoHandler(reqList, resList);
   assert.equal(resList.body.statuses[studentId].status, 'teacher_confirmed');
 });
 

@@ -682,7 +682,7 @@ async function loadAndRenderWatchStatus(videoId){
   const wrap=document.getElementById('watch-status-wrap');
   if(!wrap)return;
   try{
-    const res=await fetch('/api/watch/mine?videoIds='+encodeURIComponent(videoId),{credentials:'include'});
+    const res=await fetch('/api/videos/watch-mine?videoIds='+encodeURIComponent(videoId),{credentials:'include'});
     const d=await res.json();
     const status=d.success?d.statuses[videoId]:null;
     wrap.innerHTML=watchStatusHtml(status);
@@ -690,7 +690,7 @@ async function loadAndRenderWatchStatus(videoId){
       const btn=document.getElementById('btn-watch-confirm');
       btn.disabled=true;btn.textContent='저장 중...';
       try{
-        const r=await fetch('/api/watch/confirm',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({videoId})});
+        const r=await fetch('/api/videos/watch-confirm',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({videoId})});
         const dd=await r.json();
         if(dd.success)wrap.innerHTML=watchStatusHtml(dd.record);
         else{btn.disabled=false;btn.textContent='✓ 다 봤어요 (학생 확인)';}

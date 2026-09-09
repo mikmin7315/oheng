@@ -194,13 +194,16 @@ export function normalizeSchoolForWrite(incoming, existing) {
   const existingStudentsById = new Map((existing?.students || []).map(s => [s.id, s]));
   const students = (incoming.students || []).map(s => {
     const prev = existingStudentsById.get(s.id);
-    const { pwd, pwdHash, ...rest } = s;
-    if (prev) return { ...rest, pwd: prev.pwd, pwdHash: prev.pwdHash };
+    const { pwd, pwdHash, entitlements, ...rest } = s;
+    // entitlements(구매한 유료 강좌 수강권)는 학생 정보 수정 화면이 알지도 못하는 필드라,
+    // 클라이언트가 보낸 값을 신뢰하면 안 되고 항상 서버에 이미 있던 값을 그대로 이어받아야 한다
+    // — 안 그러면 이름/학년만 고쳐도 수강권이 통째로 날아간다.
+    if (prev) return { ...rest, pwd: prev.pwd, pwdHash: prev.pwdHash, entitlements: prev.entitlements || [] };
     // 숫자만 허용 — 숫자가 아닌 문자가 섞여 들어오면 안전하게 무작위 4자리 숫자로 대체한다
     // (여기는 일반 학교 저장 경로라 400으로 거절하기보다 정제해서 저장을 막지 않는 쪽을 택함).
     const digitsOnly = String(pwd || '').replace(/\D/g, '');
     const initialPwd = digitsOnly || String(Math.floor(1000 + Math.random() * 9000));
-    return { ...rest, pwd: encryptPwd(initialPwd), pwdHash: hashPassword(initialPwd) };
+    return { ...rest, pwd: encryptPwd(initialPwd), pwdHash: hashPassword(initialPwd), entitlements: [] };
   });
 
   // 탈퇴 학생 목록도 학생과 동일하게 암호화된 pwd/pwdHash를 유지해야 한다. 관리자 화면은
@@ -209,14 +212,23 @@ export function normalizeSchoolForWrite(incoming, existing) {
   // 지적됨). 이미 탈퇴 목록에 있던 학생이면 그 암호화값을, 이번에 막 탈퇴 처리돼 방금까지
   // 재학생이었던 학생이면 재학 시절의 암호화값을 그대로 이어받아 복구했을 때도 로그인
   // 정보가 그대로 유지되게 한다.
+  // 방금 재학생 -> 탈퇴 목록으로 넘어간 학생은(사용자 결정) 구매한 수강권도 같이 회수한다 —
+  // 삭제하지 않고 status만 revoked로 바꿔서 결제 이력/감사 기록은 남긴다.
+  const newStudentIds = new Set(students.map(s => s.id));
   const existingWithdrawnById = new Map((existing?.withdrawnStudents || []).map(s => [s.id, s]));
   const withdrawnStudents = (Array.isArray(incoming.withdrawnStudents) ? incoming.withdrawnStudents : (existing?.withdrawnStudents || [])).map(s => {
-    const prev = existingWithdrawnById.get(s.id) || existingStudentsById.get(s.id);
-    const { pwd, pwdHash, ...rest } = s;
-    if (prev) return { ...rest, pwd: prev.pwd, pwdHash: prev.pwdHash };
+    const prevWithdrawn = existingWithdrawnById.get(s.id);
+    const prevActive = existingStudentsById.get(s.id);
+    const prev = prevWithdrawn || prevActive;
+    const { pwd, pwdHash, entitlements, ...rest } = s;
+    const justWithdrawn = prevActive && !prevWithdrawn && !newStudentIds.has(s.id);
+    const carriedEntitlements = prev
+      ? (justWithdrawn ? (prev.entitlements || []).map(e => ({ ...e, status: 'revoked' })) : (prev.entitlements || []))
+      : [];
+    if (prev) return { ...rest, pwd: prev.pwd, pwdHash: prev.pwdHash, entitlements: carriedEntitlements };
     const digitsOnly = String(pwd || '').replace(/\D/g, '');
     const initialPwd = digitsOnly || String(Math.floor(1000 + Math.random() * 9000));
-    return { ...rest, pwd: encryptPwd(initialPwd), pwdHash: hashPassword(initialPwd) };
+    return { ...rest, pwd: encryptPwd(initialPwd), pwdHash: hashPassword(initialPwd), entitlements: [] };
   });
 
   return {

@@ -390,12 +390,14 @@ async function doLogout(){
 
 /* ── 화면 ── */
 function navBar(){
-  const loggedIn=['list','player'].includes(ST.screen) && (ST.mode==='student'||ST.mode==='member');
+  // 로그인 여부는 화면이 아니라 ST.mode로만 판단 — 로그인한 채로 "강좌 더보기"를 눌러
+  // browse 화면으로 돌아와도 로그아웃 상태처럼 잘못 표시되지 않게 한다.
+  const loggedIn=ST.mode==='student'||ST.mode==='member';
   const showLanding=ST.screen==='browse';
   // student-login/otp-* 같은 로그인 진행 화면에서는 이 버튼들의 클릭 핸들러를 wireBrowse()에서만
   // 붙여서, 랜딩(browse) 화면이 아닐 때 표시하면 눌러도 반응 없는 죽은 버튼이 된다(Codex 리뷰로 발견).
   const right=loggedIn
-    ?`<span class="who">${ST.mode==='student'?`${esc(ST.student?.student?.name||'')} · ${esc(ST.student?.school?.name||'')}`:`${esc(ST.member?.name||'')} · ${esc(ST.member?.phone||ST.member?.email||'')}`}</span><button class="btn" id="btn-logout">로그아웃</button>`
+    ?`<button class="nav-textlink" id="nav-browse-courses">강좌 더보기</button><span class="who">${ST.mode==='student'?`${esc(ST.student?.student?.name||'')} · ${esc(ST.student?.school?.name||'')}`:`${esc(ST.member?.name||'')} · ${esc(ST.member?.phone||ST.member?.email||'')}`}</span><button class="btn" id="btn-logout">로그아웃</button>`
     :showLanding?`<button class="nav-textlink" id="nav-student-link">학생 로그인</button><button class="btn btn-primary" id="nav-cta">무료체험 신청</button>`:'';
   const links=showLanding
     ?`<div class="navlinks"><a href="#courses">강좌</a><a href="#instructor">원장님 소개</a><a href="#features">커리큘럼</a><a href="#reviews">실제 후기</a></div>`
@@ -457,7 +459,18 @@ function wireCourseSection(){
 function bindApplyBtn(btn){
   btn.addEventListener('click',()=>{
     const kind=btn.dataset.courseKind||'apply';
-    setPendingCourseAction(btn.dataset.applyCourse, kind);
+    const courseId=btn.dataset.applyCourse;
+    // 이미 로그인되어 있으면(학생/회원 둘 다 구매 가능, 무료 신청은 회원만) 로그인 화면으로
+    // 돌아갈 필요 없이 바로 처리한다.
+    if(ST.mode==='student'||ST.mode==='member'){
+      if(kind==='purchase'){ startCoursePayment(courseId); return; }
+      if(ST.mode==='member'){
+        fetch('/api/courses/apply',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({courseId})})
+          .then(r=>r.json()).then(d=>{ if(d.success)alert('신청이 완료됐습니다! 확인 후 연락드릴게요.'); else alert(d.message||'신청에 실패했습니다'); });
+        return;
+      }
+    }
+    setPendingCourseAction(courseId, kind);
     alert(kind==='purchase'
       ?'먼저 로그인해주세요 — 로그인/가입이 끝나면 바로 결제창이 열립니다.'
       :'먼저 로그인해주세요 — 로그인/가입이 끝나면 자동으로 신청됩니다.');
@@ -670,8 +683,12 @@ function goStart(){ST.screen='otp-phone';render();}
 
 function wireBrowse(){
   document.getElementById('nav-logo').addEventListener('click',()=>{window.scrollTo({top:0,behavior:'smooth'});});
-  document.getElementById('nav-cta').addEventListener('click',goStart);
-  document.getElementById('nav-student-link').addEventListener('click',()=>{ST.screen='student-login';render();});
+  // 이미 로그인된 상태로 "강좌 더보기"를 눌러 여기로 온 경우엔 nav-student-link/nav-cta 대신
+  // nav-browse-courses/btn-logout이 떠있으므로, 로그아웃 상태 전용 버튼들은 optional하게 묶는다.
+  document.getElementById('nav-cta')?.addEventListener('click',goStart);
+  document.getElementById('nav-student-link')?.addEventListener('click',()=>{ST.screen='student-login';render();});
+  document.getElementById('nav-browse-courses')?.addEventListener('click',()=>{window.scrollTo({top:0,behavior:'smooth'});});
+  document.getElementById('btn-logout')?.addEventListener('click',doLogout);
   document.getElementById('btn-start').addEventListener('click',goStart);
   document.getElementById('btn-start-2').addEventListener('click',goStart);
   wireCourseSection();
@@ -716,6 +733,9 @@ function wireStudentLogin(){
 
 function wireApp(){
   document.getElementById('btn-logout')?.addEventListener('click',doLogout);
+  document.getElementById('nav-browse-courses')?.addEventListener('click',async()=>{
+    ST.courses=await loadPublicCourses();ST.screen='browse';render();
+  });
   document.getElementById('btn-back')?.addEventListener('click',()=>{ST.screen='list';ST.active=null;render();});
   document.querySelectorAll('[data-vid]').forEach(card=>{
     card.addEventListener('click',()=>{

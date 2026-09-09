@@ -318,6 +318,21 @@ export async function requireMemberSession(req) {
   return session;
 }
 
+// 강좌 구매/수강권 조회처럼 "학생이든 회원이든 로그인만 되어있으면" 되는 액션용 —
+// entitlements.js의 owner(ownerType+ownerId) 형태로 통일해서 돌려준다.
+export async function requireOwnerSession(req) {
+  const token = getSessionToken(req);
+  const session = await getSession(token);
+  if (!session) return null;
+  if (session.role === 'member' && session.memberId) {
+    return { ownerType: 'member', ownerId: session.memberId };
+  }
+  if (session.role === 'student' && session.schoolId && session.studentId) {
+    return { ownerType: 'student', ownerId: `${session.schoolId}:${session.studentId}` };
+  }
+  return null;
+}
+
 // 관리자 세션 또는 기존 API_AUTH_TOKEN(운영/스크립트용) 중 하나라도 유효하면 통과.
 // 세션이 없을 땐 {role:'admin', viaApiToken:true}를 반환해 호출부가 동일하게 다룰 수 있게 함.
 export async function requireAdminSessionOrApiToken(req) {

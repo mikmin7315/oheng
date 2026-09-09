@@ -12,10 +12,28 @@ function makeFakeRedis() {
   const store = new Map();
   return {
     store,
-    async get(key) { return store.has(key) ? store.get(key) : null; },
+    // 깊은 복제로 반환 — 실제 Redis처럼 GET한 객체를 호출부가 마음대로 수정해도
+    // store 안의 값(그리고 이후 CAS eval의 버전 비교)에 영향을 주지 않게 한다.
+    // (참조를 그대로 돌려주면 mutateSchool의 in-place mutateFn이 저장된 값까지
+    // 즉시 바꿔버려서 버전 충돌을 오탐한다.)
+    async get(key) { return store.has(key) ? JSON.parse(JSON.stringify(store.get(key))) : null; },
     async set(key, value) { store.set(key, value); return 'OK'; },
     async del(key) { const existed = store.has(key); store.delete(key); return existed ? 1 : 0; },
     async incr(key) { const v = (store.get(key) || 0) + 1; store.set(key, v); return v; },
+    // school.js의 CAS_SET_SCRIPT 전용 흉내 — 버전 확인 후 원자적으로 SET.
+    // 실제 Upstash는 값을 문자열로 저장했다가 다시 객체로 자동 역직렬화하지만, 여기선
+    // 나머지 메서드처럼 객체를 그대로 저장해 단순화한다(school.js 주석 참고).
+    async eval(script, keys, args) {
+      const key = keys[0];
+      const expected = parseInt(args[0], 10);
+      const newValJson = args[1];
+      const cur = store.has(key) ? store.get(key) : null;
+      if (cur === null) return ['not_found', ''];
+      const curVersion = cur.version || 0;
+      if (curVersion !== expected) return ['conflict', JSON.stringify(cur)];
+      store.set(key, JSON.parse(newValJson));
+      return ['ok', newValJson];
+    },
   };
 }
 
@@ -44,6 +62,8 @@ before(() => {
 const course = await import('../api/_lib/course.js');
 const member = await import('../api/_lib/member.js');
 const auth = await import('../api/_lib/auth.js');
+const school = await import('../api/_lib/school.js');
+const entitlements = await import('../api/_lib/entitlements.js');
 const courseHandler = (await import('../api/courses/[action].js')).default;
 
 test('강좌 저장 → 공개목록: 미게시 강좌는 목록에서 빠지고, 게시된 강좌는 level/thumbnailUrl 포함', async () => {
@@ -121,7 +141,8 @@ test('수강권 부여 → 신청자 목록에서 자동 제거 → 회원 영�
   const res = makeRes();
   await courseHandler(req, res);
   assert.equal(res.statusCode, 200, '수강권 부여는 성공해야 함');
-  assert.equal(res.body.member.entitlements[0].status, 'active');
+  assert.equal(res.body.owner.ownerType, 'member');
+  assert.equal(res.body.entitlements[0].status, 'active');
 
   const remaining = await course.listApplicants(live.id);
   assert.ok(!remaining.some(a => a.memberId === memberId), '수강권 부여 후 신청자 목록에서 빠져야 함');
@@ -130,4 +151,71 @@ test('수강권 부여 → 신청자 목록에서 자동 제거 → 회원 영�
   const videos = await course.listVideosForMember(updatedMember);
   assert.deepEqual(videos.map(v => v.id), ['v1', 'v2', 'v3'], '회원 영상 목록은 course.videoIds 순서를 따라야 함(전체 영상 목록 순서 아님)');
   assert.equal(videos[0].courseTitle, '순서 테스트 강좌');
+});
+
+test('학생도 회원과 동일하게 강좌를 결제·구매하고, 학생 레코드에 수강권이 저장된다', async () => {
+  const schoolId = 'sch_test1';
+  const studentId = 'stu_test1';
+  await fakeRedis.set('school:' + schoolId, {
+    id: schoolId, name: '테스트고', version: 0,
+    students: [{ id: studentId, name: '학생테스트', entitlements: [] }],
+    withdrawnStudents: [],
+  });
+  const live = await course.saveCourse({ title: '학생용 강좌', price: 5000, published: true, durationDays: 10 });
+
+  const { token } = await auth.createSession({ role: 'student', schoolId, studentId });
+  const req1 = {
+    method: 'POST', headers: { cookie: `oheng_session=${token}` },
+    body: { courseId: live.id }, query: { action: 'create-payment' },
+  };
+  const res1 = makeRes();
+  await courseHandler(req1, res1);
+  assert.equal(res1.statusCode, 200, '학생도 결제 생성이 가능해야 함');
+  const paymentId = res1.body.payment.paymentId;
+
+  // 이 테스트는 포트원 실제 API를 호출하지 않고 라이브러리 함수만 직접 검증하므로,
+  // getPayment을 호출하는 verifyAndCompletePayment 대신 setOwnerEntitlements를 직접 확인.
+  await entitlements.setOwnerEntitlements('student', entitlements.makeStudentOwnerId(schoolId, studentId), [
+    { courseId: live.id, purchasedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 864e5).toISOString(), paymentId, amount: 5000, status: 'active', source: 'payment' },
+  ]);
+
+  const savedSchool = await school.getSchool(schoolId);
+  const savedStudent = savedSchool.students.find(s => s.id === studentId);
+  assert.equal(savedStudent.entitlements[0].courseId, live.id);
+  assert.equal(savedStudent.entitlements[0].status, 'active');
+
+  // /api/courses/mine도 학생 세션으로 같은 강좌 영상을 돌려줘야 함
+  const req2 = { method: 'GET', headers: { cookie: `oheng_session=${token}` }, query: { action: 'mine' } };
+  const res2 = makeRes();
+  await courseHandler(req2, res2);
+  assert.equal(res2.statusCode, 200);
+});
+
+test('결제 완료 확인은 결제를 만든 본인 세션에서만 가능하다(다른 로그인 계정이 남의 paymentId로 완료 처리 시도하면 거부)', async () => {
+  const memberA = 'mem_owner_a';
+  const memberB = 'mem_owner_b';
+  await fakeRedis.set('member:' + memberA, { id: memberA, name: 'A', entitlements: [] });
+  await fakeRedis.set('member:' + memberB, { id: memberB, name: 'B', entitlements: [] });
+  const live = await course.saveCourse({ title: '소유자확인 강좌', price: 3000, published: true, durationDays: 10 });
+
+  const sessionA = await auth.createSession({ role: 'member', memberId: memberA });
+  const reqCreate = {
+    method: 'POST', headers: { cookie: `oheng_session=${sessionA.token}` },
+    body: { courseId: live.id }, query: { action: 'create-payment' },
+  };
+  const resCreate = makeRes();
+  await courseHandler(reqCreate, resCreate);
+  const paymentId = resCreate.body.payment.paymentId;
+
+  const sessionB = await auth.createSession({ role: 'member', memberId: memberB });
+  const reqComplete = {
+    method: 'POST', headers: { cookie: `oheng_session=${sessionB.token}` },
+    body: { paymentId }, query: { action: 'complete-payment' },
+  };
+  const resComplete = makeRes();
+  await courseHandler(reqComplete, resComplete);
+  assert.equal(resComplete.statusCode, 400, '다른 사람이 만든 결제를 완료 처리하려 하면 거부되어야 함');
+
+  const memberBRecord = await member.getMember(memberB);
+  assert.deepEqual(memberBRecord.entitlements || [], [], 'B에게는 절대 수강권이 생기면 안 됨');
 });

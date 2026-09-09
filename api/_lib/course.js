@@ -104,15 +104,16 @@ export async function removeApplicant(courseId, memberId) {
   await redis.set(key, list.filter(a => a.memberId !== memberId));
 }
 
-// 회원이 실제 구매(active + 미만료)한 강좌들의 영상 목록.
+// entitlements 배열(active + 미만료)로 실제 구매한 강좌들의 영상 목록을 계산 — 회원/학생
+// 양쪽 다 이 함수 하나를 공유한다(Codex 리뷰: owner별로 로직을 복제하지 말 것).
 // /api/videos/mine과 같은 필드 모양(id/title/month/week/mediaKey)에 courseId/courseTitle을 더해
 // lecture.html의 기존 렌더링 로직을 재사용하면서 강좌 단위로도 묶을 수 있게 한다.
 // course.videoIds 배열 순서(관리자가 강좌 관리에서 ▲▼로 지정한 재생 순서) 그대로 반환 —
 // listAllVideos() 전체 목록 순서를 쓰면 관리자가 지정한 순서가 무시되므로 주의.
-export async function listVideosForMember(member) {
+export async function listVideosForEntitlements(entitlements) {
   const now = Date.now();
   const activeCourseIds = new Set(
-    (member.entitlements || [])
+    (entitlements || [])
       .filter(e => e.status === 'active' && new Date(e.expiresAt).getTime() > now)
       .map(e => e.courseId)
   );
@@ -135,4 +136,8 @@ export async function listVideosForMember(member) {
     }
   }
   return result;
+}
+
+export async function listVideosForMember(member) {
+  return listVideosForEntitlements(member.entitlements);
 }

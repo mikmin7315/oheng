@@ -663,7 +663,40 @@ function playerScreen(){
       <div class="ic">🔒</div>
       <div class="msg">재생 준비 중</div>
       <div class="sub">콜러스(Kollus) 연동 후 이곳에서 바로 재생됩니다</div>
-    </div>`;
+    </div>
+    <div id="watch-status-wrap" style="margin-top:16px"></div>`;
+}
+
+// 실제 재생 이벤트를 아직 못 잡는 동안의 임시 시청확인 — "학생 확인"이라고 명확히
+// 표시해서 선생님이 진짜 재생 기록으로 오해하지 않게 한다.
+function watchStatusHtml(status){
+  if(status?.status==='self_confirmed'){
+    return`<div style="background:var(--lightbg);border:1px solid var(--border);border-radius:12px;padding:14px 16px;font-size:13px;color:var(--navy-soft)">✓ 학생 확인 완료 (${esc((status.completedAt||'').slice(0,10))}) · 선생님이 확인한 기록은 아니에요</div>`;
+  }
+  if(status?.status==='teacher_confirmed'){
+    return`<div style="background:#E0F2E9;border:1px solid #B9E4CE;border-radius:12px;padding:14px 16px;font-size:13px;color:#00695C">✓ 선생님 확인 완료</div>`;
+  }
+  return`<button class="btn btn-block" id="btn-watch-confirm">✓ 다 봤어요 (학생 확인)</button>`;
+}
+async function loadAndRenderWatchStatus(videoId){
+  const wrap=document.getElementById('watch-status-wrap');
+  if(!wrap)return;
+  try{
+    const res=await fetch('/api/watch/mine?videoIds='+encodeURIComponent(videoId),{credentials:'include'});
+    const d=await res.json();
+    const status=d.success?d.statuses[videoId]:null;
+    wrap.innerHTML=watchStatusHtml(status);
+    document.getElementById('btn-watch-confirm')?.addEventListener('click',async()=>{
+      const btn=document.getElementById('btn-watch-confirm');
+      btn.disabled=true;btn.textContent='저장 중...';
+      try{
+        const r=await fetch('/api/watch/confirm',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({videoId})});
+        const dd=await r.json();
+        if(dd.success)wrap.innerHTML=watchStatusHtml(dd.record);
+        else{btn.disabled=false;btn.textContent='✓ 다 봤어요 (학생 확인)';}
+      }catch(e){btn.disabled=false;btn.textContent='✓ 다 봤어요 (학생 확인)';}
+    });
+  }catch(e){}
 }
 
 function render(){
@@ -737,6 +770,7 @@ function wireApp(){
     ST.courses=await loadPublicCourses();ST.screen='browse';render();
   });
   document.getElementById('btn-back')?.addEventListener('click',()=>{ST.screen='list';ST.active=null;render();});
+  if(ST.screen==='player'&&ST.active)loadAndRenderWatchStatus(ST.active.id);
   document.querySelectorAll('[data-vid]').forEach(card=>{
     card.addEventListener('click',()=>{
       const v=(ST.videos||[]).find(x=>x.id===card.dataset.vid);

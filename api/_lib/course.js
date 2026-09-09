@@ -40,10 +40,21 @@ function normalizeCourse(incoming, existing) {
     videoIds: Array.isArray(incoming.videoIds) ? incoming.videoIds : [],
     level: COURSE_LEVELS.includes(incoming.level) ? incoming.level : '',
     thumbnailUrl: sanitizeThumbnailUrl(incoming.thumbnailUrl),
+    // 'inherit'(기본) = 영상 자체 설정을 따름, 'disabled' = 이 강좌에서는 영상 설정과
+    // 무관하게 무조건 금지 — 강좌 쪽 disabled가 항상 우선(resolveDownloadPolicy 참고).
+    downloadPolicy: incoming.downloadPolicy === 'disabled' ? 'disabled' : 'inherit',
     published: !!incoming.published,
     createdAt: existing?.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
+}
+
+// 영상 자체 설정과 강좌 설정을 합쳐 최종 다운로드 정책을 판정 — 둘 중 하나라도
+// 금지하면 금지(Codex 리뷰: "영상이 허용해도 강좌가 막으면 금지"가 직관적인 기본값).
+export function resolveDownloadPolicy(video, course) {
+  if (!video || video.downloadPolicy !== 'provider_offline') return 'disabled';
+  if (course && course.downloadPolicy === 'disabled') return 'disabled';
+  return 'provider_offline';
 }
 
 export async function saveCourse(incoming) {
@@ -132,6 +143,7 @@ export async function listVideosForEntitlements(entitlements) {
       result.push({
         id: v.id, title: v.title, month: v.month, week: v.week, mediaKey: v.mediaKey,
         courseId: course.id, courseTitle: course.title,
+        downloadPolicy: resolveDownloadPolicy(v, course),
       });
     }
   }

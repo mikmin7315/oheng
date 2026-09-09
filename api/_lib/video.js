@@ -22,6 +22,8 @@ export async function listAllVideos() {
   return videos.filter(Boolean);
 }
 
+const DOWNLOAD_POLICIES = ['disabled', 'provider_offline'];
+
 function normalizeVideo(incoming, existing) {
   return {
     id: existing?.id || incoming.id || ('vid' + Date.now()),
@@ -33,6 +35,9 @@ function normalizeVideo(incoming, existing) {
     allowSchoolIds: Array.isArray(incoming.allowSchoolIds) ? incoming.allowSchoolIds : [],
     excludeStudentIds: Array.isArray(incoming.excludeStudentIds) ? incoming.excludeStudentIds : [],
     includeStudentIds: Array.isArray(incoming.includeStudentIds) ? incoming.includeStudentIds : [],
+    // 기본은 항상 disabled — 'provider_offline'은 콜러스 등 DRM 서비스의 오프라인 재생
+    // 기능을 켠다는 뜻이지, 원본 파일을 그냥 내려받게 한다는 뜻이 아니다(Codex 리뷰).
+    downloadPolicy: DOWNLOAD_POLICIES.includes(incoming.downloadPolicy) ? incoming.downloadPolicy : 'disabled',
     createdAt: existing?.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };

@@ -1,7 +1,7 @@
 // 후기 이미지(카카오톡 캡처 등)를 드롭박스에 저장한다. 영상 전체 카탈로그와 달리 이미지
 // 몇 장 수준의 트래픽이라 드롭박스의 대용량 스트리밍 트래픽 스로틀링 정책이 문제되지
 // 않는다(2026-09-09 후기 게시판 설계 문서 참고).
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
 const MAX_IMAGES_PER_REVIEW = 6;
 
 export const REVIEW_IMAGE_LIMITS = { MAX_IMAGE_BYTES, MAX_IMAGES_PER_REVIEW };
@@ -69,7 +69,7 @@ export async function uploadReviewImage(dataBase64, filename, mimeType) {
   }
   const buffer = Buffer.from(String(dataBase64 || ''), 'base64');
   if (buffer.length > MAX_IMAGE_BYTES) {
-    const err = new Error('이미지는 5MB 이하만 업로드할 수 있습니다');
+    const err = new Error('이미지는 3MB 이하만 업로드할 수 있습니다');
     err.code = 'TOO_LARGE';
     throw err;
   }

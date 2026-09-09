@@ -33,9 +33,9 @@ test('이미지가 아닌 MIME 타입은 업로드 없이 즉시 거부된다', 
   assert.equal(calls.length, 0, '검증 실패 시 네트워크 호출이 발생하면 안 됨');
 });
 
-test('5MB 초과 이미지는 업로드 없이 즉시 거부된다', async () => {
+test('3MB 초과 이미지는 업로드 없이 즉시 거부된다', async () => {
   installFetchMock([]);
-  const big = Buffer.alloc(6 * 1024 * 1024, 1).toString('base64');
+  const big = Buffer.alloc(4 * 1024 * 1024, 1).toString('base64');
   await assert.rejects(
     () => dropbox.uploadReviewImage(big, 'big.png', 'image/png'),
     (err) => { assert.equal(err.code, 'TOO_LARGE'); return true; }

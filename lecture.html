@@ -116,6 +116,7 @@
   /* ── 후기 ── */
   .review-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;margin-top:26px}
   .rcard-post{text-align:left}
+  .rcard-post .body{white-space:pre-wrap}
   .rcard-author{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px}
   .rcard-author .badge{background:#FFE4DC;color:var(--coral-dark);font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px}
   .rcard-author .who{color:var(--navy-soft);font-size:11.5px;margin-left:auto}
@@ -789,6 +790,9 @@ async function submitReview(){
   const text=document.getElementById('review-text').value.trim();
   const files=[...(document.getElementById('review-images').files||[])].slice(0,6);
   if(!text){msg.textContent='후기 내용을 입력하세요';msg.style.color='#E53935';return;}
+  for(const file of files){
+    if(file.size>3*1024*1024){msg.textContent=`이미지는 3MB 이하만 업로드할 수 있습니다 (${file.name})`;msg.style.color='#E53935';btn.disabled=false;return;}
+  }
   btn.disabled=true;msg.textContent='등록 중...';msg.style.color='';
   try{
     const images=[];
@@ -825,7 +829,7 @@ function wireReviews(){
   document.getElementById('btn-logout')?.addEventListener('click',doLogout);
   document.getElementById('nav-browse-courses')?.addEventListener('click',async()=>{ST.courses=await loadPublicCourses();ST.screen='browse';render();});
   document.getElementById('btn-reviews-back').addEventListener('click',()=>{ST.screen='browse';render();});
-  document.getElementById('btn-review-login')?.addEventListener('click',goStart);
+  document.getElementById('btn-review-login')?.addEventListener('click',()=>{ST.screen='student-login';render();});
   document.getElementById('btn-review-submit')?.addEventListener('click',submitReview);
   document.querySelectorAll('[data-comment-submit]').forEach(btn=>{
     btn.addEventListener('click',()=>submitComment(btn.dataset.commentSubmit));

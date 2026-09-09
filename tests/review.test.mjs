@@ -46,6 +46,26 @@ test('비로그인 요청은 review-create/comment-create에서 401', async () =
   assert.equal(res2.statusCode, 401);
 });
 
+test('일반 회원(member) 세션은 review-create/comment-create에서 401 (학생으로 취급되면 안 됨)', async () => {
+  const memberId = 'mem_rv_reject';
+  await fakeRedis.set('member:' + memberId, { id: memberId, name: '일반회원', phone: '01099998888', entitlements: [] });
+  const { token } = await auth.createSession({ role: 'member', memberId });
+
+  const resCreate = makeRes();
+  await courseHandler(
+    { method: 'POST', headers: { cookie: `oheng_session=${token}` }, body: { text: '회원인데 몰래 작성' }, query: { action: 'review-create' } },
+    resCreate
+  );
+  assert.equal(resCreate.statusCode, 401);
+
+  const resComment = makeRes();
+  await courseHandler(
+    { method: 'POST', headers: { cookie: `oheng_session=${token}` }, body: { reviewId: 'x', text: '회원인데 몰래 댓글' }, query: { action: 'comment-create' } },
+    resComment
+  );
+  assert.equal(resComment.statusCode, 401);
+});
+
 test('학생 세션으로 후기 작성 → review-list에 반영되고 ownerId는 응답에 없다', async () => {
   const schoolId = 'sch_rv1', studentId = 'stu_rv1';
   await fakeRedis.set('school:' + schoolId, {

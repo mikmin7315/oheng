@@ -73,3 +73,12 @@ test('이미지는 6장까지만 저장된다', async () => {
   const r = await review.createReview({ authorType: 'teacher', authorName: '선생님', ownerId: null, text: '이미지 개수 제한', images });
   assert.equal(r.images.length, 6);
 });
+
+test('드롭박스 URL이 아닌 이미지는 저장 시 조용히 걸러진다', async () => {
+  const images = [
+    'https://evil.example.com/beacon.png',
+    'https://dl.dropboxusercontent.com/real.png',
+  ];
+  const r = await review.createReview({ authorType: 'teacher', authorName: '선생님', ownerId: null, text: '이미지 URL 화이트리스트', images });
+  assert.deepEqual(r.images, ['https://dl.dropboxusercontent.com/real.png']);
+});

@@ -2469,11 +2469,17 @@ async function renderReviewAdminList(){
         </div>
         <button class="abtn abtn-red" data-del-review="${r.id}" style="font-size:11px;padding:6px 10px;flex-shrink:0">🗑️ 삭제</button>
       </div>
-      ${(r.comments||[]).length?`<div style="margin-top:12px;padding-top:12px;border-top:1px solid #F0F2F5">${r.comments.map(c=>`
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid #F0F2F5">
+        ${(r.comments||[]).map(c=>`
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;padding:4px 0">
           <span>${c.authorType==='teacher'?'👩‍🏫':'🙋'} <b>${esc(c.authorName)}</b> ${esc(c.text)}</span>
           <button class="abtn abtn-red" data-del-comment="${c.id}" data-del-comment-review="${r.id}" style="font-size:10px;padding:3px 8px;flex-shrink:0">삭제</button>
-        </div>`).join('')}</div>`:''}
+        </div>`).join('')}
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <input class="finp" data-comment-input="${r.id}" placeholder="댓글을 입력하세요" maxlength="2000" style="flex:1;padding:8px 10px;font-size:12px">
+          <button class="abtn abtn-green" data-comment-submit="${r.id}" style="font-size:11px;padding:6px 14px;flex-shrink:0">등록</button>
+        </div>
+      </div>
     </div>`).join('');
   wrap.querySelectorAll('[data-del-review]').forEach(b=>{
     b.onclick=async()=>{
@@ -2495,6 +2501,21 @@ async function renderReviewAdminList(){
         const res=await fetch('/api/courses/comment-delete',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({reviewId:b.dataset.delCommentReview,commentId:b.dataset.delComment})});
         const data=await res.json();
         if(!res.ok||!data.success){alert(data.message||'삭제 실패');b.disabled=false;return;}
+      }catch(e){alert('오류: '+e.message);b.disabled=false;return;}
+      renderReviewAdminList();
+    };
+  });
+  wrap.querySelectorAll('[data-comment-submit]').forEach(b=>{
+    b.onclick=async()=>{
+      const reviewId=b.dataset.commentSubmit;
+      const input=wrap.querySelector(`[data-comment-input="${reviewId}"]`);
+      const text=input.value.trim();
+      if(!text)return;
+      b.disabled=true;
+      try{
+        const res=await fetch('/api/courses/comment-create',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({reviewId,text})});
+        const data=await res.json();
+        if(!res.ok||!data.success){alert(data.message||'댓글 등록에 실패했습니다');b.disabled=false;return;}
       }catch(e){alert('오류: '+e.message);b.disabled=false;return;}
       renderReviewAdminList();
     };
@@ -2523,6 +2544,9 @@ function bReviewAdmin(){
     const text=document.getElementById('rv-text').value.trim();
     const files=[...(document.getElementById('rv-images').files||[])].slice(0,6);
     if(!text){msg.textContent='후기 내용을 입력하세요';msg.style.color='#E53935';return;}
+    for(const file of files){
+      if(file.size>3*1024*1024){msg.textContent=`이미지는 3MB 이하만 업로드할 수 있습니다 (${file.name})`;msg.style.color='#E53935';return;}
+    }
     btn.disabled=true;msg.textContent='등록 중...';msg.style.color='';
     try{
       const images=[];

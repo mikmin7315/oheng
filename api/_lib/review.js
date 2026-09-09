@@ -7,6 +7,10 @@ const COMMENTS_PREFIX = 'review:comments:';
 export const REVIEW_TEXT_MAX = 2000;
 export const REVIEW_IMAGES_MAX = 6;
 
+// 공개 사이트에 <img src>로 그대로 렌더링되므로, 드롭박스가 실제로 발급한 URL 형태만 허용한다
+// (임의 URL을 images에 넣어 비콘/외부 콘텐츠를 몰래 심는 것을 막는다).
+const DROPBOX_IMAGE_URL_RE = /^https:\/\/(www\.dropbox\.com|dl\.dropboxusercontent\.com)\//;
+
 function newId(prefix) {
   return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
@@ -69,7 +73,9 @@ export async function createReview({ authorType, authorName, ownerId, text, imag
     authorType, authorName: String(authorName || '').trim() || (authorType === 'teacher' ? '선생님' : '학생'),
     ownerId: ownerId || null,
     text: cleanText,
-    images: (Array.isArray(images) ? images : []).slice(0, REVIEW_IMAGES_MAX),
+    images: (Array.isArray(images) ? images : [])
+      .filter(u => typeof u === 'string' && DROPBOX_IMAGE_URL_RE.test(u))
+      .slice(0, REVIEW_IMAGES_MAX),
     createdAt: new Date().toISOString(),
   };
   await redis.set(REVIEW_PREFIX + review.id, review);
@@ -115,6 +121,8 @@ export async function addComment(reviewId, { authorType, authorName, ownerId, te
 }
 
 export async function deleteComment(reviewId, commentId) {
+  const review = await getReview(reviewId);
+  if (!review) return; // 관리자 전용 삭제 액션이므로, 존재하지 않는 후기는 조용히 무시(고아 키 방지).
   const redis = getRedis();
   const comments = await getComments(reviewId);
   await redis.set(COMMENTS_PREFIX + reviewId, comments.filter(c => c.id !== commentId));

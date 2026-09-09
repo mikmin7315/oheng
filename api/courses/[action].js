@@ -21,7 +21,9 @@ export const config = { api: { bodyParser: { sizeLimit: '8mb' } } };
 // 일반 회원(member)의 후기 작성은 이번 스펙 범위 밖(설계 문서 "범위 밖" 참고).
 async function requireReviewAuthor(req, admin) {
   if (admin) {
-    return { authorType: 'teacher', authorName: admin.actorName || admin.actorId || '오은실 대표강사', ownerId: null };
+    // 계정의 raw name 필드(레거시 기본값 '원장님' 등)는 공개 브랜딩용이 아니므로 쓰지 않고,
+    // 관리자 작성 후기/댓글의 공개 이름은 항상 고정 문자열을 사용한다.
+    return { authorType: 'teacher', authorName: '오은실 대표강사', ownerId: null };
   }
   const owner = await requireOwnerSession(req);
   if (!owner || owner.ownerType !== 'student') return null;

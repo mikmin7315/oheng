@@ -13,8 +13,9 @@ import {
 } from '../_lib/review.js';
 import { uploadReviewImage } from '../_lib/dropbox.js';
 
-// 후기 이미지는 base64로 JSON body에 실려오므로(파일당 5MB 이하 기준 base64로는 약 6.7MB),
-// 기본 바디 크기 제한을 넉넉히 올려둔다. 이 파일의 다른 액션들은 JSON이 작아 영향 없음.
+// 후기 이미지는 base64로 JSON body에 실려오므로(파일당 3MB 이하 기준 base64로는 약 4MB —
+// Vercel 서버리스 함수의 요청 본문 상한이 4.5MB라 이보다 낮춰뒀다), 기본 바디 크기 제한을
+// 넉넉히 올려둔다. 이 파일의 다른 액션들은 JSON이 작아 영향 없음.
 export const config = { api: { bodyParser: { sizeLimit: '8mb' } } };
 
 // 후기/댓글 작성 주체 확인 — 선생님(관리자 세션 또는 API 토큰) 또는 학생 세션만 허용.

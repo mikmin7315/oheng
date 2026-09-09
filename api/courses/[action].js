@@ -6,10 +6,40 @@ import {
   applyToCourse, listApplicants, removeApplicant,
 } from '../_lib/course.js';
 import { createPendingPayment, verifyAndCompletePayment } from '../_lib/payment.js';
-import { getOwnerEntitlements, setOwnerEntitlements, makeStudentOwnerId } from '../_lib/entitlements.js';
+import { getOwnerEntitlements, setOwnerEntitlements, makeStudentOwnerId, parseStudentOwnerId } from '../_lib/entitlements.js';
+import { getSchool } from '../_lib/school.js';
+import {
+  listReviewsForPublic, createReview, deleteReview, addComment, deleteComment,
+} from '../_lib/review.js';
+import { uploadReviewImage } from '../_lib/dropbox.js';
+
+// 후기 이미지는 base64로 JSON body에 실려오므로(파일당 5MB 이하 기준 base64로는 약 6.7MB),
+// 기본 바디 크기 제한을 넉넉히 올려둔다. 이 파일의 다른 액션들은 JSON이 작아 영향 없음.
+export const config = { api: { bodyParser: { sizeLimit: '8mb' } } };
+
+// 후기/댓글 작성 주체 확인 — 선생님(관리자 세션 또는 API 토큰) 또는 학생 세션만 허용.
+// 일반 회원(member)의 후기 작성은 이번 스펙 범위 밖(설계 문서 "범위 밖" 참고).
+async function requireReviewAuthor(req, admin) {
+  if (admin) {
+    return { authorType: 'teacher', authorName: admin.actorName || admin.actorId || '오은실 대표강사', ownerId: null };
+  }
+  const owner = await requireOwnerSession(req);
+  if (!owner || owner.ownerType !== 'student') return null;
+  const { schoolId, studentId } = parseStudentOwnerId(owner.ownerId);
+  const sc = schoolId ? await getSchool(schoolId) : null;
+  const student = sc ? (sc.students || []).find(s => s.id === studentId) : null;
+  return { authorType: 'student', authorName: student?.name || '학생', ownerId: owner.ownerId };
+}
 
 export default async function handler(req, res) {
   const { action } = req.query;
+
+  // 후기 게시판 — 비로그인 방문자도 조회 가능(마케팅 사이트 신뢰도 목적).
+  if (action === 'review-list') {
+    if (req.method !== 'GET') return res.status(405).end();
+    const reviews = await listReviewsForPublic();
+    return res.status(200).json({ success: true, reviews });
+  }
 
   if (action === 'list') {
     if (req.method !== 'GET') return res.status(405).end();
@@ -42,6 +72,59 @@ export default async function handler(req, res) {
     if (!course || !course.published) return res.status(404).json({ success: false, message: '강좌를 찾을 수 없습니다' });
     await applyToCourse(courseId, session.memberId);
     return res.status(200).json({ success: true });
+  }
+
+  // 후기 작성 — 관리자(선생님) 또는 학생 로그인 필요. 승인 절차 없이 즉시 공개되므로
+  // 스팸 방지 목적으로 비로그인 작성은 막는다(설계 문서 "안전장치" 참고).
+  if (action === 'review-create') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    const admin = await requireAdminSessionOrApiToken(req);
+    const author = await requireReviewAuthor(req, admin);
+    if (!author) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    const { text, images } = req.body || {};
+    try {
+      const review = await createReview({ ...author, text, images });
+      return res.status(200).json({ success: true, review });
+    } catch (e) {
+      return res.status(400).json({ success: false, message: e.message || '후기 작성에 실패했습니다' });
+    }
+  }
+
+  // 후기 이미지 업로드 — 후기 작성 폼에서 이미지를 고르면 먼저 이 액션으로 하나씩 올려
+  // URL을 받고, 그 URL들을 모아 review-create를 호출한다.
+  if (action === 'review-image-upload') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    const admin = await requireAdminSessionOrApiToken(req);
+    const author = await requireReviewAuthor(req, admin);
+    if (!author) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    const { filename, mimeType, dataBase64 } = req.body || {};
+    if (!dataBase64) return res.status(400).json({ success: false, message: 'Missing dataBase64' });
+    try {
+      const url = await uploadReviewImage(dataBase64, filename, mimeType);
+      return res.status(200).json({ success: true, url });
+    } catch (e) {
+      return res.status(400).json({ success: false, message: e.message || '이미지 업로드에 실패했습니다' });
+    }
+  }
+
+  // 댓글 작성 — 후기 작성과 동일한 주체(선생님/학생)만 가능.
+  if (action === 'comment-create') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    const admin = await requireAdminSessionOrApiToken(req);
+    const author = await requireReviewAuthor(req, admin);
+    if (!author) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    const { reviewId, text } = req.body || {};
+    if (!reviewId) return res.status(400).json({ success: false, message: 'Missing reviewId' });
+    try {
+      const comment = await addComment(reviewId, { ...author, text });
+      return res.status(200).json({ success: true, comment });
+    } catch (e) {
+      const status = e.code === 'NOT_FOUND' ? 404 : 400;
+      return res.status(status).json({ success: false, message: e.message || '댓글 작성에 실패했습니다' });
+    }
   }
 
   // 유료 강좌 결제 시작 — 결제창에 넘길 정보(결제ID/상점/채널/가격)를 서버가 발급한다.
@@ -80,6 +163,25 @@ export default async function handler(req, res) {
     if (req.method !== 'GET') return res.status(405).end();
     const courses = await listAllCourses();
     return res.status(200).json({ success: true, courses });
+  }
+
+  // 승인 절차 없이 즉시 공개되는 게시판이므로, 스팸/부적절한 글은 관리자가 사후 삭제한다.
+  if (action === 'review-delete') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    const { id } = req.body || {};
+    if (!id) return res.status(400).json({ success: false, message: 'Missing id' });
+    await deleteReview(id);
+    return res.status(200).json({ success: true });
+  }
+
+  if (action === 'comment-delete') {
+    if (req.method !== 'POST') return res.status(405).end();
+    if (!isSameOrigin(req)) return res.status(403).json({ success: false, message: 'Forbidden' });
+    const { reviewId, commentId } = req.body || {};
+    if (!reviewId || !commentId) return res.status(400).json({ success: false, message: 'Missing reviewId/commentId' });
+    await deleteComment(reviewId, commentId);
+    return res.status(200).json({ success: true });
   }
 
   // 강좌별 신청자 목록 — 회원 이름/연락처를 같이 붙여서 관리자가 바로 확인/부여할 수 있게 한다.

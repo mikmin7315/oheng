@@ -1413,6 +1413,7 @@ function render(){
   if(!ST.loggedIn){app.innerHTML=rLogin();bLogin();return;}
   if(ST.role==='admin'){
     if(ST.adminView==='courses'){app.innerHTML=rCourseAdmin();bCourseAdmin();return;}
+    if(ST.adminView==='reviews'){app.innerHTML=rReviewAdmin();bReviewAdmin();return;}
     if(ST.adminView==='account'){app.innerHTML=rAccountAdmin();bAccountAdmin();return;}
     if(ST.adminView==='rounds'){app.innerHTML=rRoundManager();bRoundManager();return;}
     if(!ST.school){app.innerHTML=rSchoolSelect();bSchoolSelect();return;}
@@ -1936,7 +1937,7 @@ function rSchoolSelect(){
   return`
   <div class="top-nav">
     <div class="nav-logo"><img src="/assets/logo-symbol-white.png" alt="OHENG" style="height:22px;width:auto;display:block"></div>
-    <div class="nav-right"><button class="nbtn" id="btn-goto-account">⚙️ 계정 관리</button><button class="nbtn" id="btn-goto-courses">🎓 강좌 관리</button><button class="nbtn" id="btn-alo-main">로그아웃</button></div>
+    <div class="nav-right"><button class="nbtn" id="btn-goto-account">⚙️ 계정 관리</button><button class="nbtn" id="btn-goto-courses">🎓 강좌 관리</button><button class="nbtn" id="btn-goto-reviews">💬 후기 관리</button><button class="nbtn" id="btn-alo-main">로그아웃</button></div>
   </div>
   <div class="school-wrap" style="align-items:flex-start;padding-top:40px">
     <div class="school-inner" style="max-width:1000px;display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap">
@@ -2077,6 +2078,7 @@ function bSchoolSelect(){
   if(rmBtn)rmBtn.onclick=()=>{ST.adminView='rounds';ST.roundMgr=null;render();};
   document.getElementById('btn-alo-main').onclick=doLogout;
   document.getElementById('btn-goto-courses').onclick=()=>{ST.adminView='courses';render();};
+  document.getElementById('btn-goto-reviews').onclick=()=>{ST.adminView='reviews';render();};
   document.getElementById('btn-goto-account').onclick=()=>{ST.adminView='account';render();};
   renderSchoolGrid();
   if(ST.taNotices===undefined){ST.taNotices=null;fetchTaNotices();}
@@ -2414,6 +2416,131 @@ function bCourseAdmin(){
     };
   }
   renderCourseList();
+}
+
+function reviewImagesAdminHtml(images){
+  if(!images||!images.length)return'';
+  return`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${images.map(u=>`<img src="${esc(u)}" alt="" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid #E8ECF0">`).join('')}</div>`;
+}
+
+function rReviewAdmin(){
+  return`
+  <div class="top-nav">
+    <div class="nav-logo"><img src="/assets/logo-symbol-white.png" alt="OHENG" style="height:22px;width:auto;display:block"></div>
+    <div class="nav-right"><button class="nbtn" id="btn-back-schools-rv">‹ 학교 선택으로</button><button class="nbtn" id="btn-alo-main-rv">로그아웃</button></div>
+  </div>
+  <div class="school-wrap">
+    <div class="school-inner" style="max-width:760px">
+      <div style="text-align:center;margin-bottom:32px">
+        <div style="width:60px;height:60px;border-radius:18px;background:#FF6B4A;display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 14px;box-shadow:0 8px 24px rgba(255,107,74,0.28)">💬</div>
+        <div class="school-title" style="color:#12151C">후기 관리</div>
+        <div class="school-sub">oheng.co.kr 후기 게시판 — 선생님 후기 작성, 부적절한 게시물 삭제</div>
+      </div>
+      <div style="border:1.5px solid #E8ECF0;border-radius:12px;padding:16px;margin-bottom:20px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:8px">선생님 후기 작성</div>
+        <textarea id="rv-text" rows="4" maxlength="2000" placeholder="후기 내용을 입력하세요" style="width:100%;padding:10px 12px;border:1.5px solid #E8ECF0;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
+        <input type="file" id="rv-images" accept="image/*" multiple style="margin-top:8px">
+        <div id="rv-write-msg" style="font-size:12px;margin-top:6px"></div>
+        <button class="abtn abtn-green" id="btn-rv-submit" style="margin-top:8px">후기 등록</button>
+      </div>
+      <div id="review-admin-list-wrap"></div>
+    </div>
+  </div>`;
+}
+
+async function renderReviewAdminList(){
+  const wrap=document.getElementById('review-admin-list-wrap');
+  if(!wrap)return;
+  wrap.innerHTML='<div style="text-align:center;padding:30px 0;color:#9BA3AF;font-size:13px">불러오는 중...</div>';
+  let reviews=[];
+  try{
+    const res=await fetch('/api/courses/review-list');
+    const data=await res.json();
+    reviews=data.success?data.reviews:[];
+  }catch(e){}
+  if(!reviews.length){wrap.innerHTML='<div style="text-align:center;padding:40px 0;color:#9BA3AF;font-size:13px">등록된 후기가 없습니다</div>';return;}
+  wrap.innerHTML=reviews.map(r=>`
+    <div class="school-card" style="text-align:left;cursor:default;padding:16px 18px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+        <div>
+          <div style="font-size:12px;color:#5C6470"><b>${r.authorType==='teacher'?'👩‍🏫 선생님':'🙋 학생'}</b> ${esc(r.authorName)} · ${esc((r.createdAt||'').slice(0,10))}</div>
+          <div style="font-size:13.5px;margin-top:6px;white-space:pre-wrap">${esc(r.text)}</div>
+          ${reviewImagesAdminHtml(r.images)}
+        </div>
+        <button class="abtn abtn-red" data-del-review="${r.id}" style="font-size:11px;padding:6px 10px;flex-shrink:0">🗑️ 삭제</button>
+      </div>
+      ${(r.comments||[]).length?`<div style="margin-top:12px;padding-top:12px;border-top:1px solid #F0F2F5">${r.comments.map(c=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;padding:4px 0">
+          <span>${c.authorType==='teacher'?'👩‍🏫':'🙋'} <b>${esc(c.authorName)}</b> ${esc(c.text)}</span>
+          <button class="abtn abtn-red" data-del-comment="${c.id}" data-del-comment-review="${r.id}" style="font-size:10px;padding:3px 8px;flex-shrink:0">삭제</button>
+        </div>`).join('')}</div>`:''}
+    </div>`).join('');
+  wrap.querySelectorAll('[data-del-review]').forEach(b=>{
+    b.onclick=async()=>{
+      if(!confirm('이 후기를 삭제할까요? 되돌릴 수 없습니다.'))return;
+      b.disabled=true;
+      try{
+        await fetch('/api/courses/review-delete',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:b.dataset.delReview})});
+      }catch(e){}
+      renderReviewAdminList();
+    };
+  });
+  wrap.querySelectorAll('[data-del-comment]').forEach(b=>{
+    b.onclick=async()=>{
+      if(!confirm('이 댓글을 삭제할까요?'))return;
+      b.disabled=true;
+      try{
+        await fetch('/api/courses/comment-delete',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({reviewId:b.dataset.delCommentReview,commentId:b.dataset.delComment})});
+      }catch(e){}
+      renderReviewAdminList();
+    };
+  });
+}
+
+function readFileAsBase64Admin(file){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=()=>{
+      const result=reader.result;
+      const comma=result.indexOf(',');
+      resolve(comma>=0?result.slice(comma+1):result);
+    };
+    reader.onerror=reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function bReviewAdmin(){
+  document.getElementById('btn-alo-main-rv').onclick=doLogout;
+  document.getElementById('btn-back-schools-rv').onclick=()=>{ST.adminView=null;render();};
+  document.getElementById('btn-rv-submit').onclick=async()=>{
+    const btn=document.getElementById('btn-rv-submit');
+    const msg=document.getElementById('rv-write-msg');
+    const text=document.getElementById('rv-text').value.trim();
+    const files=[...(document.getElementById('rv-images').files||[])].slice(0,6);
+    if(!text){msg.textContent='후기 내용을 입력하세요';msg.style.color='#E53935';return;}
+    btn.disabled=true;msg.textContent='등록 중...';msg.style.color='';
+    try{
+      const images=[];
+      for(const file of files){
+        const dataBase64=await readFileAsBase64Admin(file);
+        const res=await fetch('/api/courses/review-image-upload',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:file.name,mimeType:file.type,dataBase64})});
+        const d=await res.json();
+        if(!d.success){msg.textContent=d.message||'이미지 업로드 실패';msg.style.color='#E53935';btn.disabled=false;return;}
+        images.push(d.url);
+      }
+      const createRes=await fetch('/api/courses/review-create',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,images})});
+      const createData=await createRes.json();
+      if(!createData.success){msg.textContent=createData.message||'후기 등록 실패';msg.style.color='#E53935';btn.disabled=false;return;}
+      document.getElementById('rv-text').value='';
+      document.getElementById('rv-images').value='';
+      msg.textContent='등록되었습니다';msg.style.color='#00897B';btn.disabled=false;
+      renderReviewAdminList();
+    }catch(e){
+      msg.textContent='오류가 발생했습니다';msg.style.color='#E53935';btn.disabled=false;
+    }
+  };
+  renderReviewAdminList();
 }
 
 function bAccountAdmin(){

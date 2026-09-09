@@ -2480,8 +2480,10 @@ async function renderReviewAdminList(){
       if(!confirm('이 후기를 삭제할까요? 되돌릴 수 없습니다.'))return;
       b.disabled=true;
       try{
-        await fetch('/api/courses/review-delete',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:b.dataset.delReview})});
-      }catch(e){}
+        const res=await fetch('/api/courses/review-delete',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:b.dataset.delReview})});
+        const data=await res.json();
+        if(!res.ok||!data.success){alert(data.message||'삭제 실패');b.disabled=false;return;}
+      }catch(e){alert('오류: '+e.message);b.disabled=false;return;}
       renderReviewAdminList();
     };
   });
@@ -2490,8 +2492,10 @@ async function renderReviewAdminList(){
       if(!confirm('이 댓글을 삭제할까요?'))return;
       b.disabled=true;
       try{
-        await fetch('/api/courses/comment-delete',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({reviewId:b.dataset.delCommentReview,commentId:b.dataset.delComment})});
-      }catch(e){}
+        const res=await fetch('/api/courses/comment-delete',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({reviewId:b.dataset.delCommentReview,commentId:b.dataset.delComment})});
+        const data=await res.json();
+        if(!res.ok||!data.success){alert(data.message||'삭제 실패');b.disabled=false;return;}
+      }catch(e){alert('오류: '+e.message);b.disabled=false;return;}
       renderReviewAdminList();
     };
   });

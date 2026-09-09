@@ -93,7 +93,7 @@
   .empty-courses{grid-column:1/-1;text-align:center;padding:50px 20px;color:var(--navy-soft);border:1.5px dashed var(--border);border-radius:16px}
   .empty-courses .ic{font-size:32px;margin-bottom:10px}
 
-  /* ── 원장님 소개 ── */
+  /* ── 선생님 소개 ── */
   .instructor{background:var(--navy);color:#fff}
   .instructor .section-inner{display:flex;align-items:center;gap:56px}
   .instructor-photo{flex-shrink:0;width:260px;height:260px;border-radius:20px;background:linear-gradient(135deg,#3A4166,#232945);display:flex;align-items:center;justify-content:center;font-size:64px}
@@ -115,6 +115,21 @@
 
   /* ── 후기 ── */
   .review-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;margin-top:26px}
+  .rcard-post{text-align:left}
+  .rcard-author{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px}
+  .rcard-author .badge{background:#FFE4DC;color:var(--coral-dark);font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px}
+  .rcard-author .who{color:var(--navy-soft);font-size:11.5px;margin-left:auto}
+  .rcard-images{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+  .rcard-images img{width:96px;height:96px;object-fit:cover;border-radius:8px;border:1px solid var(--border)}
+  .rcard-comments{margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+  .rcard-comment{font-size:12.5px;margin-bottom:6px;line-height:1.5}
+  .rcard-comment .badge{background:var(--lightbg);color:var(--navy-soft);font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:20px;margin-right:4px}
+  .rcard-comment-form{display:flex;gap:8px;margin-top:8px}
+  .rcard-comment-form .finp{flex:1;margin:0}
+  .review-write-form{border:1px solid var(--border);border-radius:14px;padding:18px;margin-top:0;margin-bottom:20px;background:#fff}
+  .review-write-form textarea.finp{resize:vertical}
+  .review-login-cta{text-align:center;margin-bottom:20px}
+  .navlinks button:hover{color:var(--coral)}
   .rcard{border:1px solid var(--border);border-radius:14px;padding:20px;background:#fff}
   .rcard .stars{color:var(--coral);font-size:12.5px;font-weight:700;margin-bottom:8px}
   .rcard .body{font-size:13.5px;line-height:1.6;margin-bottom:10px}
@@ -400,7 +415,7 @@ function navBar(){
     ?`<button class="nav-textlink" id="nav-browse-courses">강좌 더보기</button><span class="who">${ST.mode==='student'?`${esc(ST.student?.student?.name||'')} · ${esc(ST.student?.school?.name||'')}`:`${esc(ST.member?.name||'')} · ${esc(ST.member?.phone||ST.member?.email||'')}`}</span><button class="btn" id="btn-logout">로그아웃</button>`
     :showLanding?`<button class="nav-textlink" id="nav-student-link">학생 로그인</button><button class="btn btn-primary" id="nav-cta">무료체험 신청</button>`:'';
   const links=showLanding
-    ?`<div class="navlinks"><a href="#courses">강좌</a><a href="#instructor">원장님 소개</a><a href="#features">커리큘럼</a><a href="#reviews">실제 후기</a></div>`
+    ?`<div class="navlinks"><a href="#courses">강좌</a><a href="#instructor">선생님 소개</a><a href="#features">커리큘럼</a><button class="nav-textlink" id="nav-reviews-link" style="background:none;border:none;font:inherit;cursor:pointer;padding:0;color:inherit">실제 후기</button></div>`
     :'';
   return`<div class="navbar">
     <div class="logo" id="nav-logo"><img src="/assets/logo-symbol.png" alt="OHENG" style="height:24px;width:auto;display:block"></div>
@@ -486,7 +501,7 @@ function browseScreen(){
         <div class="hero-left">
           <span class="badge-pill">고양외고·고양국제고·운정고 최다마감 강사</span>
           <h1 class="hero-title">오은실쌤과 함께<br>전국 어디서든 1등급 영어</h1>
-          <p class="hero-sub">번역사 출신 오은실 원장님이 직접 만드는 심도있는 커리큘럼. 초등부터 수능까지, 전국 어디서든 같은 강의실에서 시작하세요.</p>
+          <p class="hero-sub">번역사 출신 오은실 대표강사가 직접 만드는 심도있는 커리큘럼. 초등부터 수능까지, 전국 어디서든 같은 강의실에서 시작하세요.</p>
           ${errBox}
           <div class="cta-row">
             <button class="btn btn-primary" id="btn-start">무료체험 신청하기 →</button>
@@ -524,7 +539,7 @@ function browseScreen(){
         <div class="instructor-photo" aria-hidden="true">👩‍🏫</div>
         <div>
           <div class="instructor-eyebrow">INSTRUCTOR</div>
-          <h2 class="instructor-name">오은실 원장</h2>
+          <h2 class="instructor-name">오은실 대표강사</h2>
           <p class="instructor-quote">"일산에서 고등강사로 이름이 알려지게 된 이유는, 만들어낸 광고와 입소문이 아닌 학부모님들과 학생들의 진실된 목소리 덕분입니다."</p>
           <div class="cred-row"><span>· 대치이강학원 특목·자사고 전담 & 외고 공인영어특강</span><span>· 前 이투스 목동 / 대학나무학원</span><span>· 한국외국어대학교대학원 영어번역학</span></div>
         </div>
@@ -538,7 +553,7 @@ function browseScreen(){
         </div>
         <div class="feature-grid">
           <div class="fcard"><div class="ic" aria-hidden="true">📚</div><h3>최상의 퀄리티 수업·자료</h3><p>특목고·자사고·자공고 수업은 학교별 최적의 자료를 직접 제작합니다.</p></div>
-          <div class="fcard"><div class="ic" aria-hidden="true">🔍</div><h3>깊이있는 독해와 문법</h3><p>단순 풀이스킬이 아닌 진짜 분석독해. 번역사 출신 원장님의 배경지식을 녹여 이해 안 되는 지문이 없도록 분석합니다.</p></div>
+          <div class="fcard"><div class="ic" aria-hidden="true">🔍</div><h3>깊이있는 독해와 문법</h3><p>단순 풀이스킬이 아닌 진짜 분석독해. 번역사 출신 대표강사의 배경지식을 녹여 이해 안 되는 지문이 없도록 분석합니다.</p></div>
           <div class="fcard"><div class="ic" aria-hidden="true">🧩</div><h3>최대 9단계 내신대비</h3><p>지문분석 → 워크북 → 변형문제 1~3차 → 전국기출 → 매주학교시험 → 족집게 포인트자료 → FINAL</p></div>
           <div class="fcard"><div class="ic" aria-hidden="true">📊</div><h3>주간 성적·출결 리포트</h3><p>매주 성적과 출결을 정리해 학부모님께 공유해드리고, 인강도 실제로 들었는지 매주 확인합니다.</p></div>
         </div>
@@ -554,6 +569,9 @@ function browseScreen(){
           <div class="rcard"><div class="stars">★★★★★</div><div class="body">3모때 2등급 뜨길래 학원 등록했어요. 그 뒤로 학원에서 말고 영어공부 안 했는데 6모 9모 10모 다 1등급 떴어요! 오은실영어 짱</div><div class="who">김지후 · 2025-12-06</div></div>
           <div class="rcard"><div class="stars">★★★★★</div><div class="body">등록한 지 얼마 안 된 학생입니다. 학원 등록 후 본 모의고사에서 1등급 안정권 점수를 받았습니다. 숙제로 주시는 문제들도 퀄리티가 높아서 실력 향상에 큰 도움이 됐습니다.</div><div class="who">김민주 · 2025-12-06</div></div>
           <div class="rcard"><div class="stars">★★★★★</div><div class="body">선생님께서 수업 시간에 짚어주시는 부분들과 기출 자료들이 내신 뿐만 아니라 모의고사 실력 향상에도 큰 도움이 됐습니다. 동생에게도 자랑스럽게 추천했어요!</div><div class="who">송준영 · 2025-12-06</div></div>
+        </div>
+        <div style="text-align:center;margin-top:24px">
+          <button class="btn" id="btn-reviews-more">더 많은 후기 보기 →</button>
         </div>
       </div>
     </section>
@@ -699,10 +717,126 @@ async function loadAndRenderWatchStatus(videoId){
   }catch(e){}
 }
 
+async function loadReviews(){
+  try{
+    const res=await fetch('/api/courses/review-list');
+    const d=await res.json();
+    return d.success?d.reviews:[];
+  }catch(e){return [];}
+}
+
+function reviewImagesHtml(images){
+  if(!images||!images.length)return'';
+  return`<div class="rcard-images">${images.map(u=>`<img src="${esc(u)}" alt="후기 이미지" loading="lazy">`).join('')}</div>`;
+}
+
+function reviewCommentsHtml(review){
+  const comments=review.comments||[];
+  const list=comments.map(c=>`<div class="rcard-comment"><span class="badge">${c.authorType==='teacher'?'선생님':'학생'}</span><b>${esc(c.authorName)}</b> ${esc(c.text)}</div>`).join('');
+  const canWrite=ST.mode==='student';
+  const form=canWrite
+    ?`<div class="rcard-comment-form"><input class="finp" data-comment-input="${review.id}" placeholder="댓글을 입력하세요" maxlength="2000"><button class="btn" data-comment-submit="${review.id}">등록</button></div>`
+    :'';
+  return`<div class="rcard-comments">${list}${form}</div>`;
+}
+
+function reviewCardHtml(r){
+  return`<div class="rcard rcard-post">
+    <div class="rcard-author"><span class="badge">${r.authorType==='teacher'?'👩‍🏫 선생님':'🙋 학생'}</span><b>${esc(r.authorName)}</b><span class="who">${esc((r.createdAt||'').slice(0,10))}</span></div>
+    <div class="body">${esc(r.text)}</div>
+    ${reviewImagesHtml(r.images)}
+    ${reviewCommentsHtml(r)}
+  </div>`;
+}
+
+function reviewWriteFormHtml(){
+  if(ST.mode!=='student')return`<div class="review-login-cta"><button class="btn btn-primary" id="btn-review-login">로그인하고 후기 남기기</button></div>`;
+  return`<div class="review-write-form">
+    <textarea class="finp" id="review-text" rows="4" maxlength="2000" placeholder="후기를 남겨주세요"></textarea>
+    <input type="file" id="review-images" accept="image/*" multiple>
+    <div id="review-write-msg" style="font-size:12px;margin-top:6px"></div>
+    <button class="btn btn-primary" id="btn-review-submit">후기 등록</button>
+  </div>`;
+}
+
+function reviewsScreen(){
+  const reviews=ST.reviews||[];
+  const grid=reviews.length
+    ?`<div class="review-grid">${reviews.map(reviewCardHtml).join('')}</div>`
+    :`<div class="empty"><div class="ic">💬</div><div style="font-size:14px;font-weight:600;color:var(--navy);margin-bottom:6px">아직 등록된 후기가 없습니다</div></div>`;
+  return`<button class="player-back" id="btn-reviews-back">‹ 처음으로</button>
+    <div class="player-title">실제 후기</div>
+    ${reviewWriteFormHtml()}
+    ${grid}`;
+}
+
+function readFileAsBase64(file){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=()=>{
+      const result=reader.result;
+      const comma=result.indexOf(',');
+      resolve(comma>=0?result.slice(comma+1):result);
+    };
+    reader.onerror=reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function submitReview(){
+  const btn=document.getElementById('btn-review-submit');
+  const msg=document.getElementById('review-write-msg');
+  const text=document.getElementById('review-text').value.trim();
+  const files=[...(document.getElementById('review-images').files||[])].slice(0,6);
+  if(!text){msg.textContent='후기 내용을 입력하세요';msg.style.color='#E53935';return;}
+  btn.disabled=true;msg.textContent='등록 중...';msg.style.color='';
+  try{
+    const images=[];
+    for(const file of files){
+      const dataBase64=await readFileAsBase64(file);
+      const res=await fetch('/api/courses/review-image-upload',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:file.name,mimeType:file.type,dataBase64})});
+      const d=await res.json();
+      if(!d.success){msg.textContent=d.message||'이미지 업로드 실패';msg.style.color='#E53935';btn.disabled=false;return;}
+      images.push(d.url);
+    }
+    const createRes=await fetch('/api/courses/review-create',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,images})});
+    const createData=await createRes.json();
+    if(!createData.success){msg.textContent=createData.message||'후기 등록 실패';msg.style.color='#E53935';btn.disabled=false;return;}
+    ST.reviews=await loadReviews();render();
+  }catch(e){
+    msg.textContent='오류가 발생했습니다';msg.style.color='#E53935';btn.disabled=false;
+  }
+}
+
+async function submitComment(reviewId){
+  const input=document.querySelector(`[data-comment-input="${reviewId}"]`);
+  const text=input.value.trim();
+  if(!text)return;
+  try{
+    const res=await fetch('/api/courses/comment-create',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({reviewId,text})});
+    const d=await res.json();
+    if(d.success){ST.reviews=await loadReviews();render();}
+    else alert(d.message||'댓글 등록에 실패했습니다');
+  }catch(e){alert('오류가 발생했습니다');}
+}
+
+function wireReviews(){
+  document.getElementById('nav-logo')?.addEventListener('click',()=>{window.scrollTo({top:0,behavior:'smooth'});});
+  document.getElementById('btn-logout')?.addEventListener('click',doLogout);
+  document.getElementById('nav-browse-courses')?.addEventListener('click',async()=>{ST.courses=await loadPublicCourses();ST.screen='browse';render();});
+  document.getElementById('btn-reviews-back').addEventListener('click',()=>{ST.screen='browse';render();});
+  document.getElementById('btn-review-login')?.addEventListener('click',goStart);
+  document.getElementById('btn-review-submit')?.addEventListener('click',submitReview);
+  document.querySelectorAll('[data-comment-submit]').forEach(btn=>{
+    btn.addEventListener('click',()=>submitComment(btn.dataset.commentSubmit));
+  });
+}
+
 function render(){
   const app=document.getElementById('app');
   if(ST.screen==='loading'){app.innerHTML='<div class="loading">불러오는 중...</div>';return;}
   if(ST.screen==='browse'){app.innerHTML=navBar()+`<main>${browseScreen()}</main>`;wireBrowse();return;}
+  if(ST.screen==='reviews'){app.innerHTML=navBar()+`<main><div class="app-main">${reviewsScreen()}</div></main>`;wireReviews();return;}
   if(ST.screen==='otp-phone'){app.innerHTML=navBar()+otpPhoneScreen();wireOtpPhone();return;}
   if(ST.screen==='otp-code'){app.innerHTML=navBar()+otpCodeScreen();wireOtpCode();return;}
   if(ST.screen==='otp-name'){app.innerHTML=navBar()+otpNameScreen();wireOtpName();return;}
@@ -721,6 +855,8 @@ function wireBrowse(){
   document.getElementById('nav-cta')?.addEventListener('click',goStart);
   document.getElementById('nav-student-link')?.addEventListener('click',()=>{ST.screen='student-login';render();});
   document.getElementById('nav-browse-courses')?.addEventListener('click',()=>{window.scrollTo({top:0,behavior:'smooth'});});
+  document.getElementById('nav-reviews-link')?.addEventListener('click',async()=>{ST.reviews=await loadReviews();ST.screen='reviews';render();});
+  document.getElementById('btn-reviews-more')?.addEventListener('click',async()=>{ST.reviews=await loadReviews();ST.screen='reviews';render();});
   document.getElementById('btn-logout')?.addEventListener('click',doLogout);
   document.getElementById('btn-start').addEventListener('click',goStart);
   document.getElementById('btn-start-2').addEventListener('click',goStart);

@@ -1276,3 +1276,41 @@ EOF
 git push
 ```
 Vercel 자동 배포 확인 후, 배포된 `oheng.co.kr`/`oheng.vercel.app`에서 Task 4/Task 5의 수동 확인 체크리스트를 다시 한 번 프로덕션 환경에서 반복한다(드롭박스 환경변수가 실제로 등록된 이후에만 이미지 업로드가 성공함 — 텍스트만으로는 환경변수 없이도 확인 가능).
+
+---
+
+## 구현 완료 상태 (2026-09-09)
+
+Task 1~6 전부 구현 완료, subagent-driven-development로 진행 — 태스크별 구현→리뷰, 최종 전체 리뷰 1회(8개 지적사항 일괄 수정 후 재검증 통과). 로컬 `main`에 아래 커밋들로 이미 존재함(별도 브랜치 없이 직접 커밋, 사용자 동의):
+
+```
+501acb5a (이 계획 커밋 직전 지점, BASE)
+31712c0  후기 이미지용 드롭박스 업로드 모듈 추가
+6abafdc  후기/댓글 Redis 데이터 계층 추가
+ada5044  후기/댓글 API 액션을 courses 라우트에 추가
+1da05be  lecture.html에 공개 후기 게시판 화면 추가
+35e48db  index.html에 관리자(선생님) 후기 작성/삭제 화면 추가
+85d780d  관리자 후기 삭제 버튼에 실패 시 알림 표시
+e2e2d16  최종 리뷰 지적사항 일괄 수정 (로그인 CTA, 이미지 3MB 제한, URL 화이트리스트, 선생님 댓글 UI 등)
+1fe064c  주석 오타 수정 (최신 HEAD)
+```
+
+`npm test` 52/52 통과.
+
+### 남은 일 (다음 세션/Codex가 이어받을 것)
+
+1. **아직 `git push` 안 함** — main 로컬 커밋 상태. 배포하려면 `git push`만 하면 됨(Vercel 자동 배포).
+2. **Vercel에 드롭박스 시크릿 미등록** — `DROPBOX_APP_KEY`, `DROPBOX_APP_SECRET`, `DROPBOX_REFRESH_TOKEN` (Production+Preview). 사용자가 Vercel 대시보드에서 직접 등록해야 함(OAuth2 refresh token 방식 — 만료 없음). 미등록 상태에서도 텍스트만 있는 후기는 정상 동작하고, 이미지 업로드만 실패함.
+3. **배포 후 수동 확인 필요**: Task 4/5의 브라우저 체크리스트(비로그인 조회, 학생 작성+이미지+댓글, 관리자 작성/삭제/댓글)를 실제 `oheng.co.kr`/`oheng.vercel.app`에서 반복.
+4. **미해결로 남겨둔 항목(최종 리뷰에서 나왔지만 의도적으로 이번 범위에서 제외, 우선순위 낮음)**:
+   - `review:index`/`review:comments:{id}` 동시 쓰기 경쟁 상태 — `api/_lib/auth.js`의 `CAS_SET_SCRIPT` 패턴 재사용 가능(트래픽 커지면).
+   - `review-list` 페이지네이션/요청 제한 없음 — `api/_lib/auth.js`의 `checkRateLimit` 재사용 가능.
+   - 업로드 실패 시 UX 디테일(파일 입력 초기화 안 됨 등), 댓글 등록 시 화면 전체 재렌더링(다른 카드 임시 입력값 사라짐), 탈퇴 학생 엣지 케이스, `.review-grid` 2열 레이아웃이 좁음 — 전부 사소한 폴리시.
+   - `#E53935` vs lecture.html 자체 `.login-err{color:#E0473E}` 색상 불일치 — 인지 불가 수준(ΔE≈2), 방치해도 무방.
+
+### Codex 등 다른 도구에서 이어받을 때
+
+이 저장소는 전부 git에 커밋돼 있으므로 대화 기록 없이도 아래만 읽으면 전체 맥락 파악 가능:
+- 스펙: `docs/superpowers/specs/2026-09-09-reviews-board-design.md`
+- 이 계획 문서(현재 파일) 전체, 특히 이 섹션
+- `git log --oneline 501acb5a..HEAD` (또는 `git show <hash>`로 각 커밋 diff)

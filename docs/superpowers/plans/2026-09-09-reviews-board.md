@@ -1297,12 +1297,17 @@ e2e2d16  최종 리뷰 지적사항 일괄 수정 (로그인 CTA, 이미지 3MB 
 
 `npm test` 52/52 통과.
 
+### 배포 완료 (2026-09-10)
+
+`git push` → Vercel 프로덕션 배포 `dpl_BunsvXXFB1FvpoKLGys8tn6SE4PV` (커밋 3efcb8e) READY, 함수 12개(한도 내). 실제 `oheng.co.kr`에서 Playwright로 검증: 데스크톱/모바일(390px) 모두 "실제 후기" 진입 → 빈 상태 + 비로그인 시 "로그인하고 후기 남기기"만 표시(작성 폼 없음) → "‹ 처음으로" 복귀 정상. 쓰기 API(`review-create`/`review-image-upload`/`review-delete`)는 비로그인 401 확인.
+
+**라우팅 주의(검증 중 헛돈 원인):** `oheng.co.kr/` → `lecture.html`은 `index.html` 최상단의 **클라이언트 JS 리다이렉트**(`location.replace`)다. Vercel 파일시스템 라우팅이 루트의 실제 `index.html`을 먼저 서빙해 서버 rewrite로는 가로챌 수 없어 의도적으로 이렇게 만든 것(커밋 f9ea26a). 따라서 `curl https://oheng.co.kr/`은 index.html 바이트를 돌려주며 **정상**이다 — 공개 사이트 확인은 반드시 실제 브라우저로. 모바일(<860px)에선 상단 네비 링크가 숨겨지므로 후기 게시판 진입점은 랜딩 하단 "더 많은 후기 보기 →" 버튼이다.
+
 ### 남은 일 (다음 세션/Codex가 이어받을 것)
 
-1. **아직 `git push` 안 함** — main 로컬 커밋 상태. 배포하려면 `git push`만 하면 됨(Vercel 자동 배포).
-2. **Vercel에 드롭박스 시크릿 미등록** — `DROPBOX_APP_KEY`, `DROPBOX_APP_SECRET`, `DROPBOX_REFRESH_TOKEN` (Production+Preview). 사용자가 Vercel 대시보드에서 직접 등록해야 함(OAuth2 refresh token 방식 — 만료 없음). 미등록 상태에서도 텍스트만 있는 후기는 정상 동작하고, 이미지 업로드만 실패함.
-3. **배포 후 수동 확인 필요**: Task 4/5의 브라우저 체크리스트(비로그인 조회, 학생 작성+이미지+댓글, 관리자 작성/삭제/댓글)를 실제 `oheng.co.kr`/`oheng.vercel.app`에서 반복.
-4. **미해결로 남겨둔 항목(최종 리뷰에서 나왔지만 의도적으로 이번 범위에서 제외, 우선순위 낮음)**:
+1. **Vercel에 드롭박스 시크릿 미등록** — `DROPBOX_APP_KEY`, `DROPBOX_APP_SECRET`, `DROPBOX_REFRESH_TOKEN` (Production+Preview). 사용자가 Vercel 대시보드에서 직접 등록해야 함(OAuth2 refresh token 방식 — 만료 없음). 미등록 상태에서도 텍스트만 있는 후기는 정상 동작하고, 이미지 업로드만 실패함.
+2. **로그인이 필요한 수동 확인은 아직 안 됨**: 비로그인 조회 경로는 위에서 검증 완료. 학생 계정으로 후기 작성(이미지 첨부·댓글), 관리자 계정으로 후기 작성/삭제/댓글은 실제 로그인과 드롭박스 시크릿이 필요해 미확인 — 시크릿 등록 후 사용자가 직접 한 번 확인할 것.
+3. **미해결로 남겨둔 항목(최종 리뷰에서 나왔지만 의도적으로 이번 범위에서 제외, 우선순위 낮음)**:
    - `review:index`/`review:comments:{id}` 동시 쓰기 경쟁 상태 — `api/_lib/auth.js`의 `CAS_SET_SCRIPT` 패턴 재사용 가능(트래픽 커지면).
    - `review-list` 페이지네이션/요청 제한 없음 — `api/_lib/auth.js`의 `checkRateLimit` 재사용 가능.
    - 업로드 실패 시 UX 디테일(파일 입력 초기화 안 됨 등), 댓글 등록 시 화면 전체 재렌더링(다른 카드 임시 입력값 사라짐), 탈퇴 학생 엣지 케이스, `.review-grid` 2열 레이아웃이 좁음 — 전부 사소한 폴리시.

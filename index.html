@@ -4603,7 +4603,7 @@ function rVideos(sc){
       <div style="font-size:11px;color:#9BA3AF;margin-bottom:12px">비워두면 제한 없이 볼 수 있어요. 한국 시간 기준, 종료일 밤 11시 59분까지.</div>
       <div style="margin-bottom:14px"><label class="flbl">허용 학교</label>
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">
-          ${schools.map(s=>`<label style="display:flex;align-items:center;gap:5px;padding:6px 10px;background:#fff;border:1.5px solid #E8ECF0;border-radius:8px;font-size:12px;cursor:pointer">
+          ${schools.map(s=>`<label style="display:flex;align-items:center;gap:5px;padding:6px 10px;background:#fff;border:1.5px solid #E8ECF0;border-radius:8px;font-size:12px;color:#12151C;cursor:pointer">
             <input type="checkbox" class="vf-school" value="${s.id}" ${(formVideo?.allowSchoolIds||[]).includes(s.id)?'checked':''} style="width:14px;height:14px;cursor:pointer">
             ${esc(s.name)} ${esc(s.grade||'')}
           </label>`).join('')}
@@ -4660,7 +4660,7 @@ function rVideos(sc){
       <span>🎬 영상 관리 (${videos.length}개)</span>
       ${!ST.videoFormOpen&&!formVideo?`<button class="abtn abtn-blue" id="btn-video-add">＋ 새 영상 추가</button>`:''}
     </div>
-    <div style="font-size:12px;color:#9BA3AF;margin-bottom:14px;line-height:1.6">여기서 등록한 영상은 허용된 학교 학생에게만 "인강 시청" 탭에 보입니다. 드롭박스 영상 파일을 지정하면 학생 화면에서 바로 재생됩니다.</div>
+    <div style="font-size:12px;color:#9BA3AF;margin-bottom:14px;line-height:1.6">여기서 등록한 영상은 허용된 학교 학생이 인강 사이트(oheng.co.kr)에서 학생 로그인하면 영상 목록에 보입니다. 드롭박스 영상 파일을 지정하면 바로 재생됩니다.</div>
   </div>
   ${formHtml}
   ${excPanelHtml}
@@ -5309,7 +5309,7 @@ function bAdmin(){
         if(!res.ok||!d.success){box.innerHTML=`<div style="font-size:12px;color:#E53935">${esc(d.message||'드롭박스 목록을 불러오지 못했습니다')}</div>`;return;}
         if(d.folderMissing){box.innerHTML='<div style="font-size:12px;color:#E65100">드롭박스 앱 폴더 안에 videos 폴더를 만들고 영상을 넣어주세요</div>';return;}
         if(!d.files.length){box.innerHTML='<div style="font-size:12px;color:#9BA3AF">videos 폴더에 영상 파일이 없습니다</div>';return;}
-        box.innerHTML=`<div style="max-height:220px;overflow-y:auto;border:1.5px solid #E8ECF0;border-radius:9px;background:#fff">${d.files.map(f=>`<div data-dbx-path="${esc(f.path)}" style="display:flex;justify-content:space-between;gap:10px;padding:8px 12px;font-size:12.5px;cursor:pointer;border-bottom:1px solid #F4F5F7"><span>${esc(f.name)}</span><span style="color:#9BA3AF;white-space:nowrap">${(f.size/1048576).toFixed(1)}MB</span></div>`).join('')}</div>`;
+        box.innerHTML=`<div style="max-height:220px;overflow-y:auto;border:1.5px solid #E8ECF0;border-radius:9px;background:#fff">${d.files.map(f=>`<div data-dbx-path="${esc(f.path)}" style="display:flex;justify-content:space-between;gap:10px;padding:8px 12px;font-size:12.5px;color:#12151C;cursor:pointer;border-bottom:1px solid #F4F5F7"><span>${esc(f.name)}</span><span style="color:#9BA3AF;white-space:nowrap">${(f.size/1048576).toFixed(1)}MB</span></div>`).join('')}</div>`;
         box.querySelectorAll('[data-dbx-path]').forEach(row=>{
           row.addEventListener('click',()=>{
             const p=row.dataset.dbxPath;

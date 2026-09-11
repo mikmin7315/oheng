@@ -4540,6 +4540,22 @@ function rAttendance(sc){
     </div>`}
   </div>`;}
 
+function dropboxFormatWarn(path){
+  if(!path)return'';
+  return /\.(mp4|m4v)$/i.test(path)?'':'mp4가 아니면 일부 기기에서 재생되지 않을 수 있어요';
+}
+
+// 관리자 목록 표의 시청 기간 요약. 종료 판정은 서버와 같은 한국 시간 경계로 계산한다.
+function fmtVideoPeriod(v){
+  const f=v.availableFrom||'',u=v.availableUntil||'';
+  if(!f&&!u)return'';
+  const sd=s=>{const[,m,d]=s.split('-');return`${Number(m)}/${Number(d)}`;};
+  if(u&&Date.now()>Date.parse(u+'T23:59:59.999+09:00'))return'<span style="color:#E53935;font-weight:700">기간 종료</span>';
+  if(f&&u)return`${sd(f)} ~ ${sd(u)}`;
+  if(u)return`~ ${sd(u)}`;
+  return`${sd(f)} ~`;
+}
+
 function rVideos(sc){
   const MONTHS=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];const WEEKS=['1주','2주','3주','4주','5주'];
   if(ST.videos===undefined){
@@ -4570,6 +4586,21 @@ function rVideos(sc){
         <input class="finp" id="vf-mediakey" value="${formVideo?esc(formVideo.mediaKey||''):''}" placeholder="콜러스 연동 전에는 비워두거나 메모용으로만 사용">
         <div style="font-size:11px;color:#9BA3AF;margin-top:5px">콜러스 계정 연동 전까지는 실제 재생과 무관 — 나중에 발급받은 키를 여기에 넣으면 됩니다.</div>
       </div>
+      <div style="margin-bottom:12px"><label class="flbl">드롭박스 영상 파일</label>
+        <input type="hidden" id="vf-dropbox-path" value="${formVideo?esc(formVideo.dropboxPath||''):''}">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px">
+          <span id="vf-dropbox-label" style="font-size:13px;font-weight:600;color:#1A237E">${formVideo?.dropboxPath?esc(formVideo.dropboxPath.split('/').pop()):'선택 안 됨'}</span>
+          <button type="button" class="abtn abtn-blue" id="btn-dropbox-pick" style="font-size:11px;padding:5px 10px">📁 드롭박스에서 고르기</button>
+          <button type="button" id="btn-dropbox-clear" style="background:none;border:none;color:#9BA3AF;font-size:11px;cursor:pointer;text-decoration:underline">선택 해제</button>
+        </div>
+        <div id="vf-dropbox-warn" style="font-size:11px;color:#E65100;margin-top:5px">${dropboxFormatWarn(formVideo?.dropboxPath||'')}</div>
+        <div id="vf-dropbox-list" style="margin-top:8px"></div>
+      </div>
+      <div class="form2" style="margin-bottom:6px">
+        <div class="fgrp"><label class="flbl">시청 시작일 (선택)</label><input type="date" class="finp" id="vf-from" value="${formVideo?esc(formVideo.availableFrom||''):''}"></div>
+        <div class="fgrp"><label class="flbl">시청 종료일 (선택)</label><input type="date" class="finp" id="vf-until" value="${formVideo?esc(formVideo.availableUntil||''):''}"></div>
+      </div>
+      <div style="font-size:11px;color:#9BA3AF;margin-bottom:12px">비워두면 제한 없이 볼 수 있어요. 한국 시간 기준, 종료일 밤 11시 59분까지.</div>
       <div style="margin-bottom:14px"><label class="flbl">허용 학교</label>
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">
           ${schools.map(s=>`<label style="display:flex;align-items:center;gap:5px;padding:6px 10px;background:#fff;border:1.5px solid #E8ECF0;border-radius:8px;font-size:12px;cursor:pointer">
@@ -4612,9 +4643,9 @@ function rVideos(sc){
     const allowCount=(v.allowSchoolIds||[]).length;
     const excCount=(v.excludeStudentIds||[]).length+(v.includeStudentIds||[]).length;
     return`<tr>
-      <td style="padding:10px 12px;font-weight:700;color:#1A237E">${esc(v.title)}</td>
+      <td style="padding:10px 12px;font-weight:700;color:#1A237E">${esc(v.title)}${fmtVideoPeriod(v)?`<div style="font-size:11px;color:#9BA3AF;font-weight:500;margin-top:3px">${fmtVideoPeriod(v)}</div>`:''}</td>
       <td style="padding:10px 12px;text-align:center;color:#5C6470">${wk}</td>
-      <td style="padding:10px 12px;text-align:center">${v.mediaKey?'<span style="color:#00897B;font-weight:700">있음</span>':'<span style="color:#9BA3AF">미등록</span>'}</td>
+      <td style="padding:10px 12px;text-align:center">${v.dropboxPath?'<span style="color:#00897B;font-weight:700">드롭박스</span>':v.mediaKey?'<span style="color:#5C6470;font-weight:700">키 있음</span>':'<span style="color:#9BA3AF">미등록</span>'}</td>
       <td style="padding:10px 12px;text-align:center;color:#5C6470">${allowCount}개 학교${excCount?` · 예외 ${excCount}명`:''}</td>
       <td style="padding:10px 12px;text-align:center;white-space:nowrap">
         <button data-video-exc="${v.id}" style="padding:4px 9px;background:#EEF0FB;color:#1A237E;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;margin-right:4px">학생 예외</button>
@@ -4629,14 +4660,14 @@ function rVideos(sc){
       <span>🎬 영상 관리 (${videos.length}개)</span>
       ${!ST.videoFormOpen&&!formVideo?`<button class="abtn abtn-blue" id="btn-video-add">＋ 새 영상 추가</button>`:''}
     </div>
-    <div style="font-size:12px;color:#9BA3AF;margin-bottom:14px;line-height:1.6">여기서 등록한 영상은 허용된 학교 학생에게만 "인강 시청" 탭에 보입니다. 실제 재생은 콜러스 연동 후 가능합니다.</div>
+    <div style="font-size:12px;color:#9BA3AF;margin-bottom:14px;line-height:1.6">여기서 등록한 영상은 허용된 학교 학생에게만 "인강 시청" 탭에 보입니다. 드롭박스 영상 파일을 지정하면 학생 화면에서 바로 재생됩니다.</div>
   </div>
   ${formHtml}
   ${excPanelHtml}
   <div class="section-card">
     ${!videos.length?`<div style="text-align:center;padding:40px 0;color:#9BA3AF;font-size:13px">등록된 영상이 없습니다</div>`:
     `<div style="overflow-x:auto"><table class="rec-tbl">
-      <thead><tr><th style="text-align:left">제목</th><th>주차</th><th>미디어 키</th><th>접근 권한</th><th></th></tr></thead>
+      <thead><tr><th style="text-align:left">제목</th><th>주차</th><th>영상 파일</th><th>접근 권한</th><th></th></tr></thead>
       <tbody>${listRows}</tbody>
     </table></div>`}
   </div>`;}
@@ -5269,12 +5300,42 @@ function bAdmin(){
       b.onclick=()=>{ST.videoExceptionId=b.dataset.videoExc;render();};
     });
     document.getElementById('btn-exc-cancel')?.addEventListener('click',()=>{ST.videoExceptionId=null;render();});
+    document.getElementById('btn-dropbox-pick')?.addEventListener('click',async()=>{
+      const box=document.getElementById('vf-dropbox-list');
+      box.innerHTML='<div style="font-size:12px;color:#9BA3AF">불러오는 중...</div>';
+      try{
+        const res=await fetch('/api/videos/dropbox-list',{credentials:'include'});
+        const d=await res.json().catch(()=>({}));
+        if(!res.ok||!d.success){box.innerHTML=`<div style="font-size:12px;color:#E53935">${esc(d.message||'드롭박스 목록을 불러오지 못했습니다')}</div>`;return;}
+        if(d.folderMissing){box.innerHTML='<div style="font-size:12px;color:#E65100">드롭박스 앱 폴더 안에 videos 폴더를 만들고 영상을 넣어주세요</div>';return;}
+        if(!d.files.length){box.innerHTML='<div style="font-size:12px;color:#9BA3AF">videos 폴더에 영상 파일이 없습니다</div>';return;}
+        box.innerHTML=`<div style="max-height:220px;overflow-y:auto;border:1.5px solid #E8ECF0;border-radius:9px;background:#fff">${d.files.map(f=>`<div data-dbx-path="${esc(f.path)}" style="display:flex;justify-content:space-between;gap:10px;padding:8px 12px;font-size:12.5px;cursor:pointer;border-bottom:1px solid #F4F5F7"><span>${esc(f.name)}</span><span style="color:#9BA3AF;white-space:nowrap">${(f.size/1048576).toFixed(1)}MB</span></div>`).join('')}</div>`;
+        box.querySelectorAll('[data-dbx-path]').forEach(row=>{
+          row.addEventListener('click',()=>{
+            const p=row.dataset.dbxPath;
+            document.getElementById('vf-dropbox-path').value=p;
+            document.getElementById('vf-dropbox-label').textContent=p.split('/').pop();
+            document.getElementById('vf-dropbox-warn').textContent=dropboxFormatWarn(p);
+            box.innerHTML='';
+          });
+        });
+      }catch(e){box.innerHTML='<div style="font-size:12px;color:#E53935">드롭박스 목록을 불러오지 못했습니다</div>';}
+    });
+    document.getElementById('btn-dropbox-clear')?.addEventListener('click',()=>{
+      document.getElementById('vf-dropbox-path').value='';
+      document.getElementById('vf-dropbox-label').textContent='선택 안 됨';
+      document.getElementById('vf-dropbox-warn').textContent='';
+      document.getElementById('vf-dropbox-list').innerHTML='';
+    });
     document.getElementById('btn-video-save')?.addEventListener('click', async()=>{
       const title=(document.getElementById('vf-title')?.value||'').trim();
       const msgEl=document.getElementById('video-form-msg');
       if(!title){if(msgEl){msgEl.textContent='제목을 입력하세요';msgEl.style.color='#E53935';}return;}
       const existing=ST.videoEditId?(ST.videos||[]).find(v=>v.id===ST.videoEditId):null;
       const allowSchoolIds=[...document.querySelectorAll('.vf-school:checked')].map(c=>c.value);
+      const availableFrom=document.getElementById('vf-from')?.value||'';
+      const availableUntil=document.getElementById('vf-until')?.value||'';
+      if(availableFrom&&availableUntil&&availableFrom>availableUntil){if(msgEl){msgEl.textContent='시작일이 종료일보다 늦습니다';msgEl.style.color='#E53935';}return;}
       const body={
         ...(existing||{}),
         title,
@@ -5282,6 +5343,9 @@ function bAdmin(){
         month:document.getElementById('vf-mon')?.value||'',
         week:document.getElementById('vf-wk')?.value||'',
         mediaKey:(document.getElementById('vf-mediakey')?.value||'').trim(),
+        dropboxPath:(document.getElementById('vf-dropbox-path')?.value||'').trim(),
+        availableFrom,
+        availableUntil,
         allowSchoolIds,
       };
       if(msgEl){msgEl.textContent='저장 중...';msgEl.style.color='#9BA3AF';}

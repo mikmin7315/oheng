@@ -176,3 +176,16 @@ test('save: 시작일이 종료일보다 늦으면 400', async () => {
   assert.equal(res.statusCode, 400);
   assert.equal(res.body.message, '시작일이 종료일보다 늦습니다');
 });
+
+test('play-url: 재적 명단에서 빠진(퇴원) 학생은 404이고 드롭박스를 부르지 않는다', async () => {
+  const sc = (await fakeRedis.get('school:' + SCHOOL)) || { id: SCHOOL, name: '재생테스트고', version: 0, students: [], withdrawnStudents: [] };
+  sc.students = sc.students.filter(s => s.id !== 'stu_gone');
+  sc.withdrawnStudents = (sc.withdrawnStudents || []).filter(s => s.id !== 'stu_gone').concat([{ id: 'stu_gone', name: '퇴원학생' }]);
+  await fakeRedis.set('school:' + SCHOOL, sc);
+  const { token } = await auth.createSession({ role: 'student', schoolId: SCHOOL, studentId: 'stu_gone' });
+  const cookie = `oheng_session=${token}`;
+  const res = await playUrl(cookie, 'pv-open');
+  assert.equal(res.statusCode, 404);
+  assert.equal(res.body.message, '볼 수 없는 영상입니다');
+  assert.equal(tempLinkCalls.length, 0);
+});

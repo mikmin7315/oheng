@@ -783,7 +783,7 @@ function wirePlayer(){
   const speedSel=document.getElementById('vp-speed');
   const fsBtn=document.getElementById('vp-fs');
   let seeking=false,retried=false,resumeAt=0;
-  const stillHere=()=>ST.screen==='player'&&ST.active?.id===videoId;
+  const stillHere=()=>ST.screen==='player'&&ST.active?.id===videoId&&video.isConnected;
 
   wrap.addEventListener('contextmenu',e=>e.preventDefault());
   const moveMark=()=>{mark.style.top=(5+Math.random()*75)+'%';mark.style.left=(3+Math.random()*55)+'%';};

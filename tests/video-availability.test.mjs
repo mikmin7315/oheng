@@ -42,6 +42,7 @@ test('isValidDropboxVideoPath: videos 폴더 안의 영상 확장자만 허용',
   assert.equal(video.isValidDropboxVideoPath('/Videos/lecture.MOV'), true);
   assert.equal(video.isValidDropboxVideoPath('/review-images/a.mp4'), false, 'videos 폴더 밖');
   assert.equal(video.isValidDropboxVideoPath('/videos/../review-images/a.mp4'), false, '상위 폴더 이동');
+  assert.equal(video.isValidDropboxVideoPath('/videos/1강..최종.mp4'), true, '파일명에 ..이 들어가도 허용');
   assert.equal(video.isValidDropboxVideoPath('/videos/notes.pdf'), false, '영상 확장자 아님');
   assert.equal(video.isValidDropboxVideoPath(''), false);
 });

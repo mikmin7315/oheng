@@ -7,6 +7,9 @@ import { getTemporaryLink } from './dropbox.js';
 // 둘 다 이 함수를 쓰므로, 목록에 보이는 영상은 재생되고 안 보이는 영상은 재생되지 않는다.
 export async function listVisibleVideosForOwner(owner) {
   const entitlements = await getOwnerEntitlements(owner.ownerType, owner.ownerId);
+  // owner 자체가 더 이상 존재하지 않음(학교/회원 삭제, 또는 학생이 재적 명단에서 빠짐) — 세션은
+  // 30일 남아있어도 여기서 즉시 끊어야 탈퇴 후에도 낡은 쿠키로 재생 주소를 받는 걸 막는다.
+  if (entitlements === null) return [];
   const courseVideos = entitlements ? await listVideosForEntitlements(entitlements) : [];
   if (owner.ownerType !== 'student') return courseVideos;
   const { schoolId, studentId } = parseStudentOwnerId(owner.ownerId);
@@ -33,7 +36,8 @@ export async function resolvePlayUrl(owner, videoId, now = Date.now()) {
   try {
     const url = await getTemporaryLink(video.dropboxPath);
     return { ok: true, url };
-  } catch {
+  } catch (e) {
+    console.error('[dropbox] play-url failed:', e.message, e.detail || '');
     return { ok: false, status: 502, message: '영상을 불러오지 못했습니다' };
   }
 }

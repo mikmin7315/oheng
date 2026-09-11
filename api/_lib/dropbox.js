@@ -37,7 +37,12 @@ async function getAccessToken() {
       client_secret: appSecret,
     }),
   });
-  if (!res.ok) throw new Error('드롭박스 인증에 실패했습니다');
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const err = new Error('드롭박스 인증에 실패했습니다');
+    err.detail = body.error || res.status;
+    throw err;
+  }
   const data = await res.json();
   if (data.expires_in) {
     cachedToken = data.access_token;
@@ -122,12 +127,18 @@ export async function listVideoFolder() {
   let r = await rpc(accessToken, 'files/list_folder', { path: '/videos', recursive: false });
   if (!r.ok) {
     if (String(r.data?.error_summary || '').startsWith('path/not_found')) return { files: [], folderMissing: true };
-    throw new Error('드롭박스 목록을 불러오지 못했습니다');
+    const err = new Error('드롭박스 목록을 불러오지 못했습니다');
+    err.detail = r.data?.error_summary || String(r.status);
+    throw err;
   }
   const entries = [...(r.data.entries || [])];
   while (r.data.has_more) {
     r = await rpc(accessToken, 'files/list_folder/continue', { cursor: r.data.cursor });
-    if (!r.ok) throw new Error('드롭박스 목록을 불러오지 못했습니다');
+    if (!r.ok) {
+      const err = new Error('드롭박스 목록을 불러오지 못했습니다');
+      err.detail = r.data?.error_summary || String(r.status);
+      throw err;
+    }
     entries.push(...(r.data.entries || []));
   }
   const files = entries
@@ -142,6 +153,10 @@ export async function listVideoFolder() {
 export async function getTemporaryLink(path) {
   const accessToken = await getAccessToken();
   const r = await rpc(accessToken, 'files/get_temporary_link', { path });
-  if (!r.ok || !r.data?.link) throw new Error('드롭박스 임시 주소 발급에 실패했습니다');
+  if (!r.ok || !r.data?.link) {
+    const err = new Error('드롭박스 임시 주소 발급에 실패했습니다');
+    err.detail = r.data?.error_summary || String(r.status);
+    throw err;
+  }
   return r.data.link;
 }

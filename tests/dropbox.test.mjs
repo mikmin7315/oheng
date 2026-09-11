@@ -119,7 +119,10 @@ test('getTemporaryLink: 드롭박스가 거부하면 에러를 던진다', async
     { body: { access_token: 'tok' } },
     { ok: false, status: 409, body: { error_summary: 'path/not_found/' } },
   ]);
-  await assert.rejects(() => dropbox.getTemporaryLink('/videos/없음.mp4'));
+  await assert.rejects(
+    () => dropbox.getTemporaryLink('/videos/없음.mp4'),
+    (err) => { assert.equal(err.detail, 'path/not_found/'); return true; }
+  );
 });
 
 test('드롭박스 열쇠가 없으면 NOT_CONFIGURED 코드로 실패하고 네트워크를 타지 않는다', async () => {

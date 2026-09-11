@@ -30,7 +30,10 @@ const DROPBOX_VIDEO_EXTENSIONS = ['.mp4', '.m4v', '.mov', '.webm'];
 export function isValidDropboxVideoPath(raw) {
   const path = String(raw || '').trim();
   const lower = path.toLowerCase();
-  if (!lower.startsWith('/videos/') || path.includes('..') || path.length > 500) return false;
+  // "이름에 ..이 들어간 실제 파일"(예: 1강..최종.mp4)까지 막지 않도록, 상위 폴더 이동은
+  // "/"로 쪼갠 세그먼트가 정확히 ".."나 "."인 경우만 막는다.
+  const hasDotSegment = path.split('/').some(seg => seg === '..' || seg === '.');
+  if (!lower.startsWith('/videos/') || hasDotSegment || path.length > 500) return false;
   return DROPBOX_VIDEO_EXTENSIONS.some(ext => lower.endsWith(ext));
 }
 

@@ -27,6 +27,7 @@ export default async function handler(req, res) {
   // 임시 주소를 준다. 주소는 저장하지 않고 매번 새로 발급하며, 응답도 캐시되지 않게 한다.
   if (action === 'play-url') {
     if (req.method !== 'GET') return res.status(405).end();
+    res.setHeader('Cache-Control', 'no-store');
     const owner = await requireOwnerSession(req);
     if (!owner) return res.status(401).json({ success: false, message: 'Unauthorized' });
     if (!await checkRateLimit('play-url', `${owner.ownerType}:${owner.ownerId}`, 30, 60)) {
@@ -34,7 +35,6 @@ export default async function handler(req, res) {
     }
     const videoId = String(req.query.videoId || '');
     if (!videoId) return res.status(400).json({ success: false, message: 'Missing videoId' });
-    res.setHeader('Cache-Control', 'no-store');
     const result = await resolvePlayUrl(owner, videoId);
     if (!result.ok) return res.status(result.status).json({ success: false, message: result.message });
     return res.status(200).json({ success: true, url: result.url });
@@ -103,6 +103,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, files: files.filter(f => isValidDropboxVideoPath(f.path)), folderMissing });
     } catch (e) {
       if (e.code === 'NOT_CONFIGURED') return res.status(503).json({ success: false, message: '드롭박스가 아직 연결되지 않았습니다' });
+      console.error('[dropbox] dropbox-list failed:', e.message, e.detail || '');
       return res.status(502).json({ success: false, message: '드롭박스 목록을 불러오지 못했습니다' });
     }
   }

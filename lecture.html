@@ -170,6 +170,22 @@
   .player-box .ic{font-size:34px}
   .player-box .msg{font-size:13.5px;color:#C7C9D6}
   .player-box .sub{font-size:11.5px;color:#7B819A}
+  .vp-wrap{position:relative;background:#000;border-radius:16px;overflow:hidden;aspect-ratio:16/9;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+  .vp-wrap video{position:absolute;inset:0;width:100%;height:100%;background:#000;object-fit:contain}
+  .vp-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#C7C9D6;font-size:13px;pointer-events:none}
+  .vp-mark{position:absolute;top:10%;left:6%;z-index:2;color:#fff;opacity:.35;font-size:14px;font-weight:700;white-space:nowrap;pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.7);transition:top 1.2s ease,left 1.2s ease}
+  .vp-bar{position:absolute;left:0;right:0;bottom:0;z-index:3;display:flex;align-items:center;gap:10px;padding:10px 12px;background:linear-gradient(transparent,rgba(0,0,0,.75));color:#fff;font-size:12px}
+  .vp-bar button{background:none;border:none;color:#fff;font-size:15px;line-height:1;cursor:pointer;padding:4px 6px;font-family:inherit}
+  .vp-bar select{background:rgba(0,0,0,.45);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:6px;font-size:11.5px;padding:3px 4px;font-family:inherit}
+  .vp-seek{flex:1;min-width:60px;accent-color:var(--coral)}
+  .vp-time{font-variant-numeric:tabular-nums;white-space:nowrap}
+  .vp-wrap:fullscreen{border-radius:0;aspect-ratio:auto}
+  .vp-wrap.vp-fake-fs{position:fixed;inset:0;z-index:1000;border-radius:0;aspect-ratio:auto}
+  .vp-notice{margin-top:10px;font-size:12.5px;color:var(--navy-soft);line-height:1.55}
+  .vcard-tag{margin-left:auto;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:var(--lightbg);color:var(--navy-soft);white-space:nowrap}
+  .vcard-tag.ended{background:#F1F3F5;color:#9BA3AF}
+  .vcard.ended{opacity:.6}
+  @media (max-width:480px){ .vp-bar{gap:6px;padding:8px} #vp-mute{display:none} .vp-mark{font-size:12px} }
 
   .loading{flex:1;display:flex;align-items:center;justify-content:center;color:#A8ABB6;font-size:13px}
 </style>
@@ -639,9 +655,19 @@ function loginScreen(){
   </div>`;
 }
 
+function shortKDate(ymd){const[,m,d]=String(ymd).split('-');return`${Number(m)}월 ${Number(d)}일`;}
+
+// 시청 기간 표시 — 서버가 계산해 준 availability를 그대로 쓴다(학생 기기 시계는 믿지 않음).
+function videoAvailTag(v){
+  if(v.availability==='upcoming'&&v.availableFrom)return`<span class="vcard-tag">${shortKDate(v.availableFrom)}부터</span>`;
+  if(v.availability==='ended')return`<span class="vcard-tag ended">시청 기간 종료</span>`;
+  if(v.availableUntil)return`<span class="vcard-tag">~${shortKDate(v.availableUntil)}까지</span>`;
+  return'';
+}
+
 function videoCard(v){
-  return`<div class="vcard" data-vid="${v.id}">
-    <div class="vcard-title">🎬 ${esc(v.title)}</div>
+  return`<div class="vcard${v.availability==='ended'?' ended':''}" data-vid="${v.id}">
+    <div class="vcard-title">🎬 ${esc(v.title)}${videoAvailTag(v)}</div>
   </div>`;
 }
 
@@ -672,18 +698,148 @@ function listScreen(){
   return weekSections+undatedSection;
 }
 
+// 워터마크 문구 — 학생은 이름·로그인 아이디, 회원은 이름·전화번호 뒤 4자리(없으면 가린 이메일).
+// 영상이 유출되면 이 문구로 누구 화면인지 확인한다. 전화번호 전체는 유출 시 번호가 퍼지므로 가린다.
+function viewerLabel(){
+  if(ST.mode==='student'){const s=ST.student?.student||{};return`${s.name||''} · ${s.id||''}`;}
+  const m=ST.member||{};
+  const digits=String(m.phone||'').replace(/\D/g,'');
+  if(digits.length>=4)return`${m.name||''} · ${digits.slice(-4)}`;
+  const email=String(m.email||'');const at=email.indexOf('@');
+  if(at>0)return`${m.name||''} · ${email.slice(0,2)}***${email.slice(at)}`;
+  return m.name||'';
+}
+function viewerName(){return ST.mode==='student'?(ST.student?.student?.name||''):(ST.member?.name||'');}
+function playerStatusBox(icon,msg){return`<div class="player-box"><div class="ic">${icon}</div><div class="msg">${esc(msg)}</div></div>`;}
+
 function playerScreen(){
   const v=ST.active;
   const wk=ST.mode==='member'?(v.courseTitle||'강좌'):(v.month&&v.week?`${v.month} ${v.week}`:'기타 자료');
+  let body;
+  if(!v.playable)body=playerStatusBox('🎬','아직 영상이 준비되지 않았어요');
+  else if(v.availability==='upcoming')body=playerStatusBox('⏳',`${shortKDate(v.availableFrom)}부터 볼 수 있어요`);
+  else if(v.availability==='ended')body=playerStatusBox('🔒','시청 기간이 끝났어요');
+  else body=`<div class="vp-wrap" id="vp-wrap">
+      <video id="vp-video" playsinline disablepictureinpicture preload="metadata"></video>
+      <div class="vp-loading" id="vp-loading">영상 불러오는 중...</div>
+      <div class="vp-mark" id="vp-mark">${esc(viewerLabel())}</div>
+      <div class="vp-bar">
+        <button type="button" id="vp-play" aria-label="재생">▶</button>
+        <input type="range" class="vp-seek" id="vp-seek" min="0" max="1000" value="0" aria-label="재생 위치">
+        <span class="vp-time" id="vp-time">0:00 / 0:00</span>
+        <button type="button" id="vp-mute" aria-label="음소거">🔊</button>
+        <select id="vp-speed" aria-label="재생 속도"><option value="1">1배</option><option value="1.25">1.25배</option><option value="1.5">1.5배</option><option value="2">2배</option></select>
+        <button type="button" id="vp-fs" aria-label="전체화면">⛶</button>
+      </div>
+    </div>
+    <div class="vp-notice">🔒 <b>${esc(viewerName())}님 전용 영상입니다.</b> 녹화하거나 공유하면 화면에 표시된 이름으로 누구인지 확인됩니다.</div>`;
   return`<button class="player-back" id="btn-back">‹ 목록으로</button>
     <div class="player-title">${esc(v.title)}</div>
     <div class="player-wk">${esc(wk)}</div>
-    <div class="player-box">
-      <div class="ic">🔒</div>
-      <div class="msg">재생 준비 중</div>
-      <div class="sub">콜러스(Kollus) 연동 후 이곳에서 바로 재생됩니다</div>
-    </div>
+    ${body}
     <div id="watch-status-wrap" style="margin-top:16px"></div>`;
+}
+
+function fmtTime(s){
+  if(!isFinite(s)||s<0)return'0:00';
+  s=Math.floor(s);const h=Math.floor(s/3600),m=Math.floor(s%3600/60),sec=s%60;
+  return(h?`${h}:${String(m).padStart(2,'0')}`:`${m}`)+':'+String(sec).padStart(2,'0');
+}
+
+async function fetchPlayUrl(videoId){
+  const res=await fetch('/api/videos/play-url?videoId='+encodeURIComponent(videoId),{credentials:'include'});
+  const d=await res.json().catch(()=>({}));
+  if(!res.ok||!d.success)throw new Error(d.message||'영상을 불러오지 못했습니다');
+  return d.url;
+}
+
+// render()가 화면을 통째로 갈아끼우기 전에 호출 — 워터마크 이동 타이머와 재생 중인 영상을 정리한다.
+// 안 치우면 화면을 오갈 때마다 타이머가 쌓인다.
+function teardownPlayer(){
+  if(ST.vpMarkTimer){clearInterval(ST.vpMarkTimer);ST.vpMarkTimer=null;}
+  const video=document.getElementById('vp-video');
+  if(video){video.pause();video.removeAttribute('src');video.load();}
+}
+
+function showPlayerError(msg){
+  teardownPlayer();
+  const wrap=document.getElementById('vp-wrap');
+  if(wrap)wrap.outerHTML=playerStatusBox('⚠️',msg);
+}
+
+// 기본 controls를 쓰지 않는 이유: 다운로드·전체화면 버튼을 끄는 controlsList는 크롬 전용이라
+// 사파리·아이폰에선 무시되고, 아이폰 기본 전체화면은 영상만 키워 워터마크가 사라진다.
+function wirePlayer(){
+  const video=document.getElementById('vp-video');
+  if(!video)return;
+  const videoId=ST.active.id;
+  const wrap=document.getElementById('vp-wrap');
+  const loading=document.getElementById('vp-loading');
+  const mark=document.getElementById('vp-mark');
+  const playBtn=document.getElementById('vp-play');
+  const seek=document.getElementById('vp-seek');
+  const timeEl=document.getElementById('vp-time');
+  const muteBtn=document.getElementById('vp-mute');
+  const speedSel=document.getElementById('vp-speed');
+  const fsBtn=document.getElementById('vp-fs');
+  let seeking=false,retried=false,resumeAt=0;
+  const stillHere=()=>ST.screen==='player'&&ST.active?.id===videoId;
+
+  wrap.addEventListener('contextmenu',e=>e.preventDefault());
+  const moveMark=()=>{mark.style.top=(5+Math.random()*75)+'%';mark.style.left=(3+Math.random()*55)+'%';};
+  moveMark();
+  ST.vpMarkTimer=setInterval(moveMark,30000);
+
+  // 로딩 표시는 hidden 속성 대신 style로 숨긴다 — .vp-loading의 display:flex가 hidden을 덮어쓴다.
+  const hideLoading=()=>{loading.style.display='none';};
+  video.addEventListener('loadedmetadata',()=>{
+    hideLoading();
+    video.playbackRate=Number(speedSel.value)||1;
+    if(resumeAt){video.currentTime=resumeAt;resumeAt=0;}
+    timeEl.textContent=`${fmtTime(video.currentTime)} / ${fmtTime(video.duration)}`;
+  });
+  video.addEventListener('timeupdate',()=>{
+    if(!seeking&&video.duration)seek.value=String(Math.round(video.currentTime/video.duration*1000));
+    timeEl.textContent=`${fmtTime(video.currentTime)} / ${fmtTime(video.duration)}`;
+  });
+  video.addEventListener('play',()=>{hideLoading();playBtn.textContent='❚❚';playBtn.setAttribute('aria-label','일시정지');});
+  video.addEventListener('pause',()=>{playBtn.textContent='▶';playBtn.setAttribute('aria-label','재생');});
+  video.addEventListener('playing',()=>{retried=false;});
+  // 임시 주소는 4시간 뒤 만료된다 — 화면을 오래 열어둬서 재생이 실패하면 한 번만 새 주소로 이어서 재생.
+  video.addEventListener('error',async()=>{
+    if(!video.getAttribute('src')||!stillHere())return;
+    if(retried){showPlayerError('영상을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');return;}
+    retried=true;
+    resumeAt=video.currentTime||0;
+    const wasPlaying=!video.paused;
+    try{
+      const url=await fetchPlayUrl(videoId);
+      if(!stillHere())return;
+      video.src=url;
+      if(wasPlaying)video.play().catch(()=>{});
+    }catch(e){if(stillHere())showPlayerError(e.message);}
+  });
+
+  playBtn.addEventListener('click',()=>{if(video.paused)video.play().catch(()=>{});else video.pause();});
+  video.addEventListener('click',()=>playBtn.click());
+  seek.addEventListener('input',()=>{seeking=true;});
+  seek.addEventListener('change',()=>{if(video.duration)video.currentTime=Number(seek.value)/1000*video.duration;seeking=false;});
+  muteBtn.addEventListener('click',()=>{video.muted=!video.muted;muteBtn.textContent=video.muted?'🔇':'🔊';});
+  speedSel.addEventListener('change',()=>{video.playbackRate=Number(speedSel.value)||1;});
+  // 영상이 아니라 재생기 영역(영상+워터마크)을 키워야 전체화면에서도 워터마크가 남는다.
+  // 아이폰 사파리는 요소 전체화면을 지원하지 않아 화면을 꽉 채우는 CSS 모드로 대신한다.
+  fsBtn.addEventListener('click',()=>{
+    if(document.fullscreenElement){document.exitFullscreen().catch(()=>{});return;}
+    if(wrap.classList.contains('vp-fake-fs')){wrap.classList.remove('vp-fake-fs');return;}
+    if(wrap.requestFullscreen)wrap.requestFullscreen().catch(()=>wrap.classList.add('vp-fake-fs'));
+    else wrap.classList.add('vp-fake-fs');
+  });
+
+  // 화면이 열리는 즉시 주소를 받아둔다 — 재생 버튼을 누르면 기다림 없이 시작.
+  // 아이폰 사파리는 누르기 전엔 영상 정보를 안 받는 경우가 있어, 주소를 받은 뒤엔 안내 문구로 바꾼다.
+  fetchPlayUrl(videoId)
+    .then(url=>{if(!stillHere())return;video.src=url;loading.textContent='재생 버튼을 눌러주세요';})
+    .catch(e=>{if(stillHere())showPlayerError(e.message);});
 }
 
 // 실제 재생 이벤트를 아직 못 잡는 동안의 임시 시청확인 — "학생 확인"이라고 명확히
@@ -837,6 +993,7 @@ function wireReviews(){
 }
 
 function render(){
+  teardownPlayer();
   const app=document.getElementById('app');
   if(ST.screen==='loading'){app.innerHTML='<div class="loading">불러오는 중...</div>';return;}
   if(ST.screen==='browse'){app.innerHTML=navBar()+`<main>${browseScreen()}</main>`;wireBrowse();return;}
@@ -910,7 +1067,7 @@ function wireApp(){
     ST.courses=await loadPublicCourses();ST.screen='browse';render();
   });
   document.getElementById('btn-back')?.addEventListener('click',()=>{ST.screen='list';ST.active=null;render();});
-  if(ST.screen==='player'&&ST.active)loadAndRenderWatchStatus(ST.active.id);
+  if(ST.screen==='player'&&ST.active){loadAndRenderWatchStatus(ST.active.id);wirePlayer();}
   document.querySelectorAll('[data-vid]').forEach(card=>{
     card.addEventListener('click',()=>{
       const v=(ST.videos||[]).find(x=>x.id===card.dataset.vid);

@@ -24,6 +24,32 @@ export async function listAllVideos() {
 
 const DOWNLOAD_POLICIES = ['disabled', 'provider_offline'];
 
+// 드롭박스 앱 폴더 안 videos/ 아래의, 브라우저에서 재생 가능한 확장자만 영상 파일로 인정한다.
+const DROPBOX_VIDEO_EXTENSIONS = ['.mp4', '.m4v', '.mov', '.webm'];
+
+export function isValidDropboxVideoPath(raw) {
+  const path = String(raw || '').trim();
+  const lower = path.toLowerCase();
+  if (!lower.startsWith('/videos/') || path.includes('..') || path.length > 500) return false;
+  return DROPBOX_VIDEO_EXTENSIONS.some(ext => lower.endsWith(ext));
+}
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+function normalizeDate(raw) {
+  const s = String(raw || '').trim();
+  return DATE_RE.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00+09:00`)) ? s : '';
+}
+
+// 시청 기간은 한국 시간 기준 — Vercel 서버는 UTC로 돌기 때문에 +09:00을 명시해서 계산한다.
+// 시작일은 그날 0시부터, 종료일은 그날 23:59:59.999까지 볼 수 있다. 날짜가 없으면 제한 없음.
+export function getAvailability(video, now = Date.now()) {
+  const from = video?.availableFrom ? Date.parse(`${video.availableFrom}T00:00:00+09:00`) : null;
+  const until = video?.availableUntil ? Date.parse(`${video.availableUntil}T23:59:59.999+09:00`) : null;
+  if (from !== null && now < from) return 'upcoming';
+  if (until !== null && now > until) return 'ended';
+  return 'open';
+}
+
 function normalizeVideo(incoming, existing) {
   return {
     id: existing?.id || incoming.id || ('vid' + Date.now()),
@@ -38,6 +64,9 @@ function normalizeVideo(incoming, existing) {
     // 기본은 항상 disabled — 'provider_offline'은 콜러스 등 DRM 서비스의 오프라인 재생
     // 기능을 켠다는 뜻이지, 원본 파일을 그냥 내려받게 한다는 뜻이 아니다(Codex 리뷰).
     downloadPolicy: DOWNLOAD_POLICIES.includes(incoming.downloadPolicy) ? incoming.downloadPolicy : 'disabled',
+    dropboxPath: isValidDropboxVideoPath(incoming.dropboxPath) ? String(incoming.dropboxPath).trim() : '',
+    availableFrom: normalizeDate(incoming.availableFrom),
+    availableUntil: normalizeDate(incoming.availableUntil),
     createdAt: existing?.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -72,12 +101,19 @@ export function canStudentAccessVideo(video, schoolId, studentId) {
   return (video.allowSchoolIds || []).includes(schoolId);
 }
 
-// note는 관리자 전용 메모("관리자만 보는 메모" 안내문구로 입력받음) — 학생 응답에서는 절대 내려보내지 않음
-export async function listVideosForStudent(schoolId, studentId) {
+// note는 관리자 전용 메모, dropboxPath는 재생 주소 발급(playback.js)에만 쓰는 내부 경로 — 학생
+// 응답에서는 절대 내려보내지 않는다. 대신 재생 가능 여부(playable)와 시청 기간 상태만 준다.
+export async function listVideosForStudent(schoolId, studentId, now = Date.now()) {
   const all = await listAllVideos();
   return all
     .filter(v => canStudentAccessVideo(v, schoolId, studentId))
-    .map(({ excludeStudentIds, includeStudentIds, allowSchoolIds, note, ...rest }) => rest);
+    .map(({ excludeStudentIds, includeStudentIds, allowSchoolIds, note, dropboxPath, ...rest }) => ({
+      ...rest,
+      availableFrom: rest.availableFrom || '',
+      availableUntil: rest.availableUntil || '',
+      playable: !!dropboxPath,
+      availability: getAvailability(rest, now),
+    }));
 }
 
 // 회원이 강좌를 구매해 이 영상에 접근 가능한지 확인.

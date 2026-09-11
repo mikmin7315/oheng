@@ -1,5 +1,5 @@
 import { getRedis } from './redis.js';
-import { listAllVideos } from './video.js';
+import { listAllVideos, getAvailability } from './video.js';
 
 const COURSE_PREFIX = 'course:';
 const COURSE_INDEX_KEY = 'course:index';
@@ -144,6 +144,10 @@ export async function listVideosForEntitlements(entitlements) {
         id: v.id, title: v.title, month: v.month, week: v.week, mediaKey: v.mediaKey,
         courseId: course.id, courseTitle: course.title,
         downloadPolicy: resolveDownloadPolicy(v, course),
+        // dropboxPath는 내보내지 않는다 — 재생 주소는 playback.js가 확인 후 따로 발급.
+        availableFrom: v.availableFrom || '', availableUntil: v.availableUntil || '',
+        playable: !!v.dropboxPath,
+        availability: getAvailability(v),
       });
     }
   }

@@ -48,6 +48,7 @@ beforeEach(() => { tempLinkCalls = []; });
 const auth = await import('../api/_lib/auth.js');
 const video = await import('../api/_lib/video.js');
 const course = await import('../api/_lib/course.js');
+const playback = await import('../api/_lib/playback.js');
 const videoHandler = (await import('../api/videos/[action].js')).default;
 
 const SCHOOL = 'sch_pb';
@@ -129,6 +130,25 @@ test('play-url: 회원은 수강권 있는 강좌의 영상만 재생된다', as
   const noneCookie = `oheng_session=${(await auth.createSession({ role: 'member', memberId: 'mem_none' })).token}`;
   assert.equal((await playUrl(hasCookie, 'pv-course')).statusCode, 200);
   assert.equal((await playUrl(noneCookie, 'pv-course')).statusCode, 404);
+});
+
+test('isVideoVisibleForOwner: 허용된 학생에게는 영상을, 예외 차단된 학생과 존재하지 않는 owner에게는 null을 돌려준다', async () => {
+  await video.saveVideo({ id: 'vis-1', title: '가시성 테스트', dropboxPath: '/videos/vis.mp4', allowSchoolIds: [SCHOOL], excludeStudentIds: ['stu_blocked2'] });
+  const sc = (await fakeRedis.get('school:' + SCHOOL)) || { id: SCHOOL, name: '재생테스트고', version: 0, students: [], withdrawnStudents: [] };
+  sc.students = sc.students.filter(s => !['stu_vis', 'stu_blocked2'].includes(s.id)).concat([
+    { id: 'stu_vis', name: '학생vis', entitlements: [] },
+    { id: 'stu_blocked2', name: '학생blocked', entitlements: [] },
+  ]);
+  await fakeRedis.set('school:' + SCHOOL, sc);
+
+  const allowed = await playback.isVideoVisibleForOwner({ ownerType: 'student', ownerId: `${SCHOOL}:stu_vis` }, 'vis-1');
+  assert.equal(allowed?.id, 'vis-1');
+
+  const blocked = await playback.isVideoVisibleForOwner({ ownerType: 'student', ownerId: `${SCHOOL}:stu_blocked2` }, 'vis-1');
+  assert.equal(blocked, null);
+
+  const noEntitlements = await playback.isVideoVisibleForOwner({ ownerType: 'member', ownerId: 'no-such-member' }, 'vis-1');
+  assert.equal(noEntitlements, null);
 });
 
 test('mine: 학생 목록에 드롭박스 경로가 없고 playable/availability가 있다', async () => {

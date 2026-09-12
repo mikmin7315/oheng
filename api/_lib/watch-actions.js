@@ -1,7 +1,7 @@
 import { isSameOrigin, checkRateLimit } from './auth.js';
 import { listWatchStatuses, selfConfirmWatch, teacherSetWatchStatus, recordProgress, WATCH_COMPLETE_RATIO } from './watch.js';
-import { listVisibleVideosForOwner } from './playback.js';
-import { listAllVideos, canStudentAccessVideo } from './video.js';
+import { isVideoVisibleForOwner } from './playback.js';
+import { listAllVideos, canStudentAccessVideo, getAvailability } from './video.js';
 import { getSchool } from './school.js';
 import { makeStudentOwnerId } from './entitlements.js';
 
@@ -40,8 +40,9 @@ export async function handleOwnerWatchAction(action, req, res, owner) {
     }
     const { videoId, durationSec, segments, lastPositionSec } = req.body || {};
     if (!videoId) return res.status(400).json({ success: false, message: 'Missing videoId' });
-    const visible = await listVisibleVideosForOwner(owner);
-    if (!visible.some(v => v.id === videoId)) return res.status(404).json({ success: false, message: '볼 수 없는 영상입니다' });
+    const video = await isVideoVisibleForOwner(owner, videoId);
+    if (!video) return res.status(404).json({ success: false, message: '볼 수 없는 영상입니다' });
+    if (getAvailability(video) !== 'open') return res.status(403).json({ success: false, message: '시청 기간이 아닙니다' });
     try {
       const record = await recordProgress(owner.ownerType, owner.ownerId, videoId, { durationSec, segments, lastPositionSec });
       return res.status(200).json({ success: true, record });
@@ -54,9 +55,10 @@ export async function handleOwnerWatchAction(action, req, res, owner) {
 }
 
 function summarizeStudent(records) {
-  let completed = 0, best = null;
+  let completed = 0, exempt = 0, best = null;
   for (const r of records) {
     if (!r) continue;
+    if (r.status === 'exempt') { exempt++; continue; }
     const done = r.status === 'auto_completed' || r.status === 'teacher_confirmed';
     if (done) completed++;
     const ratio = r.progress?.ratio || 0;
@@ -64,7 +66,7 @@ function summarizeStudent(records) {
     if (!best || score > best.score) best = { score, videoId: r.videoId, ratio, status: r.status, flags: r.progress?.flags || [] };
   }
   if (best) delete best.score;
-  return { completed, best };
+  return { completed, exempt, best };
 }
 
 export async function handleAdminWatchAction(action, req, res, admin) {
@@ -109,14 +111,14 @@ export async function handleAdminWatchAction(action, req, res, admin) {
     const weeks = {};
     for (const wk of (week ? [week] : WEEKS)) {
       const videos = all.filter(v => v.week === wk);
-      const perStudent = {};
-      for (const s of students) {
+      const entries = await Promise.all(students.map(async s => {
         const mine = videos.filter(v => canStudentAccessVideo(v, schoolId, s.id));
-        if (!mine.length) { perStudent[s.id] = { completed: 0, total: 0, best: null }; continue; }
+        if (!mine.length) return [s.id, { completed: 0, total: 0, exempt: 0, best: null }];
         const statuses = await listWatchStatuses('student', makeStudentOwnerId(schoolId, s.id), mine.map(v => v.id));
-        const { completed, best } = summarizeStudent(mine.map(v => statuses[v.id]));
-        perStudent[s.id] = { completed, total: mine.length, best };
-      }
+        const { completed, exempt, best } = summarizeStudent(mine.map(v => statuses[v.id]));
+        return [s.id, { completed, total: mine.length - exempt, exempt, best }];
+      }));
+      const perStudent = Object.fromEntries(entries);
       weeks[wk] = { videos: videos.map(v => ({ id: v.id, title: v.title })), students: perStudent };
     }
     return res.status(200).json({ success: true, weeks, completeRatio: WATCH_COMPLETE_RATIO });

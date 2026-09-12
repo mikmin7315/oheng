@@ -95,3 +95,48 @@ test('watch-admin-week: 주차별로 학생×영상 완료 수를 집계하고, 
   await handler({ method: 'GET', headers: ADMIN, query: { action: 'watch-admin-week', schoolId: SCHOOL, month: '9월' } }, all);
   assert.ok(all.body.weeks['1주'] && all.body.weeks['2주'], 'week 생략 시 그 달의 모든 주차');
 });
+
+test('watch-admin-week: exempt 처리된 영상은 total에서 빠지고 completed/best에 들어가지 않는다', async () => {
+  await seedSchool();
+  await video.saveVideo({ id: 'ex1', title: '9월 3주 A', month: '9월', week: '3주', dropboxPath: '/videos/e1.mp4', allowSchoolIds: [SCHOOL] });
+  await video.saveVideo({ id: 'ex2', title: '9월 3주 B', month: '9월', week: '3주', dropboxPath: '/videos/e2.mp4', allowSchoolIds: [SCHOOL] });
+  const cookieA = await studentCookie('stu_a');
+  await handler({ method: 'POST', headers: { cookie: cookieA }, body: { videoId: 'ex1', durationSec: 100, segments: [[0, 100]] }, query: { action: 'watch-progress' } }, makeRes());
+  await handler({ method: 'POST', headers: ADMIN, body: { schoolId: SCHOOL, studentId: 'stu_a', videoId: 'ex2', status: 'exempt' }, query: { action: 'watch-admin-set' } }, makeRes());
+
+  const res = makeRes();
+  await handler({ method: 'GET', headers: ADMIN, query: { action: 'watch-admin-week', schoolId: SCHOOL, month: '9월', week: '3주' } }, res);
+  const w = res.body.weeks['3주'];
+  assert.equal(w.students.stu_a.completed, 1);
+  assert.equal(w.students.stu_a.total, 1);
+  assert.equal(w.students.stu_a.exempt, 1);
+  assert.equal(w.students.stu_a.best.status, 'auto_completed');
+});
+
+test('watch-admin-week: 대상 영상이 모두 exempt면 total 0·completed 0·best null', async () => {
+  await seedSchool();
+  await video.saveVideo({ id: 'ex3', title: '9월 4주 A', month: '9월', week: '4주', dropboxPath: '/videos/e3.mp4', allowSchoolIds: [SCHOOL] });
+  await handler({ method: 'POST', headers: ADMIN, body: { schoolId: SCHOOL, studentId: 'stu_a', videoId: 'ex3', status: 'exempt' }, query: { action: 'watch-admin-set' } }, makeRes());
+  const res = makeRes();
+  await handler({ method: 'GET', headers: ADMIN, query: { action: 'watch-admin-week', schoolId: SCHOOL, month: '9월', week: '4주' } }, res);
+  const w = res.body.weeks['4주'];
+  assert.equal(w.students.stu_a.completed, 0);
+  assert.equal(w.students.stu_a.total, 0);
+  assert.equal(w.students.stu_a.exempt, 1);
+  assert.equal(w.students.stu_a.best, null);
+});
+
+test('watch-progress: 시청 기간이 끝난 영상은 403, 볼 수 없는 영상은 404', async () => {
+  await seedSchool();
+  await video.saveVideo({ id: 'wv-ended', title: '끝난 영상', month: '9월', week: '1주', dropboxPath: '/videos/ended.mp4', allowSchoolIds: [SCHOOL], availableUntil: '2020-01-01' });
+  const cookie = await studentCookie('stu_a');
+  const ended = makeRes();
+  await handler({ method: 'POST', headers: { cookie }, body: { videoId: 'wv-ended', durationSec: 100, segments: [[0, 50]] }, query: { action: 'watch-progress' } }, ended);
+  assert.equal(ended.statusCode, 403);
+  assert.equal(ended.body.message, '시청 기간이 아닙니다');
+
+  const notVisible = makeRes();
+  await handler({ method: 'POST', headers: { cookie }, body: { videoId: 'no-such-video', durationSec: 100, segments: [[0, 50]] }, query: { action: 'watch-progress' } }, notVisible);
+  assert.equal(notVisible.statusCode, 404);
+  assert.equal(notVisible.body.message, '볼 수 없는 영상입니다');
+});

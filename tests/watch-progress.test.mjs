@@ -118,6 +118,16 @@ test('recordProgress: 길이가 같으면 duration_mismatch가 붙지 않는다'
   assert.ok(!b.progress.flags.includes('duration_mismatch'));
 });
 
+test('recordProgress: 첫 보고부터 완료 비율이면 fast_progress로 표시되고, 낮은 비율이면 표시되지 않는다', async () => {
+  const first = await watch.recordProgress('student', 'sch:stu', 'v13', { durationSec: 100, segments: [[0, 100]] }, Date.now());
+  assert.equal(first.status, 'auto_completed');
+  assert.ok(first.progress.flags.includes('fast_progress'));
+
+  const firstLow = await watch.recordProgress('student', 'sch:stu', 'v14', { durationSec: 100, segments: [[0, 50]] }, Date.now());
+  assert.equal(firstLow.status, 'opened');
+  assert.ok(!firstLow.progress.flags.includes('fast_progress'));
+});
+
 test('recordProgress: 잘못된 길이·구간은 BAD_INPUT', async () => {
   for (const bad of [
     { durationSec: 0, segments: [[0, 1]] },

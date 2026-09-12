@@ -1,4 +1,4 @@
-import { listVideosForStudent, getVideo, getAvailability } from './video.js';
+import { listVideosForStudent, getVideo, getAvailability, canStudentAccessVideo } from './video.js';
 import { listVideosForEntitlements } from './course.js';
 import { getOwnerEntitlements, parseStudentOwnerId } from './entitlements.js';
 import { getTemporaryLink } from './dropbox.js';
@@ -16,6 +16,23 @@ export async function listVisibleVideosForOwner(owner) {
   const schoolVideos = await listVideosForStudent(schoolId, studentId);
   const seen = new Set(schoolVideos.map(v => v.id));
   return schoolVideos.concat(courseVideos.filter(v => !seen.has(v.id)));
+}
+
+// watch-progress 전용: 목록 전체를 다시 만들지 않고 영상 하나의 가시성만 판정한다.
+export async function isVideoVisibleForOwner(owner, videoId) {
+  const entitlements = await getOwnerEntitlements(owner.ownerType, owner.ownerId);
+  if (entitlements === null) return null;
+  const video = await getVideo(videoId);
+  if (!video) return null;
+  if (owner.ownerType === 'student') {
+    const { schoolId, studentId } = parseStudentOwnerId(owner.ownerId);
+    if (canStudentAccessVideo(video, schoolId, studentId)) return video;
+  }
+  if (entitlements) {
+    const courseVideos = await listVideosForEntitlements(entitlements);
+    if (courseVideos.some(v => v.id === videoId)) return video;
+  }
+  return null;
 }
 
 function koreanDate(ymd) {

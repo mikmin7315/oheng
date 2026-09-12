@@ -72,6 +72,9 @@ export async function recordProgress(ownerType, ownerId, videoId, input, now = D
     const elapsedSec = Math.max(0, (now - Date.parse(prev.updatedAt)) / 1000);
     if (watchedSec - (prev.watchedSec || 0) > elapsedSec * 2.5 + 30) flags.add('fast_progress');
     if (Math.abs(durationSec - prev.durationSec) > prev.durationSec * 0.05) flags.add('duration_mismatch');
+  } else if (ratio >= WATCH_COMPLETE_RATIO) {
+    // 첫 보고부터 완료 비율이면 재생기를 거치지 않고 값만 보낸 것일 수 있어 의심 표시만 한다.
+    flags.add('fast_progress');
   }
 
   const nowIso = new Date(now).toISOString();

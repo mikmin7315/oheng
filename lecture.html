@@ -186,7 +186,6 @@
   .vcard-tag+.vcard-tag{margin-left:6px}
   .vcard-tag.ended{background:#F1F3F5;color:#9BA3AF}
   .vcard-tag.done{background:#E0F2E9;color:#00695C}
-  .vcard-tag.warn{background:#FFF3E0;color:#E65100}
   .wk-summary{background:linear-gradient(135deg,var(--navy),#2F3A7A);color:#fff;border-radius:16px;padding:18px 20px;margin-bottom:18px}
   .wk-summary .t{font-size:12px;opacity:.75;font-weight:700;letter-spacing:.5px;margin-bottom:6px}
   .wk-summary .row{display:flex;align-items:center;gap:10px;font-size:13.5px;margin-top:8px}
@@ -327,7 +326,7 @@ async function startCoursePayment(courseId){
     const completeData=await completeRes.json();
     if(completeData.success){
       alert(`결제가 완료됐습니다! "${completeData.courseTitle}" 강좌를 바로 시청하실 수 있어요.`);
-      ST.videos=await loadMemberVideos();ST.screen='list';render();
+      ST.videos=await loadMemberVideos();ST.watch=await loadWatchMap(ST.videos);ST.screen='list';render();
     }else{
       alert(completeData.message||'결제 확인에 실패했습니다. 잠시 후 다시 시도해주세요.');
     }
@@ -405,6 +404,7 @@ async function doOtpVerify(code,errEl,btn){
     ST.member=await loadMemberMe();
     await tryAutoApply();
     ST.videos=await loadMemberVideos();
+    ST.watch=await loadWatchMap(ST.videos);
     ST.screen='list';
     render();
   }catch(e){
@@ -424,6 +424,7 @@ async function doProfileSave(name,errEl,btn){
     ST.member=await loadMemberMe();
     await tryAutoApply();
     ST.videos=await loadMemberVideos();
+    ST.watch=await loadWatchMap(ST.videos);
     ST.screen='list';
     render();
   }catch(e){
@@ -693,21 +694,25 @@ function watchBadge(v){
   const rec=(ST.watch||{})[v.id];
   if(rec?.status==='teacher_confirmed'||rec?.status==='auto_completed')return`<span class="vcard-tag done">완료</span>`;
   if(rec?.status==='exempt')return`<span class="vcard-tag">제외</span>`;
+  if(rec?.status==='self_confirmed')return`<span class="vcard-tag">학생 확인</span>`;
   const p=rec?.progress;
   if(p&&p.durationSec)return`<span class="vcard-tag">${Math.round((p.ratio||0)*100)}%</span>`;
   return`<span class="vcard-tag">미시청</span>`;
 }
 function videoCard(v){
   return`<div class="vcard${v.availability==='ended'?' ended':''}" data-vid="${v.id}">
-    <div class="vcard-title">🎬 ${esc(v.title)}${v.availability==='ended'?videoAvailTag(v):watchBadge(v)+videoAvailTag(v)}</div>
+    <div class="vcard-title">🎬 ${esc(v.title)}${(v.availability==='ended'||v.availability==='upcoming')?videoAvailTag(v):watchBadge(v)+videoAvailTag(v)}</div>
   </div>`;
 }
 function weekSummaryHtml(list,label){
   const rows=list.map(v=>{
     const rec=(ST.watch||{})[v.id];
-    const done=rec?.status==='teacher_confirmed'||rec?.status==='auto_completed';
-    const pct=done?100:Math.round(((rec?.progress?.ratio)||0)*100);
-    return`<div class="row"><span style="flex:1.2;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(v.title)}</span><div class="bar"><div style="width:${pct}%"></div></div><span class="pct">${done?'완료':pct+'%'}</span></div>`;
+    const st=rec?.status;
+    const done=st==='teacher_confirmed'||st==='auto_completed';
+    const exempt=st==='exempt';
+    const pct=done?100:exempt?0:Math.round(((rec?.progress?.ratio)||0)*100);
+    const lbl=done?'완료':exempt?'제외':st==='self_confirmed'?'학생 확인':pct+'%';
+    return`<div class="row"><span style="flex:1.2;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(v.title)}</span><div class="bar"><div style="width:${pct}%"></div></div><span class="pct">${lbl}</span></div>`;
   }).join('');
   return`<div class="wk-summary"><div class="t">이번 주 · ${esc(label)}</div>${rows}</div>`;
 }

@@ -3110,8 +3110,8 @@ async function loadReportLecture(month,week){
     const rows=vids.map(v=>{
       const rec=st[v.id];const done=rec?.status==='teacher_confirmed'||rec?.status==='auto_completed';
       const pct=done?100:Math.round(((rec?.progress?.ratio)||0)*100);
-      const label=rec?.status==='teacher_confirmed'?'선생님 확인':done?'재생 완료':rec?.status==='exempt'?'제외':pct?`${pct}% 시청`:'미시청';
-      const color=done?'#00897B':pct?'#1E40AF':'#9BA3AF';
+      const label=rec?.status==='teacher_confirmed'?'선생님 확인':done?'재생 완료':rec?.status==='exempt'?'제외':rec?.status==='self_confirmed'?'학생 확인':pct?`${pct}% 시청`:'미시청';
+      const color=done?'#00897B':rec?.status==='self_confirmed'?'#5C6470':pct?'#1E40AF':'#9BA3AF';
       return`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid #F0F2F5;font-size:13px;color:#12151C"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🎬 ${esc(v.title)}</span><span style="font-weight:700;color:${color};white-space:nowrap">${label}</span></div>`;
     }).join('');
     box.innerHTML=`<div style="background:#fff;border:1.5px solid #D9E0EA;border-radius:12px;padding:14px 16px;margin-bottom:16px">

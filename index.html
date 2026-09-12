@@ -1054,10 +1054,13 @@ if(window.DOMPurify){
 }
 function sanitizeRichHtml(html){
   if(!window.DOMPurify)return esc(String(html??''));
-  return DOMPurify.sanitize(String(html??''),{ALLOWED_TAGS:['span','b','i','u','strong','em','br','a'],ALLOWED_ATTR:['style','href','target','rel']});
+  // div/p: 브라우저가 contenteditable에서 Enter를 <br> 대신 <div>(사파리는 <p>)로 감싸는 경우가 많고
+  // (defaultParagraphSeparator를 'br'로 강제하는 execCommand는 최신 브라우저에서 동작하지 않음), 이 태그들을
+  // 허용하지 않으면 DOMPurify가 태그만 벗겨내고 내용은 남겨서 줄바꿈이 사라진 채로 저장돼버린다.
+  return DOMPurify.sanitize(String(html??''),{ALLOWED_TAGS:['span','b','i','u','strong','em','br','div','p','a'],ALLOWED_ATTR:['style','href','target','rel']});
 }
 // 레거시(줄바꿈 문자가 그대로 저장된 옛날 평문)와 새 서식(HTML) 데이터를 구분해 렌더링용 HTML로 변환.
-// 새 리치 에디터는 Enter를 <br>로 저장하므로 실제 개행문자(\n)가 절대 섞이지 않음 — 그 특성으로 구분.
+// 새 리치 에디터가 만드는 HTML(br/div/p 등)에는 실제 개행문자(\n)가 절대 섞이지 않음 — 그 특성으로 구분.
 function legacyOrRichToHtml(raw){
   if(!raw)return'';
   if(raw.includes('\n'))return linkify(esc(raw)).replace(/\n/g,'<br>');

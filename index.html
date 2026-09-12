@@ -4535,11 +4535,12 @@ async function loadAttSuggestions(sc,mon){
   try{
     const res=await fetch(`/api/videos/watch-admin-week?schoolId=${encodeURIComponent(sc.id)}&month=${encodeURIComponent(mon)}`,{credentials:'include'});
     const d=await res.json();
+    if((ST.attMon||curMonWk().mon)!==mon)return;
     if(!d.success)return;
     document.querySelectorAll('[data-att-suggest]').forEach(box=>{
       const[sid,wk]=box.dataset.attSuggest.split('|');
       const s=d.weeks?.[wk]?.students?.[sid];
-      if(!s||!s.total){box.innerHTML='';return;}
+      if(!s||!s.total||(!s.completed&&!s.best)){box.innerHTML='';return;}
       const best=s.best;const pct=Math.round(((best?.ratio)||0)*100);
       const done=s.completed>0;
       const warn=(best?.flags||[]).includes('fast_progress');
@@ -4553,6 +4554,7 @@ async function loadAttSuggestions(sc,mon){
         const[sid,wk]=b.dataset.attApply.split('|');
         const sel=document.querySelector(`select[data-att-sid="${sid}"][data-att-wk="${wk}"]`);
         if(!sel)return;
+        if(sel.value==='인강')return;
         if(sel.value&&sel.value!=='인강'&&!confirm(`이미 "${sel.value}"로 되어 있습니다. '인강'으로 바꿀까요?`))return;
         sel.value='인강';
         if(typeof sel.onchange==='function')sel.onchange();

@@ -434,7 +434,7 @@ function navBar(){
   // student-login/otp-* 같은 로그인 진행 화면에서는 이 버튼들의 클릭 핸들러를 wireBrowse()에서만
   // 붙여서, 랜딩(browse) 화면이 아닐 때 표시하면 눌러도 반응 없는 죽은 버튼이 된다(Codex 리뷰로 발견).
   const right=loggedIn
-    ?`${navLink('list','내 강의실',ST.screen==='list'||ST.screen==='player')}${navLink('browse','강좌',ST.screen==='browse')}${navLink('reviews','후기',ST.screen==='reviews')}<span class="who">${ST.mode==='student'?`${esc(ST.student?.student?.name||'')} · ${esc(ST.student?.school?.name||'')}`:`${esc(ST.member?.name||'')} · ${esc(ST.member?.phone||ST.member?.email||'')}`}</span><button class="btn" id="btn-logout">로그아웃</button>`
+    ?`${navLink('list','내 강의실',ST.screen==='list'||ST.screen==='player')}${navLink('browse','강좌',ST.screen==='browse')}${navLink('reviews','후기',ST.screen==='reviews')}${ST.mode==='student'?navLink('report','성적표',false):''}<span class="who">${ST.mode==='student'?`${esc(ST.student?.student?.name||'')} · ${esc(ST.student?.school?.name||'')}`:`${esc(ST.member?.name||'')} · ${esc(ST.member?.phone||ST.member?.email||'')}`}</span><button class="btn" id="btn-logout">로그아웃</button>`
     :showLanding?`<button class="nav-textlink" id="nav-student-link">학생 로그인</button><button class="btn btn-primary" id="nav-cta">무료체험 신청</button>`:'';
   const links=showLanding
     ?`<div class="navlinks"><a href="#courses">강좌</a><a href="#instructor">선생님 소개</a><a href="#features">커리큘럼</a><button class="nav-textlink" id="nav-reviews-link" style="background:none;border:none;font:inherit;cursor:pointer;padding:0;color:inherit">실제 후기</button></div>`
@@ -1100,6 +1100,7 @@ function wireNavDelegation(){
     if(nav==='list'){ST.videos=ST.mode==='member'?await loadMemberVideos():await loadStudentVideos();ST.active=null;ST.screen='list';render();}
     else if(nav==='browse'){ST.courses=await loadPublicCourses();ST.screen='browse';render();}
     else if(nav==='reviews'){ST.reviews=await loadReviews();ST.screen='reviews';render();}
+    else if(nav==='report'){location.href='/index.html';}
   });
 }
 wireNavDelegation();

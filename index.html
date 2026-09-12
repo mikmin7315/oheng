@@ -2719,6 +2719,7 @@ function rStudent(){
   const tabs=[
     {id:'report',l:'성적표'},
     {id:'mock',l:'모의고사'+(mockPending?` <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#E53935;vertical-align:middle;margin-left:2px"></span>`:'')},
+    {id:'lecture',l:'🎬 인강'},
     {id:'suggest',l:'제안하기'+(unreadReplies?` <span style="background:#E53935;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;vertical-align:middle">${unreadReplies}</span>`:'')},
     {id:'inquiry',l:'문의하기'},
     {id:'settings',l:'설정'}
@@ -3422,7 +3423,10 @@ function bStudent(){
   }
   requestAnimationFrame(()=>drawMockCharts());
   maybeShowMockPopup();
-  document.querySelectorAll('.tab[data-tab]').forEach(t=>{t.onclick=()=>{ST.tab=t.dataset.tab;render()}});
+  document.querySelectorAll('.tab[data-tab]').forEach(t=>{t.onclick=()=>{
+    if(t.dataset.tab==='lecture'){location.href='/lecture.html';return;}
+    ST.tab=t.dataset.tab;render();
+  }});
   document.querySelectorAll('[data-hist]').forEach(t=>{t.onclick=()=>{ST.histTab=t.dataset.hist;render()}});
   const saveImgBtn=document.getElementById('btn-save-report-img');
   if(saveImgBtn)saveImgBtn.onclick=()=>saveReportImage(saveImgBtn);

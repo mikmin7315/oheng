@@ -742,7 +742,8 @@ function listScreen(){
   }).join('');
   const undatedSection=undated.length?`<div class="wk-head">기타 자료 · ${undated.length}개</div>${undated.map(videoCard).join('')}`:'';
   const latest=weekKeys[0];
-  const summary=latest?weekSummaryHtml(dated.filter(v=>v.month+'_'+v.week===latest),latest.replace('_',' ')):'';
+  const latestList=latest?dated.filter(v=>v.month+'_'+v.week===latest&&v.availability!=='upcoming'):[];
+  const summary=latestList.length?weekSummaryHtml(latestList,latest.replace('_',' ')):'';
   return summary+weekSections+undatedSection;
 }
 
@@ -839,16 +840,21 @@ function wirePlayer(){
   let lastT=null,pending=[];
   const trackTime=()=>{
     const t=video.currentTime;if(!isFinite(t))return;
-    if(lastT!==null){const d=t-lastT;if(d>0&&d<=1.5*(video.playbackRate||1)+0.25)pending.push([lastT,t]);}
+    if(lastT!==null){const d=t-lastT;if(d>0&&d<=1.5*(video.playbackRate||1)+0.25){
+      const s=lastT,e=t,last=pending[pending.length-1];
+      if(last&&s<=last[1]+1)last[1]=Math.max(last[1],e);else pending.push([s,e]);
+    }}
     lastT=t;
   };
   const flushProgress=(leaving)=>{
     if(!pending.length||!video.duration||!isFinite(video.duration))return;
-    const body=JSON.stringify({videoId,durationSec:Math.round(video.duration),segments:pending.map(([s,e])=>[Math.floor(s),Math.ceil(e)]),lastPositionSec:Math.floor(video.currentTime||0)});
-    pending=[];
+    const batch=pending;pending=[];
+    const body=JSON.stringify({videoId,durationSec:Math.round(video.duration),segments:batch.map(([s,e])=>[Math.floor(s),Math.ceil(e)]),lastPositionSec:Math.floor(video.currentTime||0)});
     if(leaving&&navigator.sendBeacon){navigator.sendBeacon('/api/videos/watch-progress',new Blob([body],{type:'application/json'}));return;}
     fetch('/api/videos/watch-progress',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body,keepalive:true})
-      .then(r=>r.json()).then(d=>{if(d.success&&stillHere())renderWatchProgress(d.record);}).catch(()=>{});
+      .then(r=>{if(!r.ok)throw new Error('http '+r.status);return r.json();})
+      .then(d=>{if(d.success&&stillHere())renderWatchProgress(d.record);})
+      .catch(()=>{pending=batch.concat(pending).slice(-400);});
   };
   video.addEventListener('timeupdate',trackTime);
   video.addEventListener('seeking',()=>{lastT=null;});
@@ -897,7 +903,7 @@ function wirePlayer(){
   video.addEventListener('loadedmetadata',()=>{
     hideLoading();
     video.playbackRate=Number(speedSel.value)||1;
-    if(resumeAt){video.currentTime=resumeAt;resumeAt=0;}
+    if(resumeAt&&video.paused&&video.currentTime<5){video.currentTime=resumeAt;resumeAt=0;}
     timeEl.textContent=`${fmtTime(video.currentTime)} / ${fmtTime(video.duration)}`;
   });
   video.addEventListener('timeupdate',()=>{

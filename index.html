@@ -4529,6 +4529,37 @@ function rWithdrawn(sc){
     </table></div>
   </div>`;}
 
+// 인강/현강 체크의 완료 제안 — 자동 저장하지 않는다. 누르면 그 칸의 선택값만 '인강'으로 바꾸고,
+// 실제 저장은 기존 "저장하기" 흐름을 그대로 탄다(Codex 검토: 손입력 출결을 자동으로 덮지 않을 것).
+async function loadAttSuggestions(sc,mon){
+  try{
+    const res=await fetch(`/api/videos/watch-admin-week?schoolId=${encodeURIComponent(sc.id)}&month=${encodeURIComponent(mon)}`,{credentials:'include'});
+    const d=await res.json();
+    if(!d.success)return;
+    document.querySelectorAll('[data-att-suggest]').forEach(box=>{
+      const[sid,wk]=box.dataset.attSuggest.split('|');
+      const s=d.weeks?.[wk]?.students?.[sid];
+      if(!s||!s.total){box.innerHTML='';return;}
+      const best=s.best;const pct=Math.round(((best?.ratio)||0)*100);
+      const done=s.completed>0;
+      const warn=(best?.flags||[]).includes('fast_progress');
+      const color=warn?'#E65100':done?'#00897B':'#9BA3AF';
+      const bg=warn?'#FFF3E0':done?'#E0F2E9':'#F1F3F5';
+      const text=done?`인강 완료 ${s.completed}/${s.total}${warn?' · 확인 필요':''}`:`인강 ${pct}%`;
+      box.innerHTML=`<button type="button" data-att-apply="${sid}|${wk}" title="누르면 이 칸을 '인강'으로 바꿉니다 (저장하기 필요)" style="font-size:10px;font-weight:700;color:${color};background:${bg};border:none;border-radius:20px;padding:2px 7px;cursor:pointer">${text}</button>`;
+    });
+    document.querySelectorAll('[data-att-apply]').forEach(b=>{
+      b.onclick=()=>{
+        const[sid,wk]=b.dataset.attApply.split('|');
+        const sel=document.querySelector(`select[data-att-sid="${sid}"][data-att-wk="${wk}"]`);
+        if(!sel)return;
+        if(sel.value&&sel.value!=='인강'&&!confirm(`이미 "${sel.value}"로 되어 있습니다. '인강'으로 바꿀까요?`))return;
+        sel.value='인강';
+        if(typeof sel.onchange==='function')sel.onchange();
+      };
+    });
+  }catch(e){}
+}
 function rAttendance(sc){
   const mon = ST.attMon || curMonWk().mon;
   const monIdx = MONTHS.indexOf(mon);
@@ -4540,7 +4571,7 @@ function rAttendance(sc){
       const color = attColorFor(val);
       return`<td style="padding:4px"><select data-att-sid="${s.id}" data-att-wk="${wk}" style="width:100%;padding:6px 4px;border:1.5px solid #E8ECF0;border-radius:7px;font-size:11px;text-align:center;font-weight:700;color:${color};background:#fff;outline:none;cursor:pointer">
         ${attOptionsHtml(val)}
-      </select></td>`;
+      </select><div data-att-suggest="${s.id}|${wk}" style="min-height:14px;margin-top:3px;text-align:center"></div></td>`;
     }).join('');
     return`<tr><td style="padding:8px 10px"><button data-goto-student="${s.id}" style="background:none;border:none;padding:0;font-weight:700;color:#1A237E;white-space:nowrap;cursor:pointer;text-decoration:underline;text-underline-offset:2px;font-size:inherit;font-family:inherit">${esc(s.name)}</button></td>${cells}</tr>`;
   }).join('');
@@ -4556,7 +4587,7 @@ function rAttendance(sc){
       </div>
     </div>
     ${sc.students.length?`<div id="att-save-msg-top" style="font-size:12px;font-weight:600;text-align:right;margin-bottom:4px"></div>`:''}
-    <div style="font-size:12px;color:#9BA3AF;margin-bottom:14px;line-height:1.6">주차별로 현강(O)·인강·결석 중 선택한 뒤, 저장하기 버튼을 눌러야 실제로 저장됩니다. 성적 입력과 별개로 관리돼요.</div>
+    <div style="font-size:12px;color:#9BA3AF;margin-bottom:14px;line-height:1.6">주차별로 현강(O)·인강·결석 중 선택한 뒤, 저장하기 버튼을 눌러야 실제로 저장됩니다. 성적 입력과 별개로 관리돼요. 칸 아래 "인강 N%"는 재생 기록 기준 제안이라, 눌러야만 값이 들어갑니다.</div>
     ${!sc.students.length?`<div style="text-align:center;padding:40px 0;color:#9BA3AF;font-size:13px">등록된 학생이 없습니다</div>`:`
     <div style="overflow-x:auto"><table class="rec-tbl" style="min-width:520px">
       <thead><tr><th style="text-align:left">이름</th>${WEEKS.map(wk=>`<th>${wk}</th>`).join('')}</tr></thead>
@@ -5329,6 +5360,7 @@ function bAdmin(){
         updateAttSaveBtn();
       });
     });
+    loadAttSuggestions(sc, ST.attMon||curMonWk().mon);
     const doAttSave=async()=>{
       const dirty=ST.attDirty;
       if(!dirty||!dirty.size){

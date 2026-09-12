@@ -173,7 +173,7 @@
   .vp-wrap{position:relative;background:#000;border-radius:16px;overflow:hidden;aspect-ratio:16/9;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
   .vp-wrap video{position:absolute;inset:0;width:100%;height:100%;background:#000;object-fit:contain}
   .vp-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#C7C9D6;font-size:13px;pointer-events:none}
-  .vp-mark{position:absolute;top:10%;left:6%;z-index:2;color:#fff;opacity:.35;font-size:14px;font-weight:700;white-space:nowrap;pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.7);transition:top 1.2s ease,left 1.2s ease}
+  .vp-mark{position:absolute;z-index:2;color:#fff;opacity:.3;font-size:11px;font-weight:700;white-space:nowrap;pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.7);transition:opacity .6s ease}
   .vp-bar{position:absolute;left:0;right:0;bottom:0;z-index:3;display:flex;align-items:center;gap:10px;padding:10px 12px;background:linear-gradient(transparent,rgba(0,0,0,.75));color:#fff;font-size:12px}
   .vp-bar button{background:none;border:none;color:#fff;font-size:15px;line-height:1;cursor:pointer;padding:4px 6px;font-family:inherit}
   .vp-bar select{background:rgba(0,0,0,.45);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:6px;font-size:11.5px;padding:3px 4px;font-family:inherit}
@@ -185,7 +185,8 @@
   .vcard-tag{margin-left:auto;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:var(--lightbg);color:var(--navy-soft);white-space:nowrap}
   .vcard-tag.ended{background:#F1F3F5;color:#9BA3AF}
   .vcard.ended{opacity:.6}
-  @media (max-width:480px){ .vp-bar{gap:6px;padding:8px} #vp-mute{display:none} .vp-mark{font-size:12px} }
+  @media (max-width:480px){ .vp-bar{gap:6px;padding:8px} #vp-mute{display:none} .vp-mark{font-size:10px} }
+  @media (max-width:480px){ .who{display:none} }
 
   .loading{flex:1;display:flex;align-items:center;justify-content:center;color:#A8ABB6;font-size:13px}
 </style>
@@ -421,6 +422,10 @@ async function doLogout(){
 }
 
 /* ── 화면 ── */
+// 로그인 상태의 상단 링크. 화면이 통째로 다시 그려져도 동작하도록 클릭은 #app에서 위임 처리(wireNavDelegation).
+function navLink(nav,label,active){
+  return`<button class="nav-textlink" data-nav="${nav}" style="${active?'color:var(--coral);font-weight:800':''}">${label}</button>`;
+}
 function navBar(){
   // 로그인 여부는 화면이 아니라 ST.mode로만 판단 — 로그인한 채로 "강좌 더보기"를 눌러
   // browse 화면으로 돌아와도 로그아웃 상태처럼 잘못 표시되지 않게 한다.
@@ -429,7 +434,7 @@ function navBar(){
   // student-login/otp-* 같은 로그인 진행 화면에서는 이 버튼들의 클릭 핸들러를 wireBrowse()에서만
   // 붙여서, 랜딩(browse) 화면이 아닐 때 표시하면 눌러도 반응 없는 죽은 버튼이 된다(Codex 리뷰로 발견).
   const right=loggedIn
-    ?`<button class="nav-textlink" id="nav-browse-courses">강좌 더보기</button><span class="who">${ST.mode==='student'?`${esc(ST.student?.student?.name||'')} · ${esc(ST.student?.school?.name||'')}`:`${esc(ST.member?.name||'')} · ${esc(ST.member?.phone||ST.member?.email||'')}`}</span><button class="btn" id="btn-logout">로그아웃</button>`
+    ?`${navLink('list','내 강의실',ST.screen==='list'||ST.screen==='player')}${navLink('browse','강좌',ST.screen==='browse')}${navLink('reviews','후기',ST.screen==='reviews')}<span class="who">${ST.mode==='student'?`${esc(ST.student?.student?.name||'')} · ${esc(ST.student?.school?.name||'')}`:`${esc(ST.member?.name||'')} · ${esc(ST.member?.phone||ST.member?.email||'')}`}</span><button class="btn" id="btn-logout">로그아웃</button>`
     :showLanding?`<button class="nav-textlink" id="nav-student-link">학생 로그인</button><button class="btn btn-primary" id="nav-cta">무료체험 신청</button>`:'';
   const links=showLanding
     ?`<div class="navlinks"><a href="#courses">강좌</a><a href="#instructor">선생님 소개</a><a href="#features">커리큘럼</a><button class="nav-textlink" id="nav-reviews-link" style="background:none;border:none;font:inherit;cursor:pointer;padding:0;color:inherit">실제 후기</button></div>`
@@ -786,8 +791,22 @@ function wirePlayer(){
   const stillHere=()=>ST.screen==='player'&&ST.active?.id===videoId&&video.isConnected;
 
   wrap.addEventListener('contextmenu',e=>e.preventDefault());
-  const moveMark=()=>{mark.style.top=(5+Math.random()*75)+'%';mark.style.left=(3+Math.random()*55)+'%';};
-  moveMark();
+  // 네 모서리만 돌아가며 표시 — 가운데로 튀지 않아 덜 거슬리고, 녹화본 테두리를 잘라내도 어느 한
+  // 모서리는 남는다. 아래쪽은 컨트롤 막대에 가리지 않게 14% 띄운다.
+  const CORNERS=[{top:'4%',left:'4%'},{top:'4%',right:'4%'},{bottom:'14%',left:'4%'},{bottom:'14%',right:'4%'}];
+  let cornerIdx=Math.floor(Math.random()*CORNERS.length);
+  const moveMark=()=>{
+    const c=CORNERS[cornerIdx];
+    cornerIdx=(cornerIdx+1+Math.floor(Math.random()*(CORNERS.length-1)))%CORNERS.length;
+    mark.style.opacity='0';
+    setTimeout(()=>{
+      mark.style.top=c.top||'auto';mark.style.bottom=c.bottom||'auto';
+      mark.style.left=c.left||'auto';mark.style.right=c.right||'auto';
+      mark.style.opacity='';
+    },600);
+  };
+  const c0=CORNERS[cornerIdx];
+  mark.style.top=c0.top||'auto';mark.style.bottom=c0.bottom||'auto';mark.style.left=c0.left||'auto';mark.style.right=c0.right||'auto';
   ST.vpMarkTimer=setInterval(moveMark,30000);
 
   // 로딩 표시는 hidden 속성 대신 style로 숨긴다 — .vp-loading의 display:flex가 hidden을 덮어쓴다.
@@ -983,7 +1002,6 @@ async function submitComment(reviewId){
 function wireReviews(){
   document.getElementById('nav-logo')?.addEventListener('click',()=>{window.scrollTo({top:0,behavior:'smooth'});});
   document.getElementById('btn-logout')?.addEventListener('click',doLogout);
-  document.getElementById('nav-browse-courses')?.addEventListener('click',async()=>{ST.courses=await loadPublicCourses();ST.screen='browse';render();});
   document.getElementById('btn-reviews-back').addEventListener('click',()=>{ST.screen='browse';render();});
   document.getElementById('btn-review-login')?.addEventListener('click',()=>{ST.screen='student-login';render();});
   document.getElementById('btn-review-submit')?.addEventListener('click',submitReview);
@@ -1012,10 +1030,9 @@ function goStart(){ST.screen='otp-phone';render();}
 function wireBrowse(){
   document.getElementById('nav-logo').addEventListener('click',()=>{window.scrollTo({top:0,behavior:'smooth'});});
   // 이미 로그인된 상태로 "강좌 더보기"를 눌러 여기로 온 경우엔 nav-student-link/nav-cta 대신
-  // nav-browse-courses/btn-logout이 떠있으므로, 로그아웃 상태 전용 버튼들은 optional하게 묶는다.
+  // btn-logout이 떠있으므로, 로그아웃 상태 전용 버튼들은 optional하게 묶는다.
   document.getElementById('nav-cta')?.addEventListener('click',goStart);
   document.getElementById('nav-student-link')?.addEventListener('click',()=>{ST.screen='student-login';render();});
-  document.getElementById('nav-browse-courses')?.addEventListener('click',()=>{window.scrollTo({top:0,behavior:'smooth'});});
   document.getElementById('nav-reviews-link')?.addEventListener('click',async()=>{ST.reviews=await loadReviews();ST.screen='reviews';render();});
   document.getElementById('btn-reviews-more')?.addEventListener('click',async()=>{ST.reviews=await loadReviews();ST.screen='reviews';render();});
   document.getElementById('btn-logout')?.addEventListener('click',doLogout);
@@ -1063,9 +1080,6 @@ function wireStudentLogin(){
 
 function wireApp(){
   document.getElementById('btn-logout')?.addEventListener('click',doLogout);
-  document.getElementById('nav-browse-courses')?.addEventListener('click',async()=>{
-    ST.courses=await loadPublicCourses();ST.screen='browse';render();
-  });
   document.getElementById('btn-back')?.addEventListener('click',()=>{ST.screen='list';ST.active=null;render();});
   if(ST.screen==='player'&&ST.active){loadAndRenderWatchStatus(ST.active.id);wirePlayer();}
   document.querySelectorAll('[data-vid]').forEach(card=>{
@@ -1077,6 +1091,18 @@ function wireApp(){
   });
 }
 
+// 상단 링크는 모든 화면에 뜨므로, 화면별 wire 함수마다 붙이지 않고 #app에서 한 번만 위임 처리한다.
+function wireNavDelegation(){
+  document.getElementById('app').addEventListener('click',async e=>{
+    const t=e.target.closest('[data-nav]');
+    if(!t)return;
+    const nav=t.dataset.nav;
+    if(nav==='list'){ST.videos=ST.mode==='member'?await loadMemberVideos():await loadStudentVideos();ST.active=null;ST.screen='list';render();}
+    else if(nav==='browse'){ST.courses=await loadPublicCourses();ST.screen='browse';render();}
+    else if(nav==='reviews'){ST.reviews=await loadReviews();ST.screen='reviews';render();}
+  });
+}
+wireNavDelegation();
 boot();
 </script>
 </body>

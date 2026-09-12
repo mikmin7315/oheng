@@ -183,7 +183,16 @@
   .vp-wrap.vp-fake-fs{position:fixed;inset:0;z-index:1000;border-radius:0;aspect-ratio:auto}
   .vp-notice{margin-top:10px;font-size:12.5px;color:var(--navy-soft);line-height:1.55}
   .vcard-tag{margin-left:auto;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:var(--lightbg);color:var(--navy-soft);white-space:nowrap}
+  .vcard-tag+.vcard-tag{margin-left:6px}
   .vcard-tag.ended{background:#F1F3F5;color:#9BA3AF}
+  .vcard-tag.done{background:#E0F2E9;color:#00695C}
+  .vcard-tag.warn{background:#FFF3E0;color:#E65100}
+  .wk-summary{background:linear-gradient(135deg,var(--navy),#2F3A7A);color:#fff;border-radius:16px;padding:18px 20px;margin-bottom:18px}
+  .wk-summary .t{font-size:12px;opacity:.75;font-weight:700;letter-spacing:.5px;margin-bottom:6px}
+  .wk-summary .row{display:flex;align-items:center;gap:10px;font-size:13.5px;margin-top:8px}
+  .wk-summary .bar{flex:1;height:6px;background:rgba(255,255,255,.2);border-radius:3px;overflow:hidden}
+  .wk-summary .bar>div{height:100%;background:var(--coral);border-radius:3px}
+  .wk-summary .pct{font-variant-numeric:tabular-nums;min-width:38px;text-align:right;font-weight:700}
   .vcard.ended{opacity:.6}
   @media (max-width:480px){ .vp-bar{gap:6px;padding:8px} #vp-mute{display:none} .vp-mark{font-size:10px} }
   @media (max-width:480px){ .who{display:none} }
@@ -241,6 +250,16 @@ async function loadMemberVideos(){
     const d=await res.json();
     return d.success?d.videos:[];
   }catch(e){return [];}
+}
+// 목록 뱃지용 — 보이는 영상 전체의 시청 상태를 한 번에.
+async function loadWatchMap(videos){
+  const ids=(videos||[]).map(v=>v.id);
+  if(!ids.length)return{};
+  try{
+    const res=await fetch('/api/videos/watch-mine?videoIds='+encodeURIComponent(ids.join(',')),{credentials:'include'});
+    const d=await res.json();
+    return d.success?d.statuses:{};
+  }catch(e){return{};}
 }
 async function loadPublicCourses(){
   try{
@@ -327,7 +346,7 @@ async function boot(){
   if(studentOk){
     const me=await loadStudentMe();
     if(me){
-      ST.mode='student';ST.student=me;ST.videos=await loadStudentVideos();ST.screen='list';render();return;
+      ST.mode='student';ST.student=me;ST.videos=await loadStudentVideos();ST.watch=await loadWatchMap(ST.videos);ST.screen='list';render();return;
     }
   }
   const member=await loadMemberMe();
@@ -335,7 +354,7 @@ async function boot(){
     ST.mode='member';ST.member=member;
     if(!member.name){ST.screen='otp-name';render();return;}
     await tryAutoApply();
-    ST.videos=await loadMemberVideos();ST.screen='list';render();return;
+    ST.videos=await loadMemberVideos();ST.watch=await loadWatchMap(ST.videos);ST.screen='list';render();return;
   }
   ST.mode=null;
   ST.courses=await loadPublicCourses();
@@ -670,10 +689,27 @@ function videoAvailTag(v){
   return'';
 }
 
+function watchBadge(v){
+  const rec=(ST.watch||{})[v.id];
+  if(rec?.status==='teacher_confirmed'||rec?.status==='auto_completed')return`<span class="vcard-tag done">완료</span>`;
+  if(rec?.status==='exempt')return`<span class="vcard-tag">제외</span>`;
+  const p=rec?.progress;
+  if(p&&p.durationSec)return`<span class="vcard-tag">${Math.round((p.ratio||0)*100)}%</span>`;
+  return`<span class="vcard-tag">미시청</span>`;
+}
 function videoCard(v){
   return`<div class="vcard${v.availability==='ended'?' ended':''}" data-vid="${v.id}">
-    <div class="vcard-title">🎬 ${esc(v.title)}${videoAvailTag(v)}</div>
+    <div class="vcard-title">🎬 ${esc(v.title)}${v.availability==='ended'?videoAvailTag(v):watchBadge(v)+videoAvailTag(v)}</div>
   </div>`;
+}
+function weekSummaryHtml(list,label){
+  const rows=list.map(v=>{
+    const rec=(ST.watch||{})[v.id];
+    const done=rec?.status==='teacher_confirmed'||rec?.status==='auto_completed';
+    const pct=done?100:Math.round(((rec?.progress?.ratio)||0)*100);
+    return`<div class="row"><span style="flex:1.2;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(v.title)}</span><div class="bar"><div style="width:${pct}%"></div></div><span class="pct">${done?'완료':pct+'%'}</span></div>`;
+  }).join('');
+  return`<div class="wk-summary"><div class="t">이번 주 · ${esc(label)}</div>${rows}</div>`;
 }
 
 function listScreen(){
@@ -700,7 +736,9 @@ function listScreen(){
     return`<div class="wk-head">${m} ${w} · ${list.length}개</div>${list.map(videoCard).join('')}`;
   }).join('');
   const undatedSection=undated.length?`<div class="wk-head">기타 자료 · ${undated.length}개</div>${undated.map(videoCard).join('')}`:'';
-  return weekSections+undatedSection;
+  const latest=weekKeys[0];
+  const summary=latest?weekSummaryHtml(dated.filter(v=>v.month+'_'+v.week===latest),latest.replace('_',' ')):'';
+  return summary+weekSections+undatedSection;
 }
 
 // 워터마크 문구 — 학생은 이름·로그인 아이디, 회원은 이름·전화번호 뒤 4자리(없으면 가린 이메일).
@@ -1103,7 +1141,7 @@ function wireStudentLogin(){
 
 function wireApp(){
   document.getElementById('btn-logout')?.addEventListener('click',doLogout);
-  document.getElementById('btn-back')?.addEventListener('click',()=>{ST.screen='list';ST.active=null;render();});
+  document.getElementById('btn-back')?.addEventListener('click',async()=>{ST.watch=await loadWatchMap(ST.videos);ST.screen='list';ST.active=null;render();});
   if(ST.screen==='player'&&ST.active)wirePlayer();
   document.querySelectorAll('[data-vid]').forEach(card=>{
     card.addEventListener('click',()=>{
@@ -1120,7 +1158,7 @@ function wireNavDelegation(){
     const t=e.target.closest('[data-nav]');
     if(!t)return;
     const nav=t.dataset.nav;
-    if(nav==='list'){ST.videos=ST.mode==='member'?await loadMemberVideos():await loadStudentVideos();ST.active=null;ST.screen='list';render();}
+    if(nav==='list'){ST.videos=ST.mode==='member'?await loadMemberVideos():await loadStudentVideos();ST.watch=await loadWatchMap(ST.videos);ST.active=null;ST.screen='list';render();}
     else if(nav==='browse'){ST.courses=await loadPublicCourses();ST.screen='browse';render();}
     else if(nav==='reviews'){ST.reviews=await loadReviews();ST.screen='reviews';render();}
     else if(nav==='report'){location.href='/index.html';}

@@ -761,6 +761,7 @@ async function fetchPlayUrl(videoId){
 // render()가 화면을 통째로 갈아끼우기 전에 호출 — 워터마크 이동 타이머와 재생 중인 영상을 정리한다.
 // 안 치우면 화면을 오갈 때마다 타이머가 쌓인다.
 function teardownPlayer(){
+  if(ST.vpProgressCleanup){const f=ST.vpProgressCleanup;ST.vpProgressCleanup=null;f();}
   if(ST.vpMarkTimer){clearInterval(ST.vpMarkTimer);ST.vpMarkTimer=null;}
   const video=document.getElementById('vp-video');
   if(video){video.pause();video.removeAttribute('src');video.load();}
@@ -789,6 +790,45 @@ function wirePlayer(){
   const fsBtn=document.getElementById('vp-fs');
   let seeking=false,retried=false,resumeAt=0;
   const stillHere=()=>ST.screen==='player'&&ST.active?.id===videoId&&video.isConnected;
+
+  // 실제 재생한 구간만 모은다 — 두 timeupdate 사이 간격이 배속 기준 1.5초를 넘으면(건너뛰기·되감기)
+  // 구간이 끊겨 자동으로 빠진다. 15초마다, 일시정지·종료·화면 이탈 때 서버로 보낸다.
+  let lastT=null,pending=[];
+  const trackTime=()=>{
+    const t=video.currentTime;if(!isFinite(t))return;
+    if(lastT!==null){const d=t-lastT;if(d>0&&d<=1.5*(video.playbackRate||1)+0.25)pending.push([lastT,t]);}
+    lastT=t;
+  };
+  const flushProgress=(leaving)=>{
+    if(!pending.length||!video.duration||!isFinite(video.duration))return;
+    const body=JSON.stringify({videoId,durationSec:Math.round(video.duration),segments:pending.map(([s,e])=>[Math.floor(s),Math.ceil(e)]),lastPositionSec:Math.floor(video.currentTime||0)});
+    pending=[];
+    if(leaving&&navigator.sendBeacon){navigator.sendBeacon('/api/videos/watch-progress',new Blob([body],{type:'application/json'}));return;}
+    fetch('/api/videos/watch-progress',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body,keepalive:true})
+      .then(r=>r.json()).then(d=>{if(d.success&&stillHere())renderWatchProgress(d.record);}).catch(()=>{});
+  };
+  video.addEventListener('timeupdate',trackTime);
+  video.addEventListener('seeking',()=>{lastT=null;});
+  video.addEventListener('pause',()=>flushProgress(false));
+  video.addEventListener('ended',()=>flushProgress(false));
+  const sendTimer=setInterval(()=>{if(!video.paused)flushProgress(false);},15000);
+  const onVisibility=()=>{if(document.visibilityState==='hidden')flushProgress(true);};
+  const onPageHide=()=>flushProgress(true);
+  document.addEventListener('visibilitychange',onVisibility);
+  window.addEventListener('pagehide',onPageHide);
+  ST.vpProgressCleanup=()=>{clearInterval(sendTimer);document.removeEventListener('visibilitychange',onVisibility);window.removeEventListener('pagehide',onPageHide);flushProgress(true);};
+
+  // 이어보기 + 현재 상태 표시. 영상 정보가 먼저 준비돼 있으면 바로 위치를 옮긴다.
+  fetch('/api/videos/watch-mine?videoIds='+encodeURIComponent(videoId),{credentials:'include'})
+    .then(r=>r.json()).then(d=>{
+      if(!stillHere())return;
+      const rec=d.success?d.statuses[videoId]:null;
+      renderWatchProgress(rec);
+      const p=rec?.progress;
+      if(p&&p.lastPositionSec>5&&p.durationSec-p.lastPositionSec>10){
+        if(video.readyState>=1)video.currentTime=p.lastPositionSec;else resumeAt=p.lastPositionSec;
+      }
+    }).catch(()=>{});
 
   wrap.addEventListener('contextmenu',e=>e.preventDefault());
   // 네 모서리만 돌아가며 표시 — 가운데로 튀지 않아 덜 거슬리고, 녹화본 테두리를 잘라내도 어느 한
@@ -861,36 +901,19 @@ function wirePlayer(){
     .catch(e=>{if(stillHere())showPlayerError(e.message);});
 }
 
-// 실제 재생 이벤트를 아직 못 잡는 동안의 임시 시청확인 — "학생 확인"이라고 명확히
-// 표시해서 선생님이 진짜 재생 기록으로 오해하지 않게 한다.
-function watchStatusHtml(status){
-  if(status?.status==='self_confirmed'){
-    return`<div style="background:var(--lightbg);border:1px solid var(--border);border-radius:12px;padding:14px 16px;font-size:13px;color:var(--navy-soft)">✓ 학생 확인 완료 (${esc((status.completedAt||'').slice(0,10))}) · 선생님이 확인한 기록은 아니에요</div>`;
-  }
-  if(status?.status==='teacher_confirmed'){
-    return`<div style="background:#E0F2E9;border:1px solid #B9E4CE;border-radius:12px;padding:14px 16px;font-size:13px;color:#00695C">✓ 선생님 확인 완료</div>`;
-  }
-  return`<button class="btn btn-block" id="btn-watch-confirm">✓ 다 봤어요 (학생 확인)</button>`;
+// 자동 기록 표시 — "재생 기준"임을 문구에 남긴다. 선생님 정정값이 항상 우선.
+function watchProgressHtml(rec){
+  const box=(bg,bd,fg,text)=>`<div style="background:${bg};border:1px solid ${bd};border-radius:12px;padding:14px 16px;font-size:13px;color:${fg}">${text}</div>`;
+  if(rec?.status==='teacher_confirmed')return box('#E0F2E9','#B9E4CE','#00695C','✓ 선생님 확인 완료');
+  if(rec?.status==='exempt')return box('var(--lightbg)','var(--border)','var(--navy-soft)','선생님이 시청 제외로 처리한 영상이에요');
+  if(rec?.status==='auto_completed')return box('#E0F2E9','#B9E4CE','#00695C','✓ 재생 완료 (90% 이상)');
+  const p=rec?.progress;
+  if(p&&p.durationSec)return box('var(--lightbg)','var(--border)','var(--navy-soft)',`재생 기준 ${Math.round((p.ratio||0)*100)}% 시청`);
+  return'';
 }
-async function loadAndRenderWatchStatus(videoId){
+function renderWatchProgress(rec){
   const wrap=document.getElementById('watch-status-wrap');
-  if(!wrap)return;
-  try{
-    const res=await fetch('/api/videos/watch-mine?videoIds='+encodeURIComponent(videoId),{credentials:'include'});
-    const d=await res.json();
-    const status=d.success?d.statuses[videoId]:null;
-    wrap.innerHTML=watchStatusHtml(status);
-    document.getElementById('btn-watch-confirm')?.addEventListener('click',async()=>{
-      const btn=document.getElementById('btn-watch-confirm');
-      btn.disabled=true;btn.textContent='저장 중...';
-      try{
-        const r=await fetch('/api/videos/watch-confirm',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({videoId})});
-        const dd=await r.json();
-        if(dd.success)wrap.innerHTML=watchStatusHtml(dd.record);
-        else{btn.disabled=false;btn.textContent='✓ 다 봤어요 (학생 확인)';}
-      }catch(e){btn.disabled=false;btn.textContent='✓ 다 봤어요 (학생 확인)';}
-    });
-  }catch(e){}
+  if(wrap)wrap.innerHTML=watchProgressHtml(rec);
 }
 
 async function loadReviews(){
@@ -1081,7 +1104,7 @@ function wireStudentLogin(){
 function wireApp(){
   document.getElementById('btn-logout')?.addEventListener('click',doLogout);
   document.getElementById('btn-back')?.addEventListener('click',()=>{ST.screen='list';ST.active=null;render();});
-  if(ST.screen==='player'&&ST.active){loadAndRenderWatchStatus(ST.active.id);wirePlayer();}
+  if(ST.screen==='player'&&ST.active)wirePlayer();
   document.querySelectorAll('[data-vid]').forEach(card=>{
     card.addEventListener('click',()=>{
       const v=(ST.videos||[]).find(x=>x.id===card.dataset.vid);

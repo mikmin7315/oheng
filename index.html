@@ -4584,6 +4584,53 @@ function fmtVideoPeriod(v){
   return`${sd(f)} ~`;
 }
 
+// 영상별 학생 시청 현황 — 현재 선택된 학교의 활성 학생 기준. 자동 기록은 "재생 완료/N%"로만 쓰고,
+// 빠른 진행 의심은 "확인 필요"로 표시해 선생님이 판단하게 한다.
+async function renderVideoWatch(videoId,sc){
+  const panel=document.getElementById('video-watch-panel');
+  if(!panel)return;
+  const students=sc.students||[];
+  if(!students.length){panel.innerHTML='<span style="color:#9BA3AF">이 학교에 학생이 없습니다</span>';return;}
+  try{
+    const res=await fetch(`/api/videos/watch-admin-list?videoId=${encodeURIComponent(videoId)}&schoolId=${encodeURIComponent(sc.id)}&studentIds=${encodeURIComponent(students.map(s=>s.id).join(','))}`,{credentials:'include'});
+    const d=await res.json();
+    if(!d.success){panel.innerHTML=`<span style="color:#E53935">${esc(d.message||'불러오지 못했습니다')}</span>`;return;}
+    const rows=students.map(s=>{
+      const rec=d.statuses[s.id];const p=rec?.progress;
+      const pct=Math.round(((p?.ratio)||0)*100);
+      let label,color;
+      if(rec?.status==='teacher_confirmed'){label='선생님 확인';color='#00695C';}
+      else if(rec?.status==='exempt'){label='제외';color='#9BA3AF';}
+      else if(rec?.status==='auto_completed'){label='재생 완료';color='#00897B';}
+      else if(rec?.status==='self_confirmed'){label='학생 확인';color='#5C6470';}
+      else if(p){label=`${pct}% 시청`;color='#1E40AF';}
+      else{label='미시청';color='#9BA3AF';}
+      const warn=(p?.flags||[]).includes('fast_progress')?`<span style="margin-left:6px;font-size:10.5px;font-weight:700;color:#E65100;background:#FFF3E0;border-radius:20px;padding:2px 7px">확인 필요</span>`:'';
+      const last=p?.updatedAt?p.updatedAt.slice(0,10):'';
+      return`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #EEF0F3">
+        <span style="font-weight:700;color:#1A237E;min-width:64px">${esc(s.name)}</span>
+        <span style="flex:1;color:${color};font-weight:700">${label}${warn}</span>
+        <span style="color:#9BA3AF;font-size:11px;white-space:nowrap">${last}</span>
+        <button data-watch-set="${s.id}|teacher_confirmed" style="padding:3px 8px;background:#E0F2E9;color:#00695C;border:none;border-radius:6px;font-size:11px;cursor:pointer">확인</button>
+        <button data-watch-set="${s.id}|exempt" style="padding:3px 8px;background:#F1F3F5;color:#5C6470;border:none;border-radius:6px;font-size:11px;cursor:pointer">제외</button>
+      </div>`;
+    }).join('');
+    panel.innerHTML=`<div style="font-size:11px;color:#9BA3AF;margin-bottom:6px">재생 완료 = 재생기 기준 90% 이상. 실제로 봤는지는 알 수 없으니 "확인 필요"는 직접 판단해주세요.</div>${rows}`;
+    panel.querySelectorAll('[data-watch-set]').forEach(b=>{
+      b.onclick=async()=>{
+        const[studentId,status]=b.dataset.watchSet.split('|');
+        b.disabled=true;
+        try{
+          const r=await fetch('/api/videos/watch-admin-set',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({schoolId:sc.id,studentId,videoId,status})});
+          const dd=await r.json();
+          if(!r.ok||!dd.success){alert(dd.message||'저장 실패');b.disabled=false;return;}
+        }catch(e){alert('오류: '+e.message);b.disabled=false;return;}
+        renderVideoWatch(videoId,sc);
+      };
+    });
+  }catch(e){panel.innerHTML='<span style="color:#E53935">불러오지 못했습니다</span>';}
+}
+
 function rVideos(sc){
   const MONTHS=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];const WEEKS=['1주','2주','3주','4주','5주'];
   if(ST.videos===undefined){
@@ -4676,11 +4723,12 @@ function rVideos(sc){
       <td style="padding:10px 12px;text-align:center">${v.dropboxPath?'<span style="color:#00897B;font-weight:700">드롭박스</span>':v.mediaKey?'<span style="color:#5C6470;font-weight:700">키 있음</span>':'<span style="color:#9BA3AF">미등록</span>'}</td>
       <td style="padding:10px 12px;text-align:center;color:#5C6470">${allowCount}개 학교${excCount?` · 예외 ${excCount}명`:''}</td>
       <td style="padding:10px 12px;text-align:center;white-space:nowrap">
+        <button data-video-watch="${v.id}" style="padding:4px 9px;background:#E0F2E9;color:#00695C;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;margin-right:4px">시청 현황</button>
         <button data-video-exc="${v.id}" style="padding:4px 9px;background:#EEF0FB;color:#1A237E;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;margin-right:4px">학생 예외</button>
         <button data-video-edit="${v.id}" style="padding:4px 9px;background:#EEF0FB;color:#1A237E;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;margin-right:4px">수정</button>
         <button data-video-del="${v.id}" style="padding:4px 9px;background:#FFEBEE;color:#E53935;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">삭제</button>
       </td>
-    </tr>`;}).join('');
+    </tr>${ST.videoWatchId===v.id?`<tr><td colspan="5" style="padding:0 12px 14px"><div id="video-watch-panel" style="background:#F7F8FA;border-radius:10px;padding:12px 14px;font-size:12.5px;color:#12151C">불러오는 중...</div></td></tr>`:''}`;}).join('');
 
   return`
   <div class="section-card">
@@ -5324,6 +5372,10 @@ function bAdmin(){
         render();
       };
     });
+    document.querySelectorAll('[data-video-watch]').forEach(b=>{
+      b.onclick=()=>{ST.videoWatchId=ST.videoWatchId===b.dataset.videoWatch?null:b.dataset.videoWatch;render();};
+    });
+    if(ST.videoWatchId)renderVideoWatch(ST.videoWatchId,sc);
     document.querySelectorAll('[data-video-exc]').forEach(b=>{
       b.onclick=()=>{ST.videoExceptionId=b.dataset.videoExc;render();};
     });

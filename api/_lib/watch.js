@@ -8,6 +8,9 @@ import { getRedis } from './redis.js';
 // status: 'opened' | 'self_confirmed'(옛 자기확인, 더 이상 생성 안 함) | 'auto_completed' | 'teacher_confirmed' | 'exempt'
 // source: 'student' | 'player' | 'teacher' (누가 이 상태를 만들었는지 — 화면에 "학생 확인"과
 //         "선생님 확인"을 구분해서 보여줘야 하므로 절대 하나로 뭉치지 않는다)
+// progress.durationSec은 이후 보고에서 줄어들지 않는다(이전 값과 비교해 큰 쪽을 사용) — 서버는 실제
+// 영상 길이를 알지 못해 클라이언트 보고에 의존하므로, 5% 넘게 어긋나면 duration_mismatch로 표시만
+// 하고 저장은 한다; 최초 보고 값 자체의 조작은 막지 못하는 "재생기 기준" 한계로 받아들인다.
 
 // 자동 시청 기록. 재생기가 보낸 "실제 재생한 구간"을 서버가 병합·재계산한다 — 클라이언트가 보낸
 // 합계는 믿지 않는다. 90% 이상이면 auto_completed. 선생님이 정정한 값(source:'teacher')은 절대 덮지
@@ -57,20 +60,24 @@ export async function recordProgress(ownerType, ownerId, videoId, input, now = D
   const key = watchKey(ownerType, ownerId, videoId);
   const existing = await redis.get(key);
   const prev = existing?.progress || null;
-  const segments = mergeSegments([...(prev?.segments || []), ...incoming], durationSec).slice(0, MAX_SEGMENTS);
+  // 길이는 이전 값보다 줄지 않는다 — 나중 보고의 durationSec이 더 작아도 기존 길이를 유지한다.
+  const effectiveDuration = prev ? Math.max(prev.durationSec, durationSec) : durationSec;
+  const segments = mergeSegments([...(prev?.segments || []), ...incoming], effectiveDuration).slice(0, MAX_SEGMENTS);
   const watchedSec = sumSegments(segments);
-  const ratio = Math.min(1, Math.round((watchedSec / durationSec) * 100) / 100);
+  const ratio = Math.min(1, Math.round((watchedSec / effectiveDuration) * 100) / 100);
 
   // 증가 속도 검사 — 2배속 재생 + 시계 오차를 넘는 증가는 의심 표시만 하고 저장은 한다(정상 기록을 잃지 않게).
   const flags = new Set(prev?.flags || []);
   if (prev) {
     const elapsedSec = Math.max(0, (now - Date.parse(prev.updatedAt)) / 1000);
     if (watchedSec - (prev.watchedSec || 0) > elapsedSec * 2.5 + 30) flags.add('fast_progress');
+    if (Math.abs(durationSec - prev.durationSec) > prev.durationSec * 0.05) flags.add('duration_mismatch');
   }
 
   const nowIso = new Date(now).toISOString();
-  const lastPositionSec = Math.min(durationSec, Math.max(0, Math.floor(Number(input?.lastPositionSec)) || 0));
-  const progress = { durationSec, segments, watchedSec, ratio, lastPositionSec, flags: [...flags], firstAt: prev?.firstAt || nowIso, updatedAt: nowIso };
+  const rawLastPosition = Math.floor(Number(input?.lastPositionSec));
+  const lastPositionSec = Math.min(effectiveDuration, Math.max(0, Number.isFinite(rawLastPosition) ? rawLastPosition : (prev?.lastPositionSec || 0)));
+  const progress = { durationSec: effectiveDuration, segments, watchedSec, ratio, lastPositionSec, flags: [...flags], firstAt: prev?.firstAt || nowIso, updatedAt: nowIso };
 
   const teacherSet = existing?.source === 'teacher';
   const completed = ratio >= WATCH_COMPLETE_RATIO;
@@ -123,6 +130,7 @@ export async function selfConfirmWatch(ownerType, ownerId, videoId) {
     completedAt: now,
     updatedAt: now,
     history: existing?.history || [],
+    progress: existing?.progress || null,
   };
   await redis.set(key, record);
   return record;

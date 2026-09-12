@@ -30,6 +30,8 @@ test('recordProgress: 구간을 누적 병합하고 시청 시간은 서버가 �
   assert.deepEqual(r2.progress.segments, [[0, 50]]);
   assert.equal(r2.progress.watchedSec, 50);
   assert.equal(r2.progress.firstAt, r1.progress.firstAt);
+  const r3 = await watch.recordProgress('student', 'sch:stu', 'v1', { durationSec: 100, segments: [[50, 55]] }, t0 + 30000);
+  assert.equal(r3.progress.lastPositionSec, 50);
 });
 
 test('recordProgress: 90% 이상이면 auto_completed/player, 미만이면 유지', async () => {
@@ -64,16 +66,56 @@ test('teacherSetWatchStatus: 기존 progress를 지우지 않는다', async () =
   assert.equal(r.progress.watchedSec, 40);
 });
 
+test('selfConfirmWatch: 기존 progress를 지우지 않는다', async () => {
+  const t0 = Date.parse('2026-09-12T13:00:00Z');
+  await watch.recordProgress('student', 'sch:stu', 'v9', { durationSec: 100, segments: [[0, 40]] }, t0);
+  const r = await watch.selfConfirmWatch('student', 'sch:stu', 'v9');
+  assert.equal(r.status, 'self_confirmed');
+  assert.equal(r.source, 'student');
+  assert.equal(r.progress.watchedSec, 40);
+});
+
+test('recordProgress: 레거시 self_confirmed는 90% 미만에서 유지되고 이상이면 auto_completed로 바뀐다', async () => {
+  const t0 = Date.parse('2026-09-12T14:00:00Z');
+  await watch.selfConfirmWatch('student', 'sch:stu', 'v10');
+  const a = await watch.recordProgress('student', 'sch:stu', 'v10', { durationSec: 100, segments: [[0, 40]] }, t0);
+  assert.equal(a.status, 'self_confirmed');
+  assert.equal(a.source, 'student');
+  const b = await watch.recordProgress('student', 'sch:stu', 'v10', { durationSec: 100, segments: [[40, 95]] }, t0 + 5000);
+  assert.equal(b.status, 'auto_completed');
+  assert.equal(b.source, 'player');
+});
+
 test('recordProgress: 너무 빠른 증가는 fast_progress 플래그 (저장은 함)', async () => {
   const t0 = Date.parse('2026-09-12T12:00:00Z');
   await watch.recordProgress('student', 'sch:stu', 'v6', { durationSec: 3600, segments: [[0, 10]] }, t0);
   const r = await watch.recordProgress('student', 'sch:stu', 'v6', { durationSec: 3600, segments: [[10, 2000]] }, t0 + 10000);
   assert.ok(r.progress.flags.includes('fast_progress'));
   assert.equal(r.progress.watchedSec, 2000);
-  const ok = await watch.recordProgress('student', 'sch:stu', 'v7', { durationSec: 3600, segments: [[0, 10]] }, t0);
+  const r3 = await watch.recordProgress('student', 'sch:stu', 'v6', { durationSec: 3600, segments: [[2000, 2020]] }, t0 + 30000);
+  assert.equal(r3.progress.flags.filter(f => f === 'fast_progress').length, 1);
+  await watch.recordProgress('student', 'sch:stu', 'v7', { durationSec: 3600, segments: [[0, 10]] }, t0);
   const ok2 = await watch.recordProgress('student', 'sch:stu', 'v7', { durationSec: 3600, segments: [[10, 40]] }, t0 + 15000);
   assert.deepEqual(ok2.progress.flags, []);
-  void ok;
+});
+
+test('recordProgress: 이후 보고의 길이가 더 작아도 줄어들지 않고 duration_mismatch로 표시된다', async () => {
+  const t0 = Date.parse('2026-09-12T15:00:00Z');
+  const a = await watch.recordProgress('student', 'sch:stu', 'v11', { durationSec: 600, segments: [[0, 60]] }, t0);
+  assert.equal(a.progress.durationSec, 600);
+  assert.equal(a.progress.ratio, 0.1);
+  const b = await watch.recordProgress('student', 'sch:stu', 'v11', { durationSec: 100, segments: [[60, 70]] }, t0 + 5000);
+  assert.equal(b.progress.durationSec, 600);
+  assert.equal(b.progress.ratio, 0.12);
+  assert.equal(b.status, 'opened');
+  assert.ok(b.progress.flags.includes('duration_mismatch'));
+});
+
+test('recordProgress: 길이가 같으면 duration_mismatch가 붙지 않는다', async () => {
+  const t0 = Date.parse('2026-09-12T16:00:00Z');
+  await watch.recordProgress('student', 'sch:stu', 'v12', { durationSec: 600, segments: [[0, 60]] }, t0);
+  const b = await watch.recordProgress('student', 'sch:stu', 'v12', { durationSec: 600, segments: [[60, 70]] }, t0 + 5000);
+  assert.ok(!b.progress.flags.includes('duration_mismatch'));
 });
 
 test('recordProgress: 잘못된 길이·구간은 BAD_INPUT', async () => {

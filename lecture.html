@@ -875,7 +875,7 @@ function wirePlayer(){
       renderWatchProgress(rec);
       const p=rec?.progress;
       if(p&&p.lastPositionSec>5&&p.durationSec-p.lastPositionSec>10){
-        if(video.readyState>=1)video.currentTime=p.lastPositionSec;else resumeAt=p.lastPositionSec;
+        if(video.readyState>=1){if(video.paused&&video.currentTime<5)video.currentTime=p.lastPositionSec;}else resumeAt=p.lastPositionSec;
       }
     }).catch(()=>{});
 
